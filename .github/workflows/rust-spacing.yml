@@ -1,0 +1,54 @@
+name: Rust spacing
+
+on:
+  push:
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "scripts/*spacing.py"
+      - ".github/workflows/rust-spacing.yml"
+  pull_request:
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "scripts/*spacing.py"
+      - ".github/workflows/rust-spacing.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-spacing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spacing:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install workspace Rust
+        run: rustup toolchain install
+      - name: Check formatting
+        run: cargo fmt --all --check
+      - name: Test spacing checker
+        run: python3 -m unittest discover -s scripts -p test_spacing.py -v
+      - name: Install spacing toolchain
+        run: |
+          rustup toolchain install nightly-2026-08-20 --profile minimal --component rustc-dev,llvm-tools-preview,rust-src,rustfmt --target x86_64-pc-windows-gnu,x86_64-unknown-linux-gnu
+          cargo +nightly-2026-08-20 install cargo-dylint dylint-link --version 6.2.0 --locked
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          shared-key: spacing-nightly-2026-08-20
+      - name: Check every workspace crate
+        run: python3 scripts/check_spacing.py

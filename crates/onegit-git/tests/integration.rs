@@ -12,6 +12,7 @@ use onegit_git::{
     IntegrationKind, IntegrationRequest, MergeOptions, OperationState, RebaseOptions, Repository,
     WritePhase,
 };
+
 #[cfg(unix)]
 use onegit_git::{GitProcess, RepositoryCoordinator};
 

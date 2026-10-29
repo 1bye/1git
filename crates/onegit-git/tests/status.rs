@@ -363,11 +363,13 @@ impl Fixture {
 fn status_keeps_reserved_colon_and_literal_backslash_git_names() {
     let status =
         parse_status(b"? aux.c\0? a:b\0? folder\\file\0? folder/file\0! ignored/\0").unwrap();
+
     let names: Vec<_> = status
         .files
         .iter()
         .map(|change| change.path.as_bytes())
         .collect();
+
     assert_eq!(
         names,
         vec![
@@ -389,12 +391,15 @@ fn non_utf8_name_round_trips_from_status_to_staging() {
 
     let fixture = Fixture::new();
     let name = b"literal\\non-utf8-\xff";
+
     fixture.write("blob-source", "exact contents\n");
     let oid = fixture.git(&["hash-object", "-w", "blob-source"]);
+
     fs::remove_file(fixture.root.join("blob-source")).unwrap();
     let oid = std::str::from_utf8(&oid).unwrap().trim();
     let index_info = [format!("100644 {oid}\t").as_bytes(), name, b"\0"].concat();
     let mut command = GitCommand::new(&fixture.root, ["update-index", "-z", "--index-info"]);
+
     command.stdin = &index_info;
     fixture.process().run(command).unwrap();
     // APFS refuses non-UTF-8 filesystem names. A real committed Git index name
@@ -402,6 +407,7 @@ fn non_utf8_name_round_trips_from_status_to_staging() {
     fixture.git(&["commit", "-m", "raw-byte tree name"]);
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
     let snapshot = repository.snapshot(false, None).unwrap();
+
     let path = snapshot
         .status
         .files
@@ -410,6 +416,7 @@ fn non_utf8_name_round_trips_from_status_to_staging() {
         .unwrap()
         .path
         .clone();
+
     assert_eq!(path.to_str(), None);
     assert_eq!(
         snapshot.status.files[0].worktree_status,
@@ -424,9 +431,11 @@ fn non_utf8_name_round_trips_from_status_to_staging() {
     let committed = repository
         .file_content(FileSource::Revision("HEAD"), &path, None)
         .unwrap();
+
     assert_eq!(committed.path, path);
     assert_eq!(committed.content.as_bytes(), b"exact contents\n");
     let snapshot = repository.snapshot(false, None).unwrap();
+
     assert_eq!(snapshot.status.files.len(), 1);
     assert_eq!(snapshot.status.files[0].path, path);
     assert_eq!(snapshot.status.files[0].index_status, FileStatus::Deleted);

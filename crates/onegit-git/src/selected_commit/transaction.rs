@@ -238,6 +238,7 @@ impl Repository {
                 input.partial_files.iter().map(|file| &file.path).collect();
 
             let requested: HashSet<_> = paths.iter().collect();
+
             let stage_paths: Vec<_> = snapshot
                 .status
                 .files
@@ -339,6 +340,7 @@ impl Repository {
 
             let pathspecs =
                 crate::git_path::pathspec_list(&selected).map_err(|error| before(error.into()))?;
+
             file.write_all(&pathspecs)
                 .map_err(|error| before(error.into()))?;
             drop(file);
@@ -386,6 +388,7 @@ impl Repository {
             let output_observer = |_, bytes: &[u8]| {
                 crate::progress::commit_event(observer, crate::CommitPhase::Committing, Some(bytes))
             };
+
             match self.commit_run_observed(
                 args,
                 Some(&commit_index),
@@ -607,6 +610,7 @@ fn validate(input: &CommitFiles) -> Result<Vec<GitPath>, CommitError> {
                 if !matches!(error, RepositoryError::InvalidPath) {
                     return Err(before(error));
                 }
+
                 return Err(CommitError::invalid(
                     ErrorCode::InvalidPath,
                     &format!(
@@ -708,9 +712,11 @@ fn selected_paths(
     }
 
     let mut changed = HashMap::with_capacity(snapshot.status.files.len());
+
     for file in &snapshot.status.files {
         changed.entry(&file.path).or_insert(file);
     }
+
     let mut selected = Vec::with_capacity(paths.len());
     let mut seen = HashSet::with_capacity(paths.len());
 

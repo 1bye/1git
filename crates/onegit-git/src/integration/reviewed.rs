@@ -447,7 +447,9 @@ impl Repository {
             loop {
                 let ancestor = GitPath::new(bytes)
                     .map_err(|_| invalid("Git returned invalid integration history paths."))?;
+
                 let native = ancestor.to_native().map_err(|error| before(error.into()))?;
+
                 match fs::symlink_metadata(self.info.root.join(native)) {
                     Ok(metadata) if &ancestor == candidate || !metadata.is_dir() => {
                         existing.insert(ancestor);
@@ -464,6 +466,7 @@ impl Repository {
                 let Some(end) = bytes.iter().rposition(|byte| *byte == b'/') else {
                     break;
                 };
+
                 bytes = &bytes[..end];
             }
         }
@@ -502,6 +505,7 @@ impl Repository {
             for path in &existing[start..end] {
                 args.push(path.to_argument().map_err(|error| before(error.into()))?);
             }
+
             let output = self.run(args, cancellation).map_err(before)?;
 
             if !output.stdout.is_empty() {

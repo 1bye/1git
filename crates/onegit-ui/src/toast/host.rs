@@ -3,9 +3,11 @@ use super::{
     motion::MovingCard,
     state::{Config, Entry},
 };
+
 use crate::{
     Button, ButtonVariant, ControlSize, Icon, IconButton, IconName, Text, TextTone, Theme, overlay,
 };
+
 use rake::gpui::{self, accesskit, prelude::*, px};
 
 /// Window overlay for one retained notification state. Mount once alongside dialog layers.
@@ -23,6 +25,7 @@ pub struct ToastHost {
     /// Preferred card width; clamped to the window with 16-pixel margins.
     pub width: gpui::Pixels,
 }
+
 impl ToastHost {
     /// Create a bottom-right host with 340-pixel cards and active interaction.
     #[must_use]
@@ -40,15 +43,18 @@ impl ToastHost {
         }
     }
 }
+
 struct Mount {
     state: gpui::WeakEntity<ToastState>,
     window: gpui::AnyWindowHandle,
     id: gpui::EntityId,
     _subscription: gpui::Subscription,
 }
+
 impl RenderOnce for ToastHost {
     fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
         let state = self.state.clone();
+
         let mount = window.use_keyed_state(self.id, cx, move |window, cx| {
             cx.on_release(|mount: &mut Mount, cx| {
                 let _ = mount.window.update(cx, |_, window, cx| {
@@ -59,6 +65,7 @@ impl RenderOnce for ToastHost {
             })
             .detach();
             let subscription = cx.observe(&state, |_, _, cx| cx.notify());
+
             Mount {
                 state: state.downgrade(),
                 window: window.window_handle(),
@@ -66,6 +73,7 @@ impl RenderOnce for ToastHost {
                 _subscription: subscription,
             }
         });
+
         self.state.update(cx, |state, cx| {
             state.configure(
                 Config {
@@ -78,11 +86,14 @@ impl RenderOnce for ToastHost {
                 cx,
             )
         });
+
         if self.state.read(cx).is_empty() && self.state.read(cx).exiting.is_empty() {
             return gpui::Empty.into_any_element();
         }
+
         overlay::floating(Default::default(), move |_, window, _| {
             let viewport = window.viewport_size();
+
             gpui::div()
                 .absolute()
                 .left_0()
@@ -100,6 +111,7 @@ impl RenderOnce for ToastHost {
         .into_any_element()
     }
 }
+
 impl Render for ToastState {
     fn render(
         &mut self,
@@ -107,6 +119,7 @@ impl Render for ToastState {
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
         let focused = self.focus.contains_focused(window, cx);
+
         self.sync_focus(focused, cx);
         self.remember_focus(window, cx);
         let config = self
@@ -114,18 +127,22 @@ impl Render for ToastState {
             .as_ref()
             .expect("ToastState renders through a ToastHost")
             .clone();
+
         let key = cx.entity();
+
         let mut entries: Vec<_> = self
             .entries
             .iter()
             .map(|entry| (entry, false))
             .chain(self.exiting.iter().map(|(entry, _)| (entry, true)))
             .collect();
+
         entries.sort_by_key(|(entry, _)| entry.id);
         let items: Vec<_> = entries
             .into_iter()
             .map(|(entry, exiting)| self.card(entry, exiting, &config, cx))
             .collect();
+
         gpui::div()
             .id("notifications")
             .track_focus(&self.focus)
@@ -150,6 +167,7 @@ impl Render for ToastState {
                         .iter()
                         .find(|entry| entry.focus.contains_focused(window, cx))
                         .map(|entry| entry.id);
+
                     if let Some(id) = id {
                         key.update(cx, |state, cx| {
                             state.dismiss(id, window, cx);
@@ -174,24 +192,29 @@ impl ToastState {
         let theme = Theme::current();
         let id = entry.id;
         let error = entry.toast.kind == ToastKind::Error;
+
         let (icon, tone) = match entry.toast.kind {
             ToastKind::Success => (IconName::Check, TextTone::Success),
             ToastKind::Error => (IconName::Alert, TextTone::Danger),
             ToastKind::Progress => (IconName::Working, TextTone::Accent),
         };
+
         let dragging = self.dragging(id);
         let dismiss = cx.entity();
         let action = cx.entity();
         let description = entry.toast.description.clone();
+
         let announcement = description.as_ref().map_or_else(
             || entry.toast.title.to_string(),
             |text| format!("{}: {text}", entry.toast.title),
         );
+
         let exit_height = entry
             .presentation
             .borrow()
             .bounds
             .map(|bounds| bounds.size.height);
+
         let card = rake::view! {
             <div id="surface" role={if exiting {accesskit::Role::Group} else if error {accesskit::Role::Alert} else {accesskit::Role::Status}}
                 aria-label={announcement} class="flex flex-row items-start gap-2 p-3 border-1 rounded-control shrink-0 min-w-0"
@@ -226,7 +249,9 @@ impl ToastState {
                 }
             </div>
         };
+
         let start = cx.entity();
+
         let child = gpui::div()
             .id("gesture")
             .debug_selector(move || format!("toast-{id:?}"))
@@ -252,6 +277,7 @@ impl ToastState {
             })
             .child(card)
             .into_any_element();
+
         MovingCard {
             id: id.element(),
             toast: id,

@@ -21,6 +21,17 @@ Use Oxlint for linting and Oxfmt for formatting. Read the installed workflow gui
 - The desktop profile in `.agents/workflow/stacks.md` is a generic template;
   the actual native runtime above takes precedence for this repository.
 
+## Rust workspace
+
+- Stable builds use the root `rust-toolchain.toml`; keep spacing's nightly separate.
+- Logical spacing uses the pinned `workflow_spacing` Dylint library in root
+  `Cargo.toml`. Run `python3 scripts/check_spacing.py` for all workspace crates,
+  targets and features, plus Windows/Linux Git code; run it with `--fix` to apply
+  suggestions and recheck.
+- Run `cargo fmt --all` after fixes. Do not suppress spacing diagnostics to pass
+  checks. The checker fails on spacing warnings even when Cargo exits successfully.
+- Setup and exact tool versions are in [the Rust guide](docs/RUST.md).
+
 ## Changesets and releases
 
 - For each releasable bug fix, feature, performance improvement, or breaking

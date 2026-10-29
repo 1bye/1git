@@ -2,6 +2,7 @@
 mod host;
 mod motion;
 mod state;
+
 pub use host::ToastHost;
 use rake::gpui::{self, SharedString};
 pub use state::{ToastId, ToastState};
@@ -17,6 +18,7 @@ pub enum ToastKind {
     /// An operation is in progress; applications update the same toast when it finishes.
     Progress,
 }
+
 /// Expiration policy, paused during user interaction, inactive windows and modal dialogs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToastLifetime {
@@ -25,8 +27,10 @@ pub enum ToastLifetime {
     /// Expire after this much active, uninterrupted display time.
     Timed(Duration),
 }
+
 /// Application-owned recovery callback, invoked after its notification is removed.
 pub type ToastActionHandler = Box<dyn Fn(&mut gpui::Window, &mut gpui::App)>;
+
 /// Optional recovery action. The toast is removed before the callback runs.
 pub struct ToastAction {
     /// Visible and accessible action label.
@@ -34,6 +38,7 @@ pub struct ToastAction {
     /// Application-owned callback; it may publish another toast.
     pub on_press: ToastActionHandler,
 }
+
 impl ToastAction {
     /// Create a labeled action; callbacks never run on expiration or dismissal.
     #[must_use]
@@ -47,6 +52,7 @@ impl ToastAction {
         }
     }
 }
+
 impl std::fmt::Debug for ToastAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ToastAction")
@@ -54,6 +60,7 @@ impl std::fmt::Debug for ToastAction {
             .finish_non_exhaustive()
     }
 }
+
 /// Reusable notification content. Publish through [`ToastState::show`] and update by [`ToastId`].
 #[derive(Debug)]
 pub struct Toast {
@@ -68,6 +75,7 @@ pub struct Toast {
     /// Success defaults to five seconds; error and progress default to persistent.
     pub lifetime: ToastLifetime,
 }
+
 impl Toast {
     /// Create notification content with a sensible lifetime for its kind.
     #[must_use]

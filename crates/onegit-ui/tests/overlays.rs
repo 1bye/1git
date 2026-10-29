@@ -2,7 +2,9 @@
 use onegit_ui::{Button, ControlState, DropdownMenu, MenuEntry, MenuItem, Theme, Tooltip};
 use rake::gpui::{self, InputEvent as _, prelude::*, px};
 use std::time::Duration;
+
 rake::theme!(Theme);
+
 struct Workbench {
     root: gpui::FocusHandle,
     show: bool,
@@ -11,6 +13,7 @@ struct Workbench {
     after: usize,
     entries: Vec<MenuEntry>,
 }
+
 impl Render for Workbench {
     fn render(&mut self, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
         rake::view! {
@@ -27,13 +30,17 @@ impl Render for Workbench {
         }
     }
 }
+
 fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Workbench>) {
     let mut cx = gpui::TestAppContext::single();
+
     cx.update(|cx| Theme::dark().install(cx));
     let view = cx.open_window(gpui::size(px(500.), px(400.)), |window, cx| {
         let root = cx.focus_handle();
+
         window.focus(&root, cx);
         window.activate_window();
+
         Workbench {
             root,
             show: true,
@@ -57,20 +64,26 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Workbench>) {
             ],
         }
     });
+
     draw(&mut cx, view);
+
     (cx, view)
 }
+
 fn draw(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workbench>) {
     for _ in 0..2 {
         cx.run_until_parked();
         cx.update_window(view.into(), |_, window, cx| window.draw(cx).clear(cx))
             .unwrap();
     }
+
     cx.run_until_parked();
 }
+
 fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workbench>, value: &str) {
     cx.update_window(view.into(), |_, window, cx| {
         let keystroke = gpui::Keystroke::parse(value).unwrap();
+
         window.dispatch_event(
             gpui::KeyDownEvent {
                 keystroke: keystroke.clone(),
@@ -85,9 +98,11 @@ fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workbench>, value
     .unwrap();
     draw(cx, view);
 }
+
 fn click(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workbench>, x: f32, y: f32) {
     cx.update_window(view.into(), |_, window, cx| {
         let position = gpui::point(px(x), px(y));
+
         window.dispatch_event(
             gpui::MouseMoveEvent {
                 position,
@@ -122,15 +137,18 @@ fn click(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workbench>, x: 
     .unwrap();
     draw(cx, view);
 }
+
 fn selected(
     cx: &gpui::TestAppContext,
     view: gpui::WindowHandle<Workbench>,
 ) -> Vec<gpui::ElementId> {
     view.read_with(cx, |v, _| v.selected.clone()).unwrap()
 }
+
 #[test]
 fn keyboard_skips_disabled_entries_activates_once_and_restores_trigger() {
     let (mut cx, v) = setup();
+
     key(&mut cx, v, "tab");
     key(&mut cx, v, "enter");
     key(&mut cx, v, "down");
@@ -145,9 +163,11 @@ fn keyboard_skips_disabled_entries_activates_once_and_restores_trigger() {
     key(&mut cx, v, "enter");
     assert_eq!(selected(&cx, v).last(), Some(&"main".into()));
 }
+
 #[test]
 fn typeahead_cycles_matches_and_resets_after_a_pause() {
     let (mut cx, v) = setup();
+
     key(&mut cx, v, "tab");
     key(&mut cx, v, "down");
     key(&mut cx, v, "f");
@@ -166,9 +186,11 @@ fn typeahead_cycles_matches_and_resets_after_a_pause() {
     key(&mut cx, v, "enter");
     assert_eq!(selected(&cx, v).last(), Some(&"main".into()));
 }
+
 #[test]
 fn escape_tab_and_disabled_triggers_never_activate_a_menu_item() {
     let (mut cx, v) = setup();
+
     key(&mut cx, v, "tab");
     key(&mut cx, v, "enter");
     key(&mut cx, v, "escape");
@@ -177,6 +199,7 @@ fn escape_tab_and_disabled_triggers_never_activate_a_menu_item() {
     key(&mut cx, v, "enter");
     assert_eq!(v.read_with(&cx, |v, _| v.after).unwrap(), 1);
     assert!(selected(&cx, v).is_empty());
+
     for state in [ControlState::Disabled, ControlState::Busy] {
         v.update(&mut cx, |v, w, cx| {
             v.state = state;
@@ -188,12 +211,15 @@ fn escape_tab_and_disabled_triggers_never_activate_a_menu_item() {
         key(&mut cx, v, "tab");
         key(&mut cx, v, "enter");
     }
+
     assert_eq!(v.read_with(&cx, |v, _| v.after).unwrap(), 3);
     assert!(selected(&cx, v).is_empty());
 }
+
 #[test]
 fn pointer_selection_and_outside_dismissal_do_not_activate_background_controls() {
     let (mut cx, v) = setup();
+
     click(&mut cx, v, 30., 14.);
     click(&mut cx, v, 50., 48.);
     assert_eq!(selected(&cx, v), vec!["main".into()]);
@@ -204,9 +230,11 @@ fn pointer_selection_and_outside_dismissal_do_not_activate_background_controls()
     assert_eq!(selected(&cx, v), vec!["main".into()]);
     assert_eq!(v.read_with(&cx, |v, _| v.after).unwrap(), 0);
 }
+
 #[test]
 fn rerenders_keep_navigation_but_unmounting_releases_open_state() {
     let (mut cx, v) = setup();
+
     key(&mut cx, v, "tab");
     key(&mut cx, v, "enter");
     key(&mut cx, v, "down");
@@ -238,6 +266,7 @@ fn rerenders_keep_navigation_but_unmounting_releases_open_state() {
 #[test]
 fn changed_entries_and_empty_menus_keep_selection_safe() {
     let (mut cx, v) = setup();
+
     key(&mut cx, v, "tab");
     key(&mut cx, v, "enter");
     key(&mut cx, v, "end");
@@ -257,14 +286,18 @@ fn changed_entries_and_empty_menus_keep_selection_safe() {
     })
     .unwrap();
     draw(&mut cx, v);
+
     for key_name in ["enter", "up", "end", "f", "enter", "escape"] {
         key(&mut cx, v, key_name);
     }
+
     assert_eq!(selected(&cx, v), vec!["main".into()]);
 }
+
 #[test]
 fn moving_focus_outside_dismisses_without_stealing_the_new_focus() {
     let (mut cx, v) = setup();
+
     key(&mut cx, v, "tab");
     key(&mut cx, v, "enter");
     v.update(&mut cx, |v, window, cx| {

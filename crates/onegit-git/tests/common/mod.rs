@@ -17,6 +17,7 @@ pub struct Fixture {
 impl Fixture {
     pub fn new() -> Self {
         let temporary = tempfile::tempdir().unwrap();
+
         let root = temporary.path().join(if cfg!(unix) {
             "repository été\n "
         } else {
@@ -129,6 +130,7 @@ pub fn files_under(root: &Path) -> BTreeMap<PathBuf, (Vec<u8>, std::time::System
 mod unix;
 #[cfg(windows)]
 mod windows;
+
 #[cfg(unix)]
 #[allow(unused_imports)]
 pub use unix::*;
@@ -164,23 +166,28 @@ fn git_native_argument(argument: OsString) -> OsString {
         if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
             return format!("//{unc}").replace('\\', "/").into();
         }
+
         if let Some(dos) = text.strip_prefix(r"\\?\") {
             return dos.replace('\\', "/").into();
         }
     }
+
     argument
 }
 
 /// Install an ordinary executable Git hook in the disposable fixture.
 pub fn install_hook(fixture: &Fixture, name: &str, script: &str) {
     let path = fixture.root.join(".git/hooks").join(name);
+
     fs::write(&path, script).unwrap();
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
     }
 }
+
 impl Fixture {
     /// Enable relative hooks for tests while retaining the fixture's isolated environment.
     pub fn process_with_hooks(&self) -> GitProcess {

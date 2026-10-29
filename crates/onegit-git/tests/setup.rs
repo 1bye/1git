@@ -18,6 +18,7 @@ use common::{Fixture, files_under};
 
 #[cfg(unix)]
 use onegit_git::GitProcess;
+
 use onegit_git::{
     Cancellation, CloneOptions, GitError, HistoryOptions, Repository, RepositoryError,
 };

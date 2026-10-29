@@ -21,12 +21,14 @@ pub(crate) fn require_paths<'a>(
 
     for path in paths {
         any = true;
+
         if path
             .components()
             .any(crate::platform::is_git_directory_component)
         {
             return Err(RepositoryError::InvalidPath);
         }
+
         path.pathspec_bytes()?;
     }
 
@@ -51,6 +53,7 @@ mod tests {
     fn git_directory_guard_is_ascii_case_insensitive_and_shared_with_ignore_patterns() {
         for name in [".git", ".GIT", ".Git/config", "folder/.gIt/hooks/x"] {
             let path = GitPath::new(name).unwrap();
+
             assert!(matches!(
                 require_paths([&path]),
                 Err(RepositoryError::InvalidPath)
@@ -60,8 +63,10 @@ mod tests {
                 Err(RepositoryError::InvalidPath)
             ));
         }
+
         for name in [".gitignore", ".github/x", "foo.git", "folder/.gitkeep"] {
             let path = GitPath::new(name).unwrap();
+
             require_paths([&path]).unwrap();
             assert!(crate::ignore_pattern(&path, &crate::IgnoreRule::File).is_ok());
         }
@@ -79,6 +84,7 @@ mod tests {
             "folder/git~1. /config",
         ] {
             let path = GitPath::new(name).unwrap();
+
             assert_eq!(require_paths([&path]).is_err(), cfg!(windows), "{name}");
             assert_eq!(
                 crate::ignore_pattern(&path, &crate::IgnoreRule::File).is_err(),

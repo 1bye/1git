@@ -38,6 +38,7 @@ pub enum ControlSize {
     /// Prominent 34-pixel control.
     Large,
 }
+
 impl ControlSize {
     /// Control height; icon buttons use the same width.
     #[must_use]
@@ -48,6 +49,7 @@ impl ControlSize {
             Self::Large => 34.,
         }
     }
+
     fn padding(self) -> f32 {
         match self {
             Self::Small => 8.,
@@ -68,6 +70,7 @@ pub enum ControlState {
     /// Work is already in progress; retains its label and shows a work indicator.
     Busy,
 }
+
 impl ControlState {
     /// Whether this control can accept another activation.
     #[must_use]
@@ -123,6 +126,7 @@ impl Button {
     #[must_use]
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
         self.variant = variant;
+
         self
     }
 
@@ -133,6 +137,7 @@ impl Button {
         handler: impl Fn(&ClickEvent, &mut gpui::Window, &mut gpui::App) + 'static,
     ) -> Self {
         self.on_press = Some(Box::new(handler));
+
         self
     }
 }
@@ -158,10 +163,12 @@ impl RenderOnce for Button {
                 .read(cx)
                 .clone()
         });
+
         let theme = Theme::current();
         let enabled = self.state.is_interactive();
         let busy = self.state == ControlState::Busy;
         let icon_only = self.label.is_empty();
+
         let (background, hover, pressed, foreground): (Hsla, Hsla, Hsla, Hsla) =
             match (self.variant, self.tone) {
                 (ButtonVariant::Primary, ButtonTone::Normal) => (
@@ -197,20 +204,24 @@ impl RenderOnce for Button {
                     },
                 ),
             };
+
         let label = self
             .accessibility_label
             .unwrap_or_else(|| self.label.clone());
+
         let glyph = if busy {
             Some(IconName::Working)
         } else {
             self.icon
         };
+
         let rest = Surface {
             background,
             ink: foreground,
             opacity: if enabled { 1. } else { 0.5 },
             ..Surface::new(background)
         };
+
         // The inert measurement uses the same native geometry and typography as
         // the live control, without duplicate focus handles or event listeners.
         let icon_size = if self.size == ControlSize::Small {
@@ -218,6 +229,7 @@ impl RenderOnce for Button {
         } else {
             IconSize::Medium
         };
+
         let measurement = rake::view! {
             <div class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 font-medium border-1"
                 style={|s| s.h(px(self.size.height()))
@@ -229,6 +241,7 @@ impl RenderOnce for Button {
                 }
             </div>
         };
+
         motion::resize(self.id.clone(), measurement, move |dimensions| {
             motion::surface(
                 "surface".into(),
@@ -292,6 +305,7 @@ pub struct IconButton {
     /// Native activation callback.
     pub on_press: Option<PressHandler>,
 }
+
 impl IconButton {
     /// Create an enabled medium ghost action. Supply a meaningful accessible label.
     #[must_use]
@@ -309,6 +323,7 @@ impl IconButton {
         }
     }
 }
+
 impl std::fmt::Debug for IconButton {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IconButton")
@@ -319,6 +334,7 @@ impl std::fmt::Debug for IconButton {
             .finish_non_exhaustive()
     }
 }
+
 impl RenderOnce for IconButton {
     fn render(self, _: &mut gpui::Window, _: &mut gpui::App) -> impl IntoElement {
         rake::view! {

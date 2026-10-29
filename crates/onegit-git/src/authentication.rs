@@ -21,11 +21,13 @@ pub struct HttpAuthentication<'a> {
     /// Nonempty transient password/token, at most 4096 UTF-16 units, without whitespace/control bytes.
     pub password: &'a str,
 }
+
 impl std::fmt::Debug for HttpAuthentication<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("HttpAuthentication([redacted])")
     }
 }
+
 impl HttpAuthentication<'_> {
     /// Validate one freshly resolved destination before exposing credentials to a child.
     ///
@@ -40,6 +42,7 @@ impl HttpAuthentication<'_> {
                 && u.query().is_none()
                 && u.fragment().is_none()
         });
+
         if urls.len() != 1
             || urls[0] != self.url
             || !valid
@@ -55,6 +58,7 @@ impl HttpAuthentication<'_> {
                 "The HTTPS destination changed or is ambiguous. Review the remote and account before retrying.",
             ));
         }
+
         Ok(())
     }
 
@@ -70,13 +74,17 @@ impl HttpAuthentication<'_> {
                 "Account authentication requires one validated HTTPS destination.",
             ))
         })?;
+
         for key in std::env::vars_os().map(|(k, _)| k).chain(overrides) {
             let normalized = key.to_string_lossy().to_ascii_uppercase();
+
             if normalized.starts_with("GIT_") || normalized.starts_with("GCM_") {
                 command.env_remove(key);
             }
         }
+
         let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
+
         let mut settings = vec![
             ("credential.helper".to_owned(), String::new()),
             ("core.askPass".into(), String::new()),
@@ -86,6 +94,7 @@ impl HttpAuthentication<'_> {
             ("protocol.https.allow".into(), "always".into()),
             ("http.extraHeader".into(), String::new()),
         ];
+
         if isolate_clone {
             settings.extend([
                 ("core.hooksPath".into(), null.into()),
@@ -95,17 +104,21 @@ impl HttpAuthentication<'_> {
                 .env("GIT_CONFIG_GLOBAL", null)
                 .env("GIT_CONFIG_NOSYSTEM", "1");
         }
+
         let encoded = STANDARD.encode(format!("{}:{}", self.username, self.password));
+
         settings.push((
             format!("http.{}.extraHeader", self.url),
             format!("Authorization: Basic {encoded}"),
         ));
         command.env("GIT_CONFIG_COUNT", settings.len().to_string());
+
         for (i, (key, value)) in settings.into_iter().enumerate() {
             command
                 .env(format!("GIT_CONFIG_KEY_{i}"), key)
                 .env(format!("GIT_CONFIG_VALUE_{i}"), value);
         }
+
         Ok(())
     }
 }
@@ -114,6 +127,7 @@ pub(crate) fn sanitized(error: GitError) -> GitError {
     match error {
         GitError::CommandFailed { status, output } => {
             let stderr = String::from_utf8_lossy(&output.stderr).to_ascii_lowercase();
+
             let denied = [
                 "authentication failed",
                 "repository not found",
@@ -123,11 +137,13 @@ pub(crate) fn sanitized(error: GitError) -> GitError {
             ]
             .iter()
             .any(|p| stderr.contains(p));
+
             let message = if denied {
                 "Authentication failed: the HTTPS remote denied access for the selected account. Check account credentials and repository permissions."
             } else {
                 "Authenticated HTTPS request failed. Check repository permissions, network and certificate settings."
             };
+
             GitError::CommandFailed {
                 status,
                 output: GitOutput {

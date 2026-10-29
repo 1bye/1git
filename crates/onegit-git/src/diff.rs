@@ -218,19 +218,23 @@ impl Repository {
     ) -> Result<(), RepositoryError> {
         let mut command =
             GitCommand::new(&self.info.root, ["apply", "--numstat", "-z", "--recount"]);
+
         command.directory = Some(&self.root_directory);
         command.stdin = patch;
         command.cancellation = cancellation;
         let output = self.process.run(command)?;
+
         let destination = output
             .stdout
             .strip_suffix(b"\0")
             .and_then(|line| line.splitn(3, |byte| *byte == b'\t').nth(2));
+
         if destination != Some(expected.as_bytes()) {
             return Err(RepositoryError::InvalidInput(
                 "The patch header does not identify only the selected path. Review diff prefixes or select the complete file.",
             ));
         }
+
         Ok(())
     }
 
@@ -575,9 +579,11 @@ mod tests {
     #[test]
     fn numstat_keeps_reserved_colon_and_literal_backslash_git_names() {
         let stats = parse_stats(b"1\t2\taux.c\0-\t-\ta:b\0", None).unwrap();
+
         assert_eq!(stats[0].path.as_bytes(), b"aux.c");
         assert_eq!(stats[1].path.as_bytes(), b"a:b");
         let renamed = parse_stats(b"1\t0\t\0folder\\file\0folder/file\0", None).unwrap();
+
         assert_eq!(
             renamed[0].original_path.as_ref().unwrap().as_bytes(),
             b"folder\\file"
@@ -585,9 +591,11 @@ mod tests {
         assert_eq!(renamed[0].path.as_bytes(), b"folder/file");
         assert_ne!(renamed[0].original_path.as_ref().unwrap(), &renamed[0].path);
         let literal = parse_stats(b"1\t0\tfolder\\file\0", None).unwrap();
+
         assert_eq!(literal[0].path.as_bytes(), b"folder\\file");
         let selected = crate::GitPath::new(b"folder\\file").unwrap();
         let untracked = parse_stats(b"1\t0\t\0/dev/null\0folder\\file\0", Some(&selected)).unwrap();
+
         assert_eq!(untracked[0].path, selected);
         assert_eq!(untracked[0].original_path, None);
     }

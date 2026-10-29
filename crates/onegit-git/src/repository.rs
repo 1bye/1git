@@ -30,6 +30,7 @@ mod setup;
 
 #[path = "history_rewrite.rs"]
 mod history_rewrite;
+
 pub use history_rewrite::{
     HistoryRange, HistoryRewritePlan, HistoryRewriteResult, ReorderCommits, ResetCommit,
     ResetCommitPlan, ResetCommitResult, SquashCommits,
@@ -37,6 +38,7 @@ pub use history_rewrite::{
 
 #[path = "network.rs"]
 mod network;
+
 pub use network::{
     CreateReleaseTag, FetchOptions, PullOptions, PullStrategy, PushOptions, PushTag, SyncBranch,
     SyncKind, SyncOperation, SyncResult, TagPushResult,
@@ -44,6 +46,7 @@ pub use network::{
 
 #[path = "sequences.rs"]
 mod sequences;
+
 pub use sequences::{
     CherryPickCommit, CommitIndex, IndexCommitResult, ReplayCommit, RevertOptions,
 };
@@ -76,6 +79,7 @@ mod ignore;
 
 #[path = "discard/mod.rs"]
 mod discard;
+
 pub use discard::{ChangeHunk, HunkAction, HunkResult, select_hunk_patch};
 
 #[path = "selected_commit/mod.rs"]

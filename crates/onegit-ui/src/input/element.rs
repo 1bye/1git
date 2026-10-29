@@ -19,6 +19,7 @@ pub(super) struct Layout {
     placeholder: bool,
     style: gpui::TextStyle,
 }
+
 impl Layout {
     fn paint_range(
         &self,
@@ -31,28 +32,36 @@ impl Layout {
         if range.is_empty() || self.placeholder {
             return;
         }
+
         for p in &self.paragraphs {
             let start = range.start.max(p.start);
             let end = range.end.min(p.start + p.line.len());
+
             if start > end || range.end <= p.start || start > p.start + p.line.len() {
                 continue;
             }
+
             let a = p
                 .line
                 .position_for_index(start - p.start, self.line_height)
                 .unwrap_or_default();
+
             let b = p
                 .line
                 .position_for_index(end - p.start, self.line_height)
                 .unwrap_or(a);
+
             let mut y = a.y;
+
             while y <= b.y {
                 let left = if y == a.y { a.x } else { px(0.) };
+
                 let right = if y == b.y && range.end <= p.start + p.line.len() {
                     b.x
                 } else {
                     self.bounds.size.width
                 };
+
                 let top = p.y
                     + y
                     + if underline {
@@ -60,7 +69,9 @@ impl Layout {
                     } else {
                         px(0.)
                     };
+
                 let height = if underline { px(1.) } else { self.line_height };
+
                 window.paint_quad(gpui::fill(
                     gpui::Bounds::new(
                         origin + gpui::point(left.min(right), top),
@@ -72,15 +83,18 @@ impl Layout {
             }
         }
     }
+
     pub fn position(&self, index: usize) -> gpui::Point<gpui::Pixels> {
         if self.placeholder {
             return gpui::point(px(0.), px(0.));
         }
+
         let paragraph = self
             .paragraphs
             .iter()
             .find(|p| index <= p.start + p.line.len())
             .or_else(|| self.paragraphs.last());
+
         if let Some(p) = paragraph {
             let mut point = p
                 .line
@@ -89,16 +103,20 @@ impl Layout {
                     self.line_height,
                 )
                 .unwrap_or_default();
+
             point.y += p.y;
+
             point
         } else {
             gpui::point(px(0.), px(0.))
         }
     }
+
     pub fn index_at(&self, point: gpui::Point<gpui::Pixels>) -> usize {
         if self.placeholder || point.y < px(0.) {
             return 0;
         }
+
         let Some(p) = self
             .paragraphs
             .iter()
@@ -107,11 +125,14 @@ impl Layout {
         else {
             return 0;
         };
+
         let point = gpui::point(point.x.max(px(0.)), (point.y - p.y).max(px(0.)));
+
         let index = p
             .line
             .closest_index_for_position(point, self.line_height)
             .unwrap_or_else(|i| i);
+
         (p.start + index).min(self.text.len())
     }
 }
@@ -119,21 +140,27 @@ impl Layout {
 pub(super) struct EditorText {
     pub state: gpui::Entity<InputState>,
 }
+
 impl IntoElement for EditorText {
     type Element = Self;
+
     fn into_element(self) -> Self {
         self
     }
 }
+
 impl gpui::Element for EditorText {
     type RequestLayoutState = ();
     type PrepaintState = Rc<Layout>;
+
     fn id(&self) -> Option<gpui::ElementId> {
         None
     }
+
     fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
         None
     }
+
     fn request_layout(
         &mut self,
         _: Option<&gpui::GlobalElementId>,
@@ -146,8 +173,10 @@ impl gpui::Element for EditorText {
             min_size: gpui::size(px(0.).into(), px(0.).into()),
             ..Default::default()
         };
+
         (window.request_layout(style, [], cx), ())
     }
+
     fn prepaint(
         &mut self,
         _: Option<&gpui::GlobalElementId>,
@@ -159,6 +188,7 @@ impl gpui::Element for EditorText {
     ) -> Rc<Layout> {
         let style = window.text_style();
         let line_height = window.line_height().max(px(1.));
+
         self.state.update(cx, |state, _| {
             if state.focus.is_focused(window)
                 && state
@@ -168,12 +198,15 @@ impl gpui::Element for EditorText {
             {
                 state.reveal_caret = true;
             }
+
             let placeholder = state.buffer.text.is_empty();
+
             let display = if placeholder {
                 state.config.placeholder.to_string()
             } else {
                 state.buffer.text.clone()
             };
+
             let reused = state
                 .layout
                 .as_ref()
@@ -185,6 +218,7 @@ impl gpui::Element for EditorText {
                         && layout.line_height == line_height
                 })
                 .cloned();
+
             let layout = if let Some(layout) = reused {
                 layout
             } else {
@@ -201,6 +235,7 @@ impl gpui::Element for EditorText {
                     strikethrough: None,
                     letter_spacing: style.letter_spacing,
                 };
+
                 let lines = window
                     .text_system()
                     .shape_text(
@@ -213,20 +248,25 @@ impl gpui::Element for EditorText {
                     )
                     .unwrap_or_else(|error| {
                         rake::error!(%error,"failed to shape native input text");
+
                         Default::default()
                     });
+
                 let mut paragraphs = Vec::with_capacity(lines.len());
                 let mut start = 0;
                 let mut y = px(0.);
                 let mut width = bounds.size.width;
+
                 for line in lines {
                     let len = line.len();
                     let height = line.size(line_height).height;
+
                     width = width.max(line.width());
                     paragraphs.push(Paragraph { start, y, line });
                     start += len + 1;
                     y += height;
                 }
+
                 Rc::new(Layout {
                     paragraphs,
                     bounds,
@@ -238,34 +278,44 @@ impl gpui::Element for EditorText {
                     style,
                 })
             };
+
             let max_y = (layout.height - bounds.size.height).max(px(0.));
+
             let max_x = if state.config.kind == Kind::Multiline {
                 px(0.)
             } else {
                 (layout.width - bounds.size.width + px(2.)).max(px(0.))
             };
+
             state.scroll.x = state.scroll.x.clamp(px(0.), max_x);
             state.scroll.y = state.scroll.y.clamp(px(0.), max_y);
+
             if state.reveal_caret {
                 let caret = layout.position(state.buffer.head);
+
                 if caret.x < state.scroll.x {
                     state.scroll.x = caret.x;
                 } else if caret.x + px(2.) > state.scroll.x + bounds.size.width {
                     state.scroll.x = (caret.x + px(2.) - bounds.size.width).max(px(0.));
                 }
+
                 if caret.y < state.scroll.y {
                     state.scroll.y = caret.y;
                 } else if caret.y + line_height > state.scroll.y + bounds.size.height {
                     state.scroll.y = (caret.y + line_height - bounds.size.height).max(px(0.));
                 }
+
                 state.scroll.x = state.scroll.x.clamp(px(0.), max_x);
                 state.scroll.y = state.scroll.y.clamp(px(0.), max_y);
                 state.reveal_caret = false;
             }
+
             state.layout = Some(layout.clone());
+
             layout
         })
     }
+
     fn paint(
         &mut self,
         _: Option<&gpui::GlobalElementId>,
@@ -282,18 +332,22 @@ impl gpui::Element for EditorText {
         let selection = state.buffer.selection();
         let marked = state.buffer.marked.clone();
         let head = state.buffer.head;
+
         let caret = state.caret_visible
             && focus.is_focused(window)
             && window.is_window_active()
             && !disabled;
+
         let scroll = state.scroll;
         let theme = state.theme.clone();
         let input = self.state.clone();
+
         window.on_mouse_event(move |event: &gpui::MouseMoveEvent, phase, window, cx| {
             if phase == gpui::DispatchPhase::Capture {
                 input.update(cx, |state, cx| state.mouse_move(event, window, cx));
             }
         });
+
         if !disabled {
             window.handle_input(
                 &focus,
@@ -301,15 +355,20 @@ impl gpui::Element for EditorText {
                 cx,
             );
         }
+
         window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
             let origin = bounds.origin - scroll;
+
             layout.paint_range(selection, origin, theme.selection, false, window);
+
             for p in &layout.paragraphs {
                 let y = origin.y + p.y;
                 let height = p.line.size(layout.line_height).height;
+
                 if y + height < bounds.top() || y > bounds.bottom() {
                     continue;
                 }
+
                 if let Err(error) = p.line.paint(
                     origin + gpui::point(px(0.), p.y),
                     layout.line_height,
@@ -321,9 +380,11 @@ impl gpui::Element for EditorText {
                     rake::error!(%error,"failed to paint native input text");
                 }
             }
+
             if let Some(marked) = marked {
                 layout.paint_range(marked, origin, theme.ink, true, window);
             }
+
             if caret {
                 window.paint_quad(gpui::fill(
                     gpui::Bounds::new(

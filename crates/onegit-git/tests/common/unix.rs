@@ -7,6 +7,7 @@ pub use std::os::unix::fs::{PermissionsExt, symlink};
 
 pub fn exit_status(code: i32) -> std::process::ExitStatus {
     use std::os::unix::process::ExitStatusExt;
+
     std::process::ExitStatus::from_raw(code << 8)
 }
 

@@ -16,6 +16,7 @@ use std::path::Path;
 fn large_file(path: &Path) -> [u8; 32] {
     #[cfg(unix)]
     let mut random = File::open("/dev/urandom").unwrap();
+
     let mut file = File::create(path).unwrap();
     let mut buffer = [0; 65536];
     let mut hash = Sha256::new();
@@ -205,6 +206,7 @@ fn discards_and_recovers_all_1148_bundle_files_links_and_empty_files_without_ind
         let error = repository
             .discard_files(&request(&fixture, &repository, paths.clone()), None)
             .unwrap_err();
+
         assert_eq!(error.phase, onegit_git::WritePhase::BeforeCommand);
         assert!(error.recovery.is_none());
         assert_eq!(
@@ -234,6 +236,7 @@ fn discards_and_recovers_all_1148_bundle_files_links_and_empty_files_without_ind
     } else {
         assert!(result.snapshot.status.files.is_empty());
     }
+
     assert_eq!(fs::read(fixture.root.join(".git/index")).unwrap(), index);
     fixture.git_os([
         "apply".into(),

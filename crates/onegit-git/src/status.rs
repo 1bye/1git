@@ -1,6 +1,7 @@
 //! Parses porcelain v2 snapshots without quoting or decoding repository paths.
 
 use crate::GitPath;
+
 /// One side of an index/worktree change.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FileStatus {

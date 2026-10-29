@@ -13,6 +13,7 @@ pub enum CheckState {
     /// Some items selected.
     Mixed,
 }
+
 impl CheckState {
     /// Value requested by the next activation; this never mutates the owner itself.
     #[must_use]
@@ -43,6 +44,7 @@ pub struct Checkbox {
     /// Callback requesting a new value; the caller updates and notifies its entity.
     pub on_change: Option<CheckHandler>,
 }
+
 impl Checkbox {
     /// Create an unchecked, enabled checkbox with a visible label.
     #[must_use]
@@ -57,6 +59,7 @@ impl Checkbox {
         }
     }
 }
+
 impl std::fmt::Debug for Checkbox {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Checkbox")
@@ -67,21 +70,25 @@ impl std::fmt::Debug for Checkbox {
             .finish_non_exhaustive()
     }
 }
+
 impl RenderOnce for Checkbox {
     fn render(self, _: &mut gpui::Window, _: &mut gpui::App) -> impl IntoElement {
         let theme = Theme::current();
         let enabled = self.state.is_interactive();
         let filled = self.checked != CheckState::Unchecked;
         let next = self.checked.toggled();
+
         let toggled = match self.checked {
             CheckState::Unchecked => accesskit::Toggled::False,
             CheckState::Checked => accesskit::Toggled::True,
             CheckState::Mixed => accesskit::Toggled::Mixed,
         };
+
         let rest = Surface {
             opacity: if enabled { 1. } else { 0.5 },
             ..Surface::new(Theme::transparent())
         };
+
         let box_paint = Surface {
             border: if filled { theme.accent } else { theme.line },
             ink: theme.on_accent,
@@ -91,6 +98,7 @@ impl RenderOnce for Checkbox {
                 theme.surface_sunken
             })
         };
+
         motion::surface(
             self.id.clone(),
             rest,

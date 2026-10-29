@@ -9,10 +9,12 @@ use std::path::{Component, Path};
 mod unix;
 #[cfg(windows)]
 mod windows;
+
 #[cfg(unix)]
 pub(crate) use unix::*;
 #[cfg(windows)]
 pub(crate) use windows::*;
+
 #[cfg(not(any(unix, windows)))]
 compile_error!("onegit-git requires a Unix or Windows host with a native Git executable");
 
@@ -22,6 +24,7 @@ pub(crate) struct PathEncodingError(&'static str);
 #[cfg(any(windows, test))]
 impl PathEncodingError {
     const UNREPRESENTABLE: Self = Self("Git path cannot be represented on this platform");
+
     const WINDOWS_PATHSPEC: Self =
         Self("Git for Windows cannot address this file name without rewriting it");
 }
@@ -37,6 +40,7 @@ impl std::error::Error for PathEncodingError {}
 pub(crate) fn git_pathspec(bytes: &[u8]) -> Result<&[u8], PathEncodingError> {
     #[cfg(windows)]
     windows_policy::git_pathspec(bytes)?;
+
     Ok(bytes)
 }
 
@@ -44,8 +48,10 @@ pub(crate) fn is_git_directory_component(component: &[u8]) -> bool {
     if component.eq_ignore_ascii_case(b".git") {
         return true;
     }
+
     #[cfg(windows)]
     return windows_policy::is_ntfs_dotgit(component);
+
     #[cfg(not(windows))]
     false
 }
@@ -101,7 +107,9 @@ pub(crate) fn open_beneath(root: &File, relative: &Path, writable: bool) -> io::
                 "Expected a relative normal path",
             ));
         };
+
         let last = components.peek().is_none();
+
         let access = if !last {
             Access::Directory
         } else if writable {
@@ -109,6 +117,7 @@ pub(crate) fn open_beneath(root: &File, relative: &Path, writable: bool) -> io::
         } else {
             Access::Read
         };
+
         let file = open_component(parent.as_ref().unwrap_or(root), name, access)?;
 
         if last {
@@ -151,6 +160,7 @@ mod tests {
     fn held_identity_detects_a_replaced_name_and_metadata_detects_appends() {
         let temporary = tempfile::tempdir().unwrap();
         let path = temporary.path().join("file");
+
         fs::write(&path, b"original").unwrap();
         let held = File::open(&path).unwrap();
         let identity = FileIdentity::from_file(&held).unwrap();
@@ -178,6 +188,7 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let root = open_directory_no_follow(temporary.path()).unwrap();
         let mut file = open_component(&root, "private".as_ref(), Access::CreatePrivate).unwrap();
+
         file.write_all(b"preserved").unwrap();
 
         assert!(open_component(&root, "private".as_ref(), Access::CreatePrivate).is_err());
@@ -227,6 +238,7 @@ mod windows_policy {
                 _ => return false,
             }
         }
+
         true
     }
 
@@ -280,6 +292,7 @@ mod windows_policy {
         if matches!(part, "" | "." | "..") {
             return false;
         }
+
         if part.ends_with(['.', ' '])
             || part
                 .chars()
@@ -287,6 +300,7 @@ mod windows_policy {
         {
             return false;
         }
+
         let stem = part
             .split('.')
             .next()
@@ -318,6 +332,7 @@ mod windows_policy {
         } else {
             return Cow::Borrowed(text);
         };
+
         let compatible = plain.encode_utf16().count() < 260
             && plain.split('\\').enumerate().all(|(index, part)| {
                 part.is_empty()
@@ -354,11 +369,13 @@ mod windows_policy {
                 b"C:\\file",
             ] {
                 let error = git_pathspec(name).unwrap_err();
+
                 assert_eq!(
                     error.to_string(),
                     "Git for Windows cannot address this file name without rewriting it"
                 );
             }
+
             for name in [
                 b"folder/file".as_slice(),
                 b"ordinary",
@@ -388,6 +405,7 @@ mod windows_policy {
             ] {
                 assert!(is_ntfs_dotgit(name), "{name:?}");
             }
+
             for name in [
                 b"".as_slice(),
                 b".gi",
@@ -410,6 +428,7 @@ mod windows_policy {
                 assert!(crate::GitPath::new(name).is_ok(), "{name}");
                 assert!(!component_representable(name), "{name}");
             }
+
             assert!(component_representable("été.txt"));
         }
 
@@ -421,6 +440,7 @@ mod windows_policy {
                 "\\\\server\\share\\repo"
             );
             assert_eq!(cwd_path("C:\\repo"), "C:\\repo");
+
             for path in [
                 "\\\\?\\C:\\name.",
                 "\\\\?\\C:\\name ",
@@ -430,16 +450,20 @@ mod windows_policy {
             ] {
                 assert_eq!(cwd_path(path), path);
             }
+
             let limit = format!(
                 "\\\\?\\C:\\{}\\{}\\{}",
                 "a".repeat(100),
                 "b".repeat(100),
                 "c".repeat(55)
             );
+
             assert_eq!(cwd_path(&limit), limit);
             let long = format!("\\\\?\\C:\\{}", "a".repeat(256));
+
             assert_eq!(cwd_path(&long), long);
             let boundary = format!("\\\\?\\C:\\{}", "é".repeat(256));
+
             assert_eq!(cwd_path(&boundary), boundary);
         }
 
@@ -448,6 +472,7 @@ mod windows_policy {
             for tag in [0xa000_000c, 0xa000_0003] {
                 assert!(name_surrogate(tag));
             }
+
             for tag in [0, 0x9000_001a, 0x9000_101a, 0x8000_0017, 0x8000_0013] {
                 assert!(!name_surrogate(tag));
             }
@@ -457,6 +482,7 @@ mod windows_policy {
         fn zero_file_ids_cannot_claim_an_identity() {
             assert!(!valid_file_id(&[0; 16]));
             let mut id = [0; 16];
+
             id[15] = 1;
             assert!(valid_file_id(&id));
         }
@@ -469,15 +495,18 @@ mod windows_policy {
                 std::io::ErrorKind::Unsupported,
             ] {
                 let error = verified_entry_name(Err(kind.into())).unwrap_err();
+
                 assert_eq!(error.kind(), std::io::ErrorKind::Other);
                 assert!(error.get_ref().unwrap().source().is_some());
             }
+
             assert!(verified_entry_name(Ok(true)).is_ok());
             assert_eq!(
                 verified_entry_name(Ok(false)).unwrap_err().kind(),
                 std::io::ErrorKind::InvalidInput
             );
         }
+
         #[test]
         fn native_git_paths_reject_unrepresentable_components_without_transport_escapes() {
             for path in [
@@ -494,6 +523,7 @@ mod windows_policy {
             ] {
                 assert!(native_git_path(path).is_err(), "{path}");
             }
+
             assert_eq!(
                 native_git_path("folder/file.txt").unwrap(),
                 "folder/file.txt"

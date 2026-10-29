@@ -11,6 +11,7 @@ use onegit_git::{
     BranchAction, BranchChanges, BranchError, BranchIdentity, BranchKind, BranchRequest,
     Cancellation, CreateBranch, ErrorCode, Failure, Operation, Repository, WritePhase,
 };
+
 #[cfg(unix)]
 use onegit_git::{FileStatus, GitProcess, RepositoryCoordinator, RepositoryError};
 

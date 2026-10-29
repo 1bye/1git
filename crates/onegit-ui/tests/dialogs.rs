@@ -3,8 +3,11 @@ use onegit_ui::{
     Button, ControlState, Dialog, DialogAvailability, DialogDismissal, DialogEvent, DialogHost,
     DialogHostState, DialogKind, DialogState, DropdownMenu, InputState, MenuItem, TextInput, Theme,
 };
+
 use rake::gpui::{self, Focusable, InputEvent as _, prelude::*, px};
+
 rake::theme!(Theme);
+
 gpui::actions!(
     dialog_tests,
     [
@@ -12,6 +15,7 @@ gpui::actions!(
         BackgroundAction
     ]
 );
+
 struct Workbench {
     host: DialogHostState,
     dialog: gpui::Entity<DialogState>,
@@ -32,6 +36,7 @@ struct Workbench {
     closed: usize,
     _subscription: gpui::Subscription,
 }
+
 impl Render for Workbench {
     fn render(&mut self, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
         let body=rake::view! {
@@ -41,6 +46,7 @@ impl Render for Workbench {
                 <Button on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.background+=1;cx.notify();})))} {..Button::new("after","Background action")}/>
             </div>
         }.into_any_element();
+
         let footer=rake::view! {
             <div class="flex flex-row gap-2">
                 <Button focus={Some(self.cancel.clone())} state={if self.busy{ControlState::Disabled}else{ControlState::Enabled}}
@@ -50,6 +56,7 @@ impl Render for Workbench {
                 })))} {..Button::new("accept","Accept")}/>
             </div>
         }.into_any_element();
+
         rake::view! {
             <DialogHost state={self.host.clone()} body={body}>
                 if self.show_dialog {
@@ -69,8 +76,10 @@ impl Render for Workbench {
         }
     }
 }
+
 fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Workbench>) {
     let mut cx = gpui::TestAppContext::single();
+
     cx.update(|cx| {
         Theme::dark().install(cx);
         cx.bind_keys([gpui::KeyBinding::new(
@@ -83,15 +92,19 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Workbench>) {
         let host = DialogHostState::new(cx);
         let dialog = host.dialog(cx);
         let second = host.dialog(cx);
+
         let subscription = cx.subscribe(&dialog, |this: &mut Workbench, _, event, cx| {
             if *event == DialogEvent::Closed {
                 this.closed += 1;
                 cx.notify();
             }
         });
+
         let root = cx.focus_handle();
+
         w.focus(&root, cx);
         w.activate_window();
+
         Workbench {
             host,
             dialog,
@@ -113,20 +126,26 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Workbench>) {
             _subscription: subscription,
         }
     });
+
     draw(&mut cx, view);
+
     (cx, view)
 }
+
 fn draw(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Workbench>) {
     for _ in 0..2 {
         cx.run_until_parked();
         cx.update_window(v.into(), |_, w, cx| w.draw(cx).clear(cx))
             .unwrap();
     }
+
     cx.run_until_parked();
 }
+
 fn key(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Workbench>, value: &str) {
     cx.update_window(v.into(), |_, w, cx| {
         let keystroke = gpui::Keystroke::parse(value).unwrap();
+
         w.dispatch_event(
             gpui::KeyDownEvent {
                 keystroke: keystroke.clone(),
@@ -141,9 +160,11 @@ fn key(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Workbench>, value: &
     .unwrap();
     draw(cx, v);
 }
+
 fn click(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Workbench>, x: f32, y: f32) {
     cx.update_window(v.into(), |_, w, cx| {
         let position = gpui::point(px(x), px(y));
+
         w.dispatch_event(
             gpui::MouseMoveEvent {
                 position,
@@ -178,6 +199,7 @@ fn click(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Workbench>, x: f32
     .unwrap();
     draw(cx, v);
 }
+
 fn open(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Workbench>) {
     key(cx, v, "tab");
     key(cx, v, "enter");
@@ -186,13 +208,16 @@ fn open(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Workbench>) {
             .unwrap()
     );
 }
+
 fn is_open(cx: &gpui::TestAppContext, v: gpui::WindowHandle<Workbench>) -> bool {
     v.read_with(cx, |v, cx| v.dialog.read(cx).is_open())
         .unwrap()
 }
+
 #[test]
 fn initial_focus_escape_restoration_and_close_notification_are_stable() {
     let (mut cx, v) = setup();
+
     open(&mut cx, v);
     assert!(
         v.update(&mut cx, |v, w, cx| v
@@ -218,9 +243,11 @@ fn initial_focus_escape_restoration_and_close_notification_are_stable() {
         "feature/ui"
     );
 }
+
 #[test]
 fn tab_wraps_and_confirmation_starts_on_the_safe_action() {
     let (mut cx, v) = setup();
+
     v.update(&mut cx, |v, _, cx| {
         v.confirmation = true;
         cx.notify();
@@ -229,6 +256,7 @@ fn tab_wraps_and_confirmation_starts_on_the_safe_action() {
     draw(&mut cx, v);
     open(&mut cx, v);
     assert!(v.update(&mut cx, |v, w, _| v.cancel.is_focused(w)).unwrap());
+
     for key_name in [
         "tab",
         "tab",
@@ -247,12 +275,15 @@ fn tab_wraps_and_confirmation_starts_on_the_safe_action() {
             "Tab escaped modal"
         );
     }
+
     key(&mut cx, v, "escape");
     assert_eq!(v.read_with(&cx, |v, _| v.accepted).unwrap(), 0);
 }
+
 #[test]
 fn dismissal_policy_busy_state_and_background_isolation_are_enforced() {
     let (mut cx, v) = setup();
+
     open(&mut cx, v);
     click(&mut cx, v, 15., 14.);
     assert!(is_open(&cx, v));
@@ -295,9 +326,11 @@ fn dismissal_policy_busy_state_and_background_isolation_are_enforced() {
     draw(&mut cx, v);
     assert!(!is_open(&cx, v));
 }
+
 #[test]
 fn unmount_and_missing_openers_close_to_a_mounted_fallback() {
     let (mut cx, v) = setup();
+
     open(&mut cx, v);
     v.update(&mut cx, |v, _, cx| {
         v.show_opener = false;
@@ -312,9 +345,11 @@ fn unmount_and_missing_openers_close_to_a_mounted_fallback() {
     key(&mut cx, v, "enter");
     assert_eq!(v.read_with(&cx, |v, _| v.background).unwrap(), 1);
 }
+
 #[test]
 fn replacing_a_modal_preserves_the_original_opener_and_external_focus_is_contained() {
     let (mut cx, v) = setup();
+
     open(&mut cx, v);
     v.update(&mut cx, |v, w, cx| {
         w.focus(&v.opener, cx);
@@ -346,9 +381,11 @@ fn replacing_a_modal_preserves_the_original_opener_and_external_focus_is_contain
     key(&mut cx, v, "escape");
     assert!(v.update(&mut cx, |v, w, _| v.opener.is_focused(w)).unwrap());
 }
+
 #[test]
 fn a_child_menu_handles_escape_before_the_dialog() {
     let (mut cx, v) = setup();
+
     v.update(&mut cx, |v, _, cx| {
         v.with_menu = true;
         cx.notify();
@@ -363,9 +400,11 @@ fn a_child_menu_handles_escape_before_the_dialog() {
     key(&mut cx, v, "escape");
     assert!(!is_open(&cx, v));
 }
+
 #[test]
 fn long_content_fits_the_viewport_and_theme_changes_preserve_focus_and_values() {
     let (mut cx, v) = setup();
+
     v.update(&mut cx, |v, _, cx| {
         v.long_body = true;
         cx.notify();
@@ -376,6 +415,7 @@ fn long_content_fits_the_viewport_and_theme_changes_preserve_focus_and_values() 
     let bounds = v
         .read_with(&cx, |v, cx| v.dialog.read(cx).bounds().unwrap())
         .unwrap();
+
     assert!(
         bounds.top() >= px(16.) && bounds.bottom() <= px(384.),
         "modal must fit viewport: {bounds:?}"

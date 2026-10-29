@@ -24,6 +24,7 @@ impl Render for Controls {
                 })))} {..Checkbox::new("included", "Include file")}/>
         }
         .into_any_element();
+
         rake::view! {
             <div class="size-full" focus={&self.root} tab-navigation={true}>
                 <Button state={self.state} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{
@@ -42,10 +43,13 @@ impl Render for Controls {
 
 fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Controls>) {
     let mut cx = gpui::TestAppContext::single();
+
     cx.update(|cx| Theme::dark().install(cx));
     let window = cx.add_window(|window, cx| {
         let root = cx.focus_handle();
+
         window.focus(&root, cx);
+
         Controls {
             root,
             state: ControlState::Enabled,
@@ -55,7 +59,9 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Controls>) {
             checked: CheckState::Mixed,
         }
     });
+
     draw(&mut cx, window);
+
     (cx, window)
 }
 
@@ -68,6 +74,7 @@ fn draw<T: 'static>(cx: &mut gpui::TestAppContext, window: gpui::WindowHandle<T>
 fn key(cx: &mut gpui::TestAppContext, window: gpui::WindowHandle<Controls>, key: &str) {
     cx.update_window(window.into(), |_, window, cx| {
         let keystroke = gpui::Keystroke::parse(key).expect("test keystroke");
+
         window.dispatch_event(
             gpui::KeyDownEvent {
                 keystroke: keystroke.clone(),
@@ -86,6 +93,7 @@ fn key(cx: &mut gpui::TestAppContext, window: gpui::WindowHandle<Controls>, key:
 fn click(cx: &mut gpui::TestAppContext, window: gpui::WindowHandle<Controls>, x: f32, y: f32) {
     cx.update_window(window.into(), |_, window, cx| {
         let position = gpui::point(gpui::px(x), gpui::px(y));
+
         window.dispatch_event(
             gpui::MouseMoveEvent {
                 position,
@@ -124,10 +132,12 @@ fn click(cx: &mut gpui::TestAppContext, window: gpui::WindowHandle<Controls>, x:
 #[test]
 fn enter_space_activate_once_and_disabled_or_busy_controls_skip_navigation() {
     let (mut cx, window) = setup();
+
     key(&mut cx, window, "tab");
     key(&mut cx, window, "enter");
     key(&mut cx, window, "space");
     assert_eq!(window.read_with(&cx, |v, _| v.first).unwrap(), 2);
+
     for state in [ControlState::Disabled, ControlState::Busy] {
         window
             .update(&mut cx, |v, window, cx| {
@@ -142,12 +152,14 @@ fn enter_space_activate_once_and_disabled_or_busy_controls_skip_navigation() {
         key(&mut cx, window, "tab");
         key(&mut cx, window, "enter");
     }
+
     assert_eq!(window.read_with(&cx, |v, _| v.second).unwrap(), 2);
 }
 
 #[test]
 fn checkbox_activation_does_not_select_the_row_or_change_until_the_owner_updates() {
     let (mut cx, window) = setup();
+
     click(&mut cx, window, 15., 70.);
     assert_eq!(
         window.read_with(&cx, |v, _| (v.checked, v.row)).unwrap(),
@@ -169,8 +181,10 @@ fn checkbox_activation_does_not_select_the_row_or_change_until_the_owner_updates
 #[test]
 fn replacing_theme_preserves_owner_selection_and_component_values() {
     let (mut cx, window) = setup();
+
     click(&mut cx, window, 15., 70.);
     let before = Theme::current().surface;
+
     cx.update(|cx| Theme::light().install(cx));
     draw(&mut cx, window);
     assert_ne!(before, Theme::current().surface);
@@ -184,6 +198,7 @@ fn replacing_theme_preserves_owner_selection_and_component_values() {
             <Button {..Button::new("child","Child")}/>
         </Pane>
     };
+
     assert_eq!(pane.children.len(), 1);
     assert!(pane.header.is_some() && pane.footer.is_some());
 }
@@ -199,6 +214,7 @@ struct ResizingControl {
 impl Render for ResizingControl {
     fn render(&mut self, _: &mut gpui::Window, _: &mut Context<Self>) -> impl IntoElement {
         let measured = self.measured.clone();
+
         let marker = gpui::canvas(
             |_, _, _| {},
             move |bounds, _, _, _| {
@@ -206,6 +222,7 @@ impl Render for ResizingControl {
             },
         )
         .size(gpui::px(1.));
+
         rake::view! {
             <div class="size-full" focus={&self.root} tab-navigation={true}>
                 <div class="flex flex-row items-end">
@@ -219,6 +236,7 @@ impl Render for ResizingControl {
 
 fn resizing_setup() -> (gpui::TestAppContext, gpui::WindowHandle<ResizingControl>) {
     let mut cx = gpui::TestAppContext::single();
+
     cx.update(|cx| Theme::dark().install(cx));
     let view = cx.add_window(|_, cx| ResizingControl {
         root: cx.focus_handle(),
@@ -227,9 +245,12 @@ fn resizing_setup() -> (gpui::TestAppContext, gpui::WindowHandle<ResizingControl
         icon: None,
         measured: Default::default(),
     });
+
     draw(&mut cx, view);
+
     (cx, view)
 }
+
 fn dimensions(
     cx: &gpui::TestAppContext,
     view: gpui::WindowHandle<ResizingControl>,
@@ -237,6 +258,7 @@ fn dimensions(
     view.read_with(cx, |v, _| v.measured.get())
         .expect("read measured control layout")
 }
+
 fn resize_frame(
     cx: &mut gpui::TestAppContext,
     view: gpui::WindowHandle<ResizingControl>,
@@ -247,7 +269,9 @@ fn resize_frame(
     let pending = cx
         .update_window(view.into(), |_, window, cx| window.simulate_next_frame(cx))
         .expect("deliver resize frame");
+
     draw(cx, view);
+
     pending
 }
 
@@ -255,6 +279,7 @@ fn resize_frame(
 fn button_size_tracks_real_layout_and_reverses_from_current_dimensions() {
     let (mut cx, view) = resizing_setup();
     let initial = dimensions(&cx, view);
+
     assert_eq!(initial.height, gpui::px(24.));
     assert!(initial.width > gpui::px(0.));
     assert_eq!(
@@ -277,6 +302,7 @@ fn button_size_tracks_real_layout_and_reverses_from_current_dimensions() {
     );
     resize_frame(&mut cx, view, 60);
     let midway = dimensions(&cx, view);
+
     assert!(
         midway.width > initial.width
             && midway.height > initial.height
@@ -308,6 +334,7 @@ fn button_size_tracks_real_layout_and_reverses_from_current_dimensions() {
 fn reduced_motion_resizes_immediately_for_label_icon_and_size_changes() {
     let (mut cx, view) = resizing_setup();
     let initial = dimensions(&cx, view);
+
     cx.update(|cx| cx.set_reduce_motion(true));
     view.update(&mut cx, |v, _, cx| {
         v.label = "Commit selected changes · 日本語".into();
@@ -318,6 +345,7 @@ fn reduced_motion_resizes_immediately_for_label_icon_and_size_changes() {
     .expect("resize with reduced motion");
     draw(&mut cx, view);
     let expanded = dimensions(&cx, view);
+
     assert!(expanded.width > initial.width);
     assert_eq!(expanded.height, gpui::px(34.));
     assert_eq!(resize_frame(&mut cx, view, 0), 0);

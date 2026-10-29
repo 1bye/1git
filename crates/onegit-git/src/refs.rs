@@ -240,17 +240,20 @@ impl Repository {
         )?;
 
         let mut collection = parse_branches(&output.stdout)?;
+
         for branch in &mut collection.branches {
             if let Some(path) = &mut branch.worktree_path {
                 *path = crate::platform::normalize_git_location(path)?;
             }
         }
+
         Ok(collection)
     }
 
     /// List local tags in creator-date order.
     pub fn tags(&self, cancellation: Option<&Cancellation>) -> Result<Vec<Tag>, RepositoryError> {
         self.mutations.wait_for_pending();
+
         self.tags_uncoordinated(cancellation)
     }
 
@@ -305,9 +308,11 @@ impl Repository {
         let output = self.run(["worktree", "list", "--porcelain", "-z"], cancellation)?;
 
         let mut worktrees = parse_worktrees(&output.stdout)?;
+
         for worktree in &mut worktrees {
             worktree.path = crate::platform::normalize_git_location(&worktree.path)?;
         }
+
         Ok(worktrees)
     }
 
@@ -317,6 +322,7 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<Vec<Remote>, RepositoryError> {
         self.mutations.wait_for_pending();
+
         self.remotes_uncoordinated(cancellation)
     }
 

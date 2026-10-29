@@ -1,9 +1,11 @@
 //! Ordinary transport commands and reviewed, single-destination synchronization/tag writes.
 use super::metadata_writes::{before, remote_url, text};
+
 use super::{
     BranchIdentity, BranchKind, OperationState, Repository, RepositoryError, Snapshot, WriteError,
     WritePhase,
 };
+
 use crate::validation::{full_oid, require_revision};
 use crate::{Cancellation, GitCommand, HttpAuthentication, RecordType, TransferProgress};
 use std::ffi::OsString;
@@ -18,6 +20,7 @@ pub enum SyncOperation {
     /// Push refs to a remote.
     Push,
 }
+
 /// Actual branch and state after a network command; a later read failure is Refresh.
 #[derive(Debug)]
 pub struct SyncResult {
@@ -30,6 +33,7 @@ pub struct SyncResult {
     /// Fresh state; never substitute the pre-operation snapshot after a write.
     pub snapshot: Snapshot,
 }
+
 /// Ordinary fetch options, preserving Git's normal credential helpers without account auth.
 #[derive(Default)]
 pub struct FetchOptions<'a> {
@@ -44,6 +48,7 @@ pub struct FetchOptions<'a> {
     /// Sanitized transfer progress, never raw remote text.
     pub on_progress: Option<&'a dyn Fn(TransferProgress)>,
 }
+
 impl std::fmt::Debug for FetchOptions<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FetchOptions")
@@ -52,6 +57,7 @@ impl std::fmt::Debug for FetchOptions<'_> {
             .finish_non_exhaustive()
     }
 }
+
 /// Explicit integration strategy for ordinary pull.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum PullStrategy {
@@ -63,6 +69,7 @@ pub enum PullStrategy {
     /// Use Git rebase semantics.
     Rebase,
 }
+
 /// Ordinary pull using configured credentials and hooks.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PullOptions<'a> {
@@ -73,6 +80,7 @@ pub struct PullOptions<'a> {
     /// Explicit integration strategy.
     pub strategy: PullStrategy,
 }
+
 /// Ordinary push; force-with-lease and extra tags require explicit request flags.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PushOptions<'a> {
@@ -87,6 +95,7 @@ pub struct PushOptions<'a> {
     /// Establish tracking, requiring an explicit remote.
     pub set_upstream: bool,
 }
+
 /// Conservative branch workflow, separate from ordinary configurable pull/push.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SyncKind {
@@ -97,6 +106,7 @@ pub enum SyncKind {
     /// Publish a branch without existing tracking and establish its upstream.
     Publish,
 }
+
 /// Frozen branch review; callers retain the owner until command cleanup completes.
 pub struct SyncBranch<'a> {
     /// Conservative operation requested by the user.
@@ -112,6 +122,7 @@ pub struct SyncBranch<'a> {
     /// Sanitized phase-local progress.
     pub on_progress: Option<&'a dyn Fn(TransferProgress)>,
 }
+
 impl std::fmt::Debug for SyncBranch<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SyncBranch")
@@ -122,6 +133,7 @@ impl std::fmt::Debug for SyncBranch<'_> {
             .finish_non_exhaustive()
     }
 }
+
 /// Reviewed annotated release-tag creation, never force replacement.
 #[derive(Clone, Copy, Debug)]
 pub struct CreateReleaseTag<'a> {
@@ -134,6 +146,7 @@ pub struct CreateReleaseTag<'a> {
     /// Reviewed source branch/HEAD; detached tagging is supported.
     pub expected: &'a BranchIdentity,
 }
+
 /// Frozen single-tag publication to one freshly validated remote URL.
 #[derive(Clone, Copy, Debug)]
 pub struct PushTag<'a> {
@@ -152,6 +165,7 @@ pub struct PushTag<'a> {
     /// Optional one-shot account authentication for that exact URL.
     pub authentication: Option<&'a HttpAuthentication<'a>>,
 }
+
 /// Confirmed Git push plus refreshed local state; remote writes are never automatically retried.
 #[derive(Debug)]
 pub struct TagPushResult {
@@ -174,37 +188,46 @@ impl Repository {
     ) -> Result<SyncResult, WriteError> {
         self.mutate(cancellation, || {
             let mut args = vec!["fetch".to_owned()];
+
             if options.on_progress.is_some() {
                 args.push("--progress".into());
             }
+
             if options.prune {
                 args.push("--prune".into());
             }
+
             if options.tags {
                 args.push("--tags".into());
             }
+
             if let Some(remote) = options.remote.filter(|r| !r.is_empty()) {
                 require_revision(remote).map_err(before)?;
                 args.push(remote.into());
             } else {
                 args.push("--all".into());
             }
+
             if let Some(auth) = options.authentication {
                 let remotes = self.remotes_uncoordinated(cancellation).map_err(before)?;
+
                 let urls = remotes
                     .iter()
                     .find(|r| Some(r.name.as_str()) == options.remote)
                     .map(|r| r.fetch_urls.as_slice())
                     .unwrap_or(&[]);
+
                 auth.validate_for(urls).map_err(before)?;
                 args.insert(1, "--recurse-submodules=no".into());
             }
+
             self.transport(
                 args,
                 options.authentication,
                 options.on_progress,
                 cancellation,
             )?;
+
             self.sync_result(SyncOperation::Fetch, options.remote, cancellation)
         })
     }
@@ -221,10 +244,13 @@ impl Repository {
                 PullStrategy::Merge => "--no-rebase",
                 PullStrategy::Rebase => "--rebase",
             };
+
             let mut args = vec!["pull", flag];
+
             transport_selection(&mut args, options.remote, options.branch, false)
                 .map_err(before)?;
             self.write_command(args, &[], cancellation)?;
+
             self.sync_result(SyncOperation::Pull, options.remote, cancellation)
         })
     }
@@ -237,15 +263,19 @@ impl Repository {
     ) -> Result<SyncResult, WriteError> {
         self.mutate(cancellation, || {
             let mut args = vec!["push"];
+
             if options.force_with_lease {
                 args.push("--force-with-lease");
             }
+
             if options.tags {
                 args.push("--tags");
             }
+
             if options.set_upstream {
                 args.push("--set-upstream");
             }
+
             transport_selection(
                 &mut args,
                 options.remote,
@@ -254,6 +284,7 @@ impl Repository {
             )
             .map_err(before)?;
             self.write_command(args, &[], cancellation)?;
+
             self.sync_result(SyncOperation::Push, options.remote, cancellation)
         })
     }
@@ -267,6 +298,7 @@ impl Repository {
         self.mutate(cancellation, || {
             let snapshot = self.snapshot_uncoordinated(false, cancellation).map_err(before)?;
             let head = &snapshot.status.head;
+
             if head.oid.is_none()
                 || head.branch.is_none()
                 || head.is_detached()
@@ -276,26 +308,33 @@ impl Repository {
                     "The branch changed or has no commit. Refresh before synchronizing.",
                 )));
             }
+
             if snapshot.operation != OperationState::Normal {
                 return Err(before(RepositoryError::Conflict(
                     "Finish the current Git operation before synchronizing.".into(),
                 )));
             }
+
             if request.kind == SyncKind::Pull
                 && snapshot.status.files.iter().any(|f| f.record_type != RecordType::Ignored)
             {
                 return Err(before(RepositoryError::DirtyWorktree));
             }
+
             let branches = self.branches_uncoordinated(cancellation).map_err(before)?;
             let remotes = self.remotes_uncoordinated(cancellation).map_err(before)?;
+
             let branch = branches.branches.iter()
                 .find(|branch| branch.kind == BranchKind::Local && Some(&branch.name) == head.branch.as_ref())
                 .ok_or_else(|| before(RepositoryError::InvalidInput("The selected branch is unavailable.")))?;
+
             let remote = remotes.iter().find(|remote| remote.name == request.remote)
                 .ok_or_else(|| before(RepositoryError::InvalidInput("The selected remote is unavailable.")))?;
+
             if Some(&branch.oid) != head.oid.as_ref() || !request.remote_ref.starts_with("refs/heads/") {
                 return Err(before(RepositoryError::InvalidInput("The selected remote or branch is unavailable.")));
             }
+
             if request.kind == SyncKind::Publish {
                 if branch.upstream.is_some()
                     || branch.upstream_remote.is_some()
@@ -308,33 +347,46 @@ impl Repository {
             {
                 return Err(before(RepositoryError::InvalidInput("The upstream changed. Reopen the menu before synchronizing.")));
             }
+
             if request.kind == SyncKind::Pull && branch.ahead > 0 && branch.behind > 0 {
                 return Err(before(RepositoryError::Conflict("Branches have diverged. Resolve divergence before pulling; no merge or rebase was started.".into())));
             }
+
             if request.kind != SyncKind::Pull && remote.push_urls.len() != 1 {
                 return Err(before(RepositoryError::InvalidInput("Configure a single push URL before synchronizing.")));
             }
+
             if let Some(auth) = request.authentication {
                 let urls = if request.kind == SyncKind::Pull { &remote.fetch_urls } else { &remote.push_urls };
+
                 auth.validate_for(urls).map_err(before)?;
             }
+
             self.run(["check-ref-format", request.remote_ref], cancellation).map_err(before)?;
             let operation = if request.kind == SyncKind::Pull { "pull" } else { "push" };
             let mut args: Vec<String>;
+
             if request.kind == SyncKind::Pull {
                 args = ["pull", "--ff-only", "--no-rebase", "--no-autostash", "--recurse-submodules=no", "--", request.remote, request.remote_ref]
                     .into_iter().map(Into::into).collect();
             } else {
                 args = vec!["-c".into(), format!("remote.{}.mirror=false", remote.name), "push".into(), "--no-force".into(), "--no-mirror".into(), "--no-follow-tags".into(), "--recurse-submodules=no".into()];
+
                 if request.kind == SyncKind::Publish { args.push("--set-upstream".into()); }
+
                 let source = if request.kind == SyncKind::Publish { &branch.full_name } else { &branch.oid };
+
                 args.extend(["--".into(), remote.name.clone(), format!("{source}:{}", request.remote_ref)]);
             }
+
             if request.on_progress.is_some() {
                 let index = args.iter().position(|arg| arg == operation).expect("known transport command");
+
                 args.insert(index + 1, "--progress".into());
             }
+
             self.transport(args, request.authentication, request.on_progress, cancellation)?;
+
             self.sync_result(
                 if request.kind == SyncKind::Pull { SyncOperation::Pull } else { SyncOperation::Push },
                 Some(request.remote), cancellation,
@@ -352,14 +404,17 @@ impl Repository {
             self.review_tag(request.name, request.expected, cancellation)
                 .map_err(before)?;
             text(request.message).map_err(before)?;
+
             if request.message.trim().is_empty() || !full_oid(request.commit) {
                 return Err(before(RepositoryError::InvalidInput(
                     "A tag message and exact commit ID are required.",
                 )));
             }
+
             let object = self
                 .run(["cat-file", "-t", request.commit], cancellation)
                 .map_err(before)?;
+
             if object.stdout != b"commit\n"
                 || !self
                     .is_ancestor(
@@ -373,6 +428,7 @@ impl Repository {
                     "Select an exact commit from the reviewed History before tagging.",
                 )));
             }
+
             if self
                 .tags_uncoordinated(cancellation)
                 .map_err(before)?
@@ -383,6 +439,7 @@ impl Repository {
                     "A tag with this name already exists. Existing tags are never replaced.",
                 )));
             }
+
             self.review_tag(request.name, request.expected, cancellation)
                 .map_err(before)?;
             self.write_command(
@@ -390,6 +447,7 @@ impl Repository {
                 format!("{}\n", request.message).as_bytes(),
                 cancellation,
             )?;
+
             self.written_snapshot(cancellation)
         })
     }
@@ -405,16 +463,19 @@ impl Repository {
                 .map_err(before)?;
             let tags = self.tags_uncoordinated(cancellation).map_err(before)?;
             let remotes = self.remotes_uncoordinated(cancellation).map_err(before)?;
+
             let tag = tags
                 .iter()
                 .find(|t| t.name == request.name)
                 .ok_or_else(|| before(RepositoryError::InvalidInput("The tag is unavailable.")))?;
+
             let remote = remotes
                 .iter()
                 .find(|r| r.name == request.remote)
                 .ok_or_else(|| {
                     before(RepositoryError::InvalidInput("The remote is unavailable."))
                 })?;
+
             if tag.oid != request.expected_oid
                 || tag.target_oid != request.expected_target
                 || remote.push_urls.as_slice() != [request.expected_url]
@@ -423,12 +484,16 @@ impl Repository {
                     "The tag or remote destination changed. Refresh and review before pushing.",
                 )));
             }
+
             remote_url(request.expected_url).map_err(before)?;
+
             if let Some(auth) = request.authentication {
                 auth.validate_for(&remote.push_urls).map_err(before)?;
             }
+
             let destination =
                 transport_destination(&self.info.root, request.expected_url).map_err(before)?;
+
             let args: Vec<OsString> = vec![
                 "push".into(),
                 "--no-force".into(),
@@ -439,7 +504,9 @@ impl Repository {
                 destination,
                 format!("{}:refs/tags/{}", tag.oid, tag.name).into(),
             ];
+
             self.transport(args, request.authentication, None, cancellation)?;
+
             Ok(TagPushResult {
                 name: tag.name.clone(),
                 oid: tag.oid.clone(),
@@ -456,6 +523,7 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<(), RepositoryError> {
         let snapshot = self.snapshot_uncoordinated(false, cancellation)?;
+
         if expected.oid.is_none()
             || BranchIdentity::from_snapshot(&snapshot) != *expected
             || snapshot.operation != OperationState::Normal
@@ -464,11 +532,13 @@ impl Repository {
                 "The repository changed or has a Git operation in progress. Refresh and review the tag again.",
             ));
         }
+
         require_revision(name)?;
         self.run(
             ["check-ref-format", &format!("refs/tags/{name}")],
             cancellation,
         )?;
+
         Ok(())
     }
 
@@ -482,6 +552,7 @@ impl Repository {
         super::check_cancelled(cancellation).map_err(before)?;
         self.check_write_identity().map_err(before)?;
         let mut command = GitCommand::new(&self.info.root, args);
+
         command.directory = Some(&self.root_directory);
         command.cancellation = cancellation;
         command.http_authentication = authentication;
@@ -490,8 +561,10 @@ impl Repository {
             phase: WritePhase::Command,
             error: error.into(),
         })?;
+
         Ok(())
     }
+
     fn sync_result(
         &self,
         operation: SyncOperation,
@@ -499,6 +572,7 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<SyncResult, WriteError> {
         let snapshot = self.written_snapshot(cancellation)?;
+
         Ok(SyncResult {
             operation,
             remote: remote.map(Into::into),
@@ -507,6 +581,7 @@ impl Repository {
         })
     }
 }
+
 fn transport_selection<'a>(
     args: &mut Vec<&'a str>,
     remote: Option<&'a str>,
@@ -516,6 +591,7 @@ fn transport_selection<'a>(
     if let Some(remote) = remote.filter(|r| !r.is_empty()) {
         require_revision(remote)?;
         args.push(remote);
+
         if let Some(branch) = branch.filter(|b| !b.is_empty()) {
             require_revision(branch)?;
             args.push(branch);
@@ -525,11 +601,14 @@ fn transport_selection<'a>(
             "A branch or setUpstream requires an explicit remote.",
         ));
     }
+
     Ok(())
 }
+
 fn transport_destination(root: &std::path::Path, url: &str) -> Result<OsString, RepositoryError> {
     let colon = url.find(':');
     let slash = url.find('/');
+
     if url.contains("://") || colon.is_some_and(|i| slash.is_none_or(|s| i < s)) {
         Ok(url.into())
     } else {

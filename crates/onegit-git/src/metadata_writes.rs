@@ -4,6 +4,7 @@ use super::{
     BranchMutation, ConfigScope, ConfigValue, Remote, Repository, RepositoryError, Snapshot, Stash,
     Tag, WriteError, WritePhase, check_cancelled,
 };
+
 use crate::validation::{require_paths, require_revision};
 use crate::{Cancellation, GitCommand, GitError, GitOutput, GitPath};
 use std::ffi::OsString;
@@ -127,11 +128,13 @@ pub(super) fn text(value: &str) -> Result<(), RepositoryError> {
             "Text must be nonempty and contain no NUL.",
         ));
     }
+
     Ok(())
 }
 
 pub(super) fn remote_url(value: &str) -> Result<(), RepositoryError> {
     text(value)?;
+
     if value
         .get(..7)
         .is_some_and(|p| p.eq_ignore_ascii_case("http://"))
@@ -141,12 +144,14 @@ pub(super) fn remote_url(value: &str) -> Result<(), RepositoryError> {
     {
         let parsed = url::Url::parse(value)
             .map_err(|_| RepositoryError::InvalidInput("Remote URL must be a valid HTTP URL."))?;
+
         if !parsed.username().is_empty() || parsed.password().is_some() {
             return Err(RepositoryError::InvalidInput(
                 "Remote URL must not contain credentials. Configure a Git credential helper instead.",
             ));
         }
     }
+
     Ok(())
 }
 
@@ -157,8 +162,10 @@ impl Repository {
         action: impl FnOnce() -> Result<T, WriteError>,
     ) -> Result<T, WriteError> {
         let _write = self.mutations.enter();
+
         check_cancelled(cancellation).map_err(before)?;
         self.check_write_identity().map_err(before)?;
+
         action()
     }
 
@@ -171,9 +178,11 @@ impl Repository {
         check_cancelled(cancellation).map_err(before)?;
         self.check_write_identity().map_err(before)?;
         let mut command = GitCommand::new(&self.info.root, args);
+
         command.directory = Some(&self.root_directory);
         command.stdin = input;
         command.cancellation = cancellation;
+
         self.process.run(command).map_err(|error| WriteError {
             phase: WritePhase::Command,
             error: error.into(),
@@ -199,11 +208,14 @@ impl Repository {
             require_revision(options.name).map_err(before)?;
             remote_url(options.url).map_err(before)?;
             let mut args = vec!["remote", "add"];
+
             if options.fetch {
                 args.push("-f");
             }
+
             args.extend(["--", options.name, options.url]);
             self.write_command(args, &[], cancellation)?;
+
             self.remotes_uncoordinated(cancellation).map_err(refresh)
         })
     }
@@ -219,6 +231,7 @@ impl Repository {
             require_revision(current).map_err(before)?;
             require_revision(name).map_err(before)?;
             self.write_command(["remote", "rename", current, name], &[], cancellation)?;
+
             self.remotes_uncoordinated(cancellation).map_err(refresh)
         })
     }
@@ -233,14 +246,18 @@ impl Repository {
             require_revision(options.name).map_err(before)?;
             remote_url(options.url).map_err(before)?;
             let mut args = vec!["remote", "set-url"];
+
             if options.push {
                 args.push("--push");
             }
+
             if options.add {
                 args.push("--add");
             }
+
             args.extend([options.name, options.url]);
             self.write_command(args, &[], cancellation)?;
+
             self.remotes_uncoordinated(cancellation).map_err(refresh)
         })
     }
@@ -254,6 +271,7 @@ impl Repository {
         self.mutate(cancellation, || {
             require_revision(name).map_err(before)?;
             self.write_command(["remote", "remove", name], &[], cancellation)?;
+
             self.remotes_uncoordinated(cancellation).map_err(refresh)
         })
     }
@@ -272,19 +290,25 @@ impl Repository {
             )
             .map_err(before)?;
             let mut args: Vec<OsString> = vec!["tag".into()];
+
             if options.force {
                 args.push("--force".into());
             }
+
             if let Some(message) = options.message {
                 text(message).map_err(before)?;
                 args.extend(["-a".into(), "-m".into(), message.into()]);
             }
+
             args.push(options.name.into());
+
             if let Some(revision) = options.revision.filter(|s| !s.is_empty()) {
                 require_revision(revision).map_err(before)?;
                 args.push(revision.into());
             }
+
             self.write_command(args, &[], cancellation)?;
+
             self.tags_uncoordinated(cancellation).map_err(refresh)
         })
     }
@@ -303,6 +327,7 @@ impl Repository {
             )
             .map_err(before)?;
             self.write_command(["tag", "--delete", "--", name], &[], cancellation)?;
+
             self.tags_uncoordinated(cancellation).map_err(refresh)
         })
     }
@@ -317,13 +342,16 @@ impl Repository {
         self.mutate(cancellation, || {
             require_revision(upstream).map_err(before)?;
             let mut args = vec!["branch".to_owned(), format!("--set-upstream-to={upstream}")];
+
             if let Some(branch) = branch.filter(|s| !s.is_empty()) {
                 require_revision(branch).map_err(before)?;
                 self.run(["check-ref-format", "--branch", branch], cancellation)
                     .map_err(before)?;
                 args.push(branch.into());
             }
+
             self.write_command(args, &[], cancellation)?;
+
             Ok(BranchMutation {
                 saved_changes: None,
                 snapshot: self.written_snapshot(cancellation)?,
@@ -342,8 +370,10 @@ impl Repository {
     ) -> Result<ConfigValue, WriteError> {
         self.mutate(cancellation, || {
             let flag = config_scope(key, scope).map_err(before)?;
+
             text(value).map_err(before)?;
             self.write_command(["config", flag, key, value], &[], cancellation)?;
+
             Ok(ConfigValue {
                 key: key.into(),
                 scope,
@@ -361,6 +391,7 @@ impl Repository {
     ) -> Result<ConfigValue, WriteError> {
         self.mutate(cancellation, || {
             let flag = config_scope(key, scope).map_err(before)?;
+
             match self.write_command(["config", flag, "--unset-all", key], &[], cancellation) {
                 Err(WriteError {
                     error: RepositoryError::Git(GitError::CommandFailed { status, .. }),
@@ -370,6 +401,7 @@ impl Repository {
                     result?;
                 }
             }
+
             Ok(ConfigValue {
                 key: key.into(),
                 scope,
@@ -387,28 +419,36 @@ impl Repository {
         self.mutate(cancellation, || {
             require_paths(options.paths).map_err(before)?;
             let worktree = options.worktree.unwrap_or(!options.staged);
+
             if worktree && !options.allow_destructive {
                 return Err(before(RepositoryError::InvalidInput(
                     "Restoring worktree content requires allowDestructive: true.",
                 )));
             }
+
             let mut args: Vec<OsString> = vec!["--literal-pathspecs".into(), "restore".into()];
+
             if let Some(source) = options.source.filter(|s| !s.is_empty()) {
                 require_revision(source).map_err(before)?;
                 args.push(format!("--source={source}").into());
             }
+
             if options.staged {
                 args.push("--staged".into());
             }
+
             if worktree {
                 args.push("--worktree".into());
             }
+
             args.extend([
                 "--pathspec-from-file=-".into(),
                 "--pathspec-file-nul".into(),
             ]);
             let paths = crate::git_path::pathspec_list(options.paths).map_err(before)?;
+
             self.write_command(args, &paths, cancellation)?;
+
             self.written_snapshot(cancellation)
         })
     }
@@ -425,14 +465,18 @@ impl Repository {
                     "Hard reset requires allowDestructive: true.",
                 )));
             }
+
             let target = options.target.unwrap_or("HEAD");
+
             require_revision(target).map_err(before)?;
             let mode = match options.mode {
                 ResetMode::Soft => "--soft",
                 ResetMode::Mixed => "--mixed",
                 ResetMode::Hard => "--hard",
             };
+
             self.write_command(["reset", mode, target], &[], cancellation)?;
+
             self.written_snapshot(cancellation)
         })
     }
@@ -445,19 +489,24 @@ impl Repository {
     ) -> Result<Snapshot, WriteError> {
         self.mutate(cancellation, || {
             let mut args: Vec<OsString> = vec!["stash".into(), "push".into()];
+
             if options.include_untracked {
                 args.push("--include-untracked".into());
             }
+
             if options.keep_index {
                 args.push("--keep-index".into());
             }
+
             if options.staged {
                 args.push("--staged".into());
             }
+
             if let Some(message) = options.message.filter(|s| !s.is_empty()) {
                 text(message).map_err(before)?;
                 args.extend(["-m".into(), message.into()]);
             }
+
             let input = if let Some(paths) = options.paths {
                 require_paths(paths).map_err(before)?;
                 args.extend([
@@ -467,16 +516,20 @@ impl Repository {
                 // Global literal mode also reaches stash's internal root-magic cleanup.
                 // Scope literal semantics to each selected name instead.
                 let mut input = Vec::new();
+
                 for path in paths {
                     input.extend_from_slice(b":(literal)");
                     input.extend_from_slice(path.pathspec_bytes().map_err(before)?);
                     input.push(0);
                 }
+
                 input
             } else {
                 Vec::new()
             };
+
             self.write_command(args, &input, cancellation)?;
+
             self.written_snapshot(cancellation)
         })
     }
@@ -519,11 +572,14 @@ impl Repository {
         self.mutate(cancellation, || {
             require_revision(reference).map_err(before)?;
             let mut args = vec!["stash", action];
+
             if reinstate_index {
                 args.push("--index");
             }
+
             args.push(reference);
             self.write_command(args, &[], cancellation)?;
+
             self.written_snapshot(cancellation)
         })
     }
@@ -537,6 +593,7 @@ impl Repository {
         self.mutate(cancellation, || {
             require_revision(reference).map_err(before)?;
             self.write_command(["stash", "drop", reference], &[], cancellation)?;
+
             self.stashes_uncoordinated(cancellation).map_err(refresh)
         })
     }
@@ -548,6 +605,7 @@ fn config_scope(key: &str, scope: ConfigScope) -> Result<&'static str, Repositor
             "Invalid Git configuration key",
         ));
     }
+
     match scope {
         ConfigScope::Local => Ok("--local"),
         ConfigScope::Worktree => Ok("--worktree"),

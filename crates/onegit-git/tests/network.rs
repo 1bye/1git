@@ -1,26 +1,34 @@
 //! Ports local-remote fetch/pull/push, reviewed branch sync and release-tag publishing.
 mod common;
+
 use common::Fixture;
+
 use onegit_git::{
     AddRemote, BranchIdentity, CreateReleaseTag, FetchOptions, HttpAuthentication, PullOptions,
     PushOptions, PushTag, Repository, SetRemoteUrl, SyncBranch, SyncKind,
 };
+
 fn remote(f: &Fixture) -> String {
     let path = f.temporary.path().join("remote.git");
+
     f.git_os([
         "init".into(),
         "--bare".into(),
         "--initial-branch=main".into(),
         path.as_os_str().into(),
     ]);
+
     common::file_url(&path)
 }
+
 fn setup() -> (Fixture, Repository, String) {
     let f = Fixture::new();
+
     f.write("base", "base");
     f.commit("Base");
     let url = remote(&f);
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     r.add_remote(
         AddRemote {
             name: "origin",
@@ -30,11 +38,14 @@ fn setup() -> (Fixture, Repository, String) {
         None,
     )
     .unwrap();
+
     (f, r, url)
 }
+
 #[test]
 fn pushes_establishes_upstream_fetches_and_pulls_from_a_local_remote() {
     let (f, r, _) = setup();
+
     r.push(
         PushOptions {
             remote: Some("origin"),
@@ -99,13 +110,16 @@ fn pushes_establishes_upstream_fetches_and_pulls_from_a_local_remote() {
         .is_err()
     );
 }
+
 #[test]
 fn reviewed_publish_pushes_only_one_branch_and_rejects_stale_or_ambiguous_intent() {
     let (f, r, url) = setup();
+
     f.git(&["branch", "other"]);
     f.git(&["config", "remote.origin.mirror", "true"]);
     f.git(&["config", "push.followTags", "true"]);
     let expected = BranchIdentity::from_snapshot(&r.snapshot(false, None).unwrap());
+
     let request = SyncBranch {
         kind: SyncKind::Publish,
         expected: &expected,
@@ -114,8 +128,10 @@ fn reviewed_publish_pushes_only_one_branch_and_rejects_stale_or_ambiguous_intent
         authentication: None,
         on_progress: None,
     };
+
     r.sync_branch(request, None).unwrap();
     let heads = String::from_utf8(f.git(&["ls-remote", "--heads", "origin"])).unwrap();
+
     assert!(heads.contains("refs/heads/main"));
     assert!(!heads.contains("refs/heads/other"));
     assert!(
@@ -167,9 +183,11 @@ fn reviewed_publish_pushes_only_one_branch_and_rejects_stale_or_ambiguous_intent
         .is_err()
     );
 }
+
 #[test]
 fn rejects_dirty_reviewed_pull_and_credentials_for_changed_or_non_https_destinations() {
     let (f, r, _) = setup();
+
     r.push(
         PushOptions {
             remote: Some("origin"),
@@ -181,6 +199,7 @@ fn rejects_dirty_reviewed_pull_and_credentials_for_changed_or_non_https_destinat
     )
     .unwrap();
     let expected = BranchIdentity::from_snapshot(&r.snapshot(false, None).unwrap());
+
     f.write("dirty", "keep");
     assert!(
         r.sync_branch(
@@ -201,6 +220,7 @@ fn rejects_dirty_reviewed_pull_and_credentials_for_changed_or_non_https_destinat
         username: "fixture",
         password: "secret",
     };
+
     assert!(
         r.fetch(
             FetchOptions {
@@ -214,12 +234,14 @@ fn rejects_dirty_reviewed_pull_and_credentials_for_changed_or_non_https_destinat
     );
     assert_eq!(std::fs::read(f.root.join("dirty")).unwrap(), b"keep");
 }
+
 #[test]
 fn release_tags_require_reviewed_reachable_commits_and_push_exactly_the_reviewed_object() {
     let (f, r, url) = setup();
     let snapshot = r.snapshot(false, None).unwrap();
     let expected = BranchIdentity::from_snapshot(&snapshot);
     let commit = expected.oid.as_deref().unwrap();
+
     f.write("dirty", "keep");
     r.create_release_tag(
         &CreateReleaseTag {
@@ -244,6 +266,7 @@ fn release_tags_require_reviewed_reachable_commits_and_push_exactly_the_reviewed
         .is_err()
     );
     let tag = r.tags(None).unwrap().remove(0);
+
     let request = PushTag {
         name: &tag.name,
         expected_oid: &tag.oid,
@@ -253,10 +276,13 @@ fn release_tags_require_reviewed_reachable_commits_and_push_exactly_the_reviewed
         expected: &expected,
         authentication: None,
     };
+
     r.push_tag(request, None).unwrap();
     let heads = f.git(&["ls-remote", "--heads", "origin"]);
+
     assert!(heads.is_empty());
     let tags = String::from_utf8(f.git(&["ls-remote", "--tags", "origin"])).unwrap();
+
     assert!(tags.contains(&tag.oid));
     assert_eq!(std::fs::read(f.root.join("dirty")).unwrap(), b"keep");
 }
@@ -264,10 +290,13 @@ fn release_tags_require_reviewed_reachable_commits_and_push_exactly_the_reviewed
 #[test]
 fn pins_relative_local_tag_destinations_even_when_a_remote_with_the_same_name_points_elsewhere() {
     let (f, r, _) = setup();
+
     f.git(&["init", "--bare", "destination.git"]);
     let elsewhere = f.temporary.path().join("elsewhere.git");
+
     f.git_os(["init".into(), "--bare".into(), elsewhere.as_os_str().into()]);
     let elsewhere_url = common::file_url(&elsewhere);
+
     r.add_remote(
         AddRemote {
             name: "destination.git",
@@ -287,6 +316,7 @@ fn pins_relative_local_tag_destinations_even_when_a_remote_with_the_same_name_po
     )
     .unwrap();
     let expected = BranchIdentity::from_snapshot(&r.snapshot(false, None).unwrap());
+
     r.create_release_tag(
         &CreateReleaseTag {
             name: "v1",
@@ -298,6 +328,7 @@ fn pins_relative_local_tag_destinations_even_when_a_remote_with_the_same_name_po
     )
     .unwrap();
     let tag = r.tags(None).unwrap().remove(0);
+
     r.push_tag(
         PushTag {
             name: "v1",
@@ -328,12 +359,15 @@ fn pins_relative_local_tag_destinations_even_when_a_remote_with_the_same_name_po
             ["ls-remote", &elsewhere_url],
         ))
         .unwrap();
+
     assert!(output.stdout.is_empty());
 }
+
 #[test]
 fn release_tag_push_honors_pre_push_hooks_and_refuses_changed_or_existing_different_remote_tags() {
     let (f, r, url) = setup();
     let expected = BranchIdentity::from_snapshot(&r.snapshot(false, None).unwrap());
+
     r.create_release_tag(
         &CreateReleaseTag {
             name: "v1",
@@ -345,8 +379,10 @@ fn release_tag_push_honors_pre_push_hooks_and_refuses_changed_or_existing_differ
     )
     .unwrap();
     let tag = r.tags(None).unwrap().remove(0);
+
     common::install_hook(&f, "pre-push", "#!/bin/sh\necho refused >&2\nexit 1\n");
     let hooked = Repository::open(&f.root, f.process_with_hooks(), None).unwrap();
+
     assert!(
         hooked
             .push_tag(

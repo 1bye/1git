@@ -419,16 +419,20 @@ fn result_read_failure_keeps_the_created_worktree_without_automatic_replay_or_cl
 #[test]
 fn relative_literal_paths_resolve_from_process_directory_without_shell_interpretation() {
     let (fixture, repository) = fixture();
+
     let parent = tempfile::Builder::new()
         .prefix("onegit-relative-")
         .tempdir_in(std::env::current_dir().unwrap())
         .unwrap();
+
     let name = common::filename(
         "relative; literal $(echo no)\n--",
         "relative; literal $(echo no) --",
     );
+
     let target = fs::canonicalize(parent.path()).unwrap().join(name);
     let relative = PathBuf::from(parent.path().file_name().unwrap()).join(name);
+
     let result = repository
         .create_worktree(
             CreateWorktree {

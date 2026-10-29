@@ -1,9 +1,11 @@
 //! Modal composition over retained, window-scoped focus ownership.
 mod frame;
 mod state;
+
 use crate::{
     ButtonVariant, ControlSize, ControlState, IconButton, IconName, Text, TextRole, Theme, overlay,
 };
+
 use frame::{Frame, Hook};
 use rake::gpui::{self, accesskit, prelude::*, px};
 pub use state::{DialogEvent, DialogHostState, DialogState};
@@ -19,6 +21,7 @@ pub enum DialogDismissal {
     /// Only application-owned actions can close the dialog; the close button is hidden.
     Explicit,
 }
+
 /// Whether user dismissal is available. The host controls input and footer button states separately.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DialogAvailability {
@@ -28,6 +31,7 @@ pub enum DialogAvailability {
     /// Suppress Escape, outside clicks and the close button until application work finishes.
     Busy,
 }
+
 /// Accessible dialog semantics, independent of the footer action's color.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DialogKind {
@@ -37,6 +41,7 @@ pub enum DialogKind {
     /// A confirmation that requires the user's attention, announced as an alert dialog.
     Confirmation,
 }
+
 /// Window-root modal host. Put application key contexts and background handlers inside `body`.
 #[derive(IntoElement)]
 pub struct DialogHost {
@@ -47,6 +52,7 @@ pub struct DialogHost {
     /// Dialogs belonging to this host; keep logical dialogs mounted while the host exists.
     pub children: Vec<gpui::AnyElement>,
 }
+
 impl std::fmt::Debug for DialogHost {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DialogHost")
@@ -54,11 +60,13 @@ impl std::fmt::Debug for DialogHost {
             .finish_non_exhaustive()
     }
 }
+
 impl RenderOnce for DialogHost {
     fn render(self, _: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
         let modal = self.state.is_open(cx);
         let root = self.state.root();
         let fallback = self.state.fallback();
+
         let body = Frame {
             inner: gpui::div()
                 .id("body")
@@ -69,16 +77,19 @@ impl RenderOnce for DialogHost {
                 .child(self.body),
             hook: Hook::Background(modal),
         };
+
         let inner = rake::view! {
             <div id="dialog-host" class="relative size-full" focus={&root} tab-navigation={true}
                 style={|s|s.child(body).children(self.children)}/>
         };
+
         Frame {
             inner,
             hook: Hook::Host(self.state),
         }
     }
 }
+
 /// Themed modal with title, optional description, scrollable body and footer slots.
 /// Create retained state through [`DialogHostState::dialog`] and mount inside [`DialogHost`].
 #[derive(IntoElement)]
@@ -106,6 +117,7 @@ pub struct Dialog {
     /// Form or confirmation content. Retained values remain caller-owned.
     pub children: Vec<gpui::AnyElement>,
 }
+
 impl Dialog {
     /// Create a 440-pixel standard dialog with Escape dismissal and no footer.
     #[must_use]
@@ -129,6 +141,7 @@ impl Dialog {
         }
     }
 }
+
 impl std::fmt::Debug for Dialog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Dialog")
@@ -139,6 +152,7 @@ impl std::fmt::Debug for Dialog {
             .finish_non_exhaustive()
     }
 }
+
 impl RenderOnce for Dialog {
     fn render(self, _: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
         self.state.update(cx, |state, _| {
@@ -146,9 +160,11 @@ impl RenderOnce for Dialog {
             state.availability = self.availability;
             state.dismissal = self.dismissal;
         });
+
         if !self.state.read(cx).is_open() {
             return gpui::Empty.into_any_element();
         }
+
         // A viewport-sized deferred layer has no trigger and bypasses ancestor scrolling clips.
         overlay::floating(Default::default(), move |_, window, cx| {
             self.layer(window, cx)
@@ -156,6 +172,7 @@ impl RenderOnce for Dialog {
         .into_any_element()
     }
 }
+
 impl Dialog {
     fn layer(self, window: &mut gpui::Window, cx: &mut gpui::App) -> gpui::AnyElement {
         let theme = Theme::current();
@@ -168,6 +185,7 @@ impl Dialog {
         let key = self.state.clone();
         let outside = self.state.clone();
         let close = self.state.clone();
+
         let panel = rake::view! {
             <div id={self.id} focus={&focus} role={if self.kind==DialogKind::Confirmation {accesskit::Role::AlertDialog}else{accesskit::Role::Dialog}}
                 aria-label={self.title.clone()} aria-description={self.description.clone().unwrap_or_default()}
@@ -200,10 +218,12 @@ impl Dialog {
                 <div id="last" focus={&last} class="size-0"/>
             </div>
         };
+
         let panel = Frame {
             inner: panel,
             hook: Hook::Surface(self.state.clone()),
         };
+
         let screen = gpui::div()
             .absolute()
             .left_0()
@@ -233,6 +253,7 @@ impl Dialog {
                     .justify_center()
                     .child(panel),
             );
+
         screen.into_any_element()
     }
 }

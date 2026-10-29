@@ -4,6 +4,7 @@
 //! Requires: none.
 
 use std::io;
+
 mod common;
 
 use onegit_git::{

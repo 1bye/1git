@@ -87,6 +87,7 @@ fn changed_patches_and_unknown_keys_leave_the_exact_real_index_and_head_unchange
 #[test]
 fn partial_commit_refuses_diff_prefixes_that_redirect_to_an_unselected_file() {
     let fixture = Fixture::new();
+
     fs::create_dir(fixture.root.join("folder")).unwrap();
     fixture.write("folder/file", "base\n");
     fixture.write("file", "base\n");
@@ -113,12 +114,15 @@ fn partial_commit_refuses_diff_prefixes_that_redirect_to_an_unselected_file() {
 #[test]
 fn partial_commit_decodes_quoted_git_paths_without_normalizing_them() {
     let fixture = Fixture::new();
+
     fs::create_dir(fixture.root.join("folder")).unwrap();
     let name = common::filename("folder/file\t\nété", "folder/file [literal] été");
+
     fixture.write(name, "base\n");
     fixture.commit("base");
     fixture.write(name, "changed\n");
     let repository = open(&fixture);
+
     repository
         .commit_selected_files(&partial_request(&repository, name, &["-:1", "+:1"]), None)
         .unwrap();

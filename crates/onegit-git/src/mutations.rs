@@ -241,12 +241,14 @@ impl Repository {
         };
 
         let mut input = Vec::new();
+
         if let Some(paths) = paths {
             args.extend([
                 "--pathspec-from-file=-".into(),
                 "--pathspec-file-nul".into(),
             ]);
             let mut seen = std::collections::HashSet::new();
+
             for path in paths {
                 if seen.insert(path) {
                     input.extend_from_slice(path.pathspec_bytes().map_err(|e| before(e.into()))?);

@@ -6,7 +6,9 @@
 use gpui_ce_motion::{
     Color, ColorProperty, Easing, StyleMotion, StyleMotionState, StyleTarget, Transition,
 };
+
 use rake::gpui::{self, prelude::*};
+
 use std::{
     cell::RefCell,
     rc::Rc,
@@ -40,6 +42,7 @@ impl Surface {
     fn target(self) -> StyleTarget {
         fn color(value: gpui::Hsla) -> Color {
             let value = gpui::hsla_to_rgba(value);
+
             Color::rgba(
                 value.red.into(),
                 value.green.into(),
@@ -47,6 +50,7 @@ impl Surface {
                 value.alpha.into(),
             )
         }
+
         StyleTarget::default()
             .color(ColorProperty::Background, color(self.background))
             .color(ColorProperty::Border, color(self.border))
@@ -59,8 +63,10 @@ impl Surface {
                 .get_color(property)
                 .expect("surface declares all paint tracks")
                 .channels();
+
             gpui::rgb_to_hsla(gpui::Rgba::new(r, g, b, a))
         }
+
         Self {
             background: color(target, ColorProperty::Background),
             border: color(target, ColorProperty::Border),
@@ -117,6 +123,7 @@ where
     E: IntoElement + 'static,
 {
     type Element = Self;
+
     fn into_element(self) -> Self {
         self
     }
@@ -133,6 +140,7 @@ where
     fn id(&self) -> Option<gpui::ElementId> {
         Some(self.id.clone())
     }
+
     fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
         None
     }
@@ -149,12 +157,14 @@ where
             |state: Option<Rc<RefCell<Retained>>>, window| {
                 let shared = state.unwrap_or_default();
                 let mut state = shared.borrow_mut();
+
                 if !self.interactive {
                     state.hovered = false;
                     state.pressed = false;
                 } else if !window.is_window_active() {
                     state.pressed = false;
                 }
+
                 let target = if state.pressed && state.hovered {
                     self.press
                 } else if state.hovered {
@@ -162,23 +172,30 @@ where
                 } else {
                     self.rest
                 };
+
                 let now = cx.background_executor().now();
                 let epoch = *state.epoch.get_or_insert(now);
+
                 let frame = state.motion.sample(
                     StyleMotion::new(target.target()).transition(FEEDBACK),
                     now.saturating_duration_since(epoch),
                     cx.reduce_motion(),
                 );
+
                 if frame.is_animating() {
                     window.request_animation_frame();
                 }
+
                 let paint = Surface::from_target(frame.target(), target.opacity);
+
                 drop(state);
                 let build = self
                     .build
                     .take()
                     .expect("motion surface lays out once per frame");
+
                 let mut child = build(paint).into_any_element();
+
                 ((child.request_layout(window, cx), child), shared)
             },
         )
@@ -194,7 +211,9 @@ where
         cx: &mut gpui::App,
     ) -> gpui::Hitbox {
         let hitbox = window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal);
+
         child.prepaint(window, cx);
+
         hitbox
     }
 
@@ -210,21 +229,26 @@ where
     ) {
         if self.interactive {
             let owner = window.current_view();
+
             window.with_element_state(
                 id.expect("motion surface ID"),
                 |state: Option<Rc<RefCell<Retained>>>, window| {
                     let shared = state.expect("motion was retained during layout");
                     let region = hitbox.clone();
                     let input = shared.clone();
+
                     window.on_mouse_event(
                         move |event: &gpui::MouseMoveEvent, phase, window, cx| {
                             if phase != gpui::DispatchPhase::Capture {
                                 return;
                             }
+
                             let mut state = input.borrow_mut();
                             let hovered = region.is_hovered(window);
+
                             let pressed = state.pressed
                                 && event.pressed_button == Some(gpui::MouseButton::Left);
+
                             if state.hovered != hovered || state.pressed != pressed {
                                 state.hovered = hovered;
                                 state.pressed = pressed;
@@ -234,6 +258,7 @@ where
                     );
                     let region = hitbox.clone();
                     let input = shared.clone();
+
                     window.on_mouse_event(
                         move |event: &gpui::MouseDownEvent, phase, window, cx| {
                             if phase == gpui::DispatchPhase::Capture
@@ -241,6 +266,7 @@ where
                                 && region.is_hovered(window)
                             {
                                 let mut state = input.borrow_mut();
+
                                 state.hovered = true;
                                 state.pressed = true;
                                 cx.notify(owner);
@@ -248,21 +274,25 @@ where
                         },
                     );
                     let input = shared.clone();
+
                     window.on_mouse_event(move |event: &gpui::MouseUpEvent, phase, _, cx| {
                         if phase == gpui::DispatchPhase::Capture
                             && event.button == gpui::MouseButton::Left
                         {
                             let mut state = input.borrow_mut();
+
                             if state.pressed {
                                 state.pressed = false;
                                 cx.notify(owner);
                             }
                         }
                     });
+
                     ((), shared)
                 },
             );
         }
+
         child.paint(window, cx);
     }
 }
@@ -302,6 +332,7 @@ where
     E: IntoElement + 'static,
 {
     type Element = Self;
+
     fn into_element(self) -> Self {
         self
     }
@@ -318,6 +349,7 @@ where
     fn id(&self) -> Option<gpui::ElementId> {
         Some(self.id.clone())
     }
+
     fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
         None
     }
@@ -337,7 +369,9 @@ where
             window,
             cx,
         );
+
         let now = cx.background_executor().now();
+
         let dimensions = window.with_element_state(
             id.expect("resizing controls require stable IDs"),
             |state: Option<SizeHistory>, window| {
@@ -345,24 +379,31 @@ where
                     motion: Default::default(),
                     epoch: now,
                 });
+
                 let frame = state.motion.sample(
                     [measured.width.into(), measured.height.into()],
                     RESIZE,
                     now.saturating_duration_since(state.epoch),
                     cx.reduce_motion(),
                 );
+
                 if frame.is_animating() {
                     window.request_animation_frame();
                 }
+
                 let [width, height] = frame.position().map(|value| gpui::px(value.max(0.) as f32));
+
                 (gpui::size(width, height), state)
             },
         );
+
         let build = self
             .build
             .take()
             .expect("resizing control lays out once per frame");
+
         let mut child = build(dimensions).into_any_element();
+
         (child.request_layout(window, cx), child)
     }
 
@@ -403,6 +444,7 @@ mod tests {
         target: gpui::Hsla,
         enabled: bool,
     }
+
     impl Render for Probe {
         fn render(
             &mut self,
@@ -412,6 +454,7 @@ mod tests {
             let paint = self.paint.clone();
             let rest = Surface::new(self.target);
             let hover = Surface::new(gpui::white());
+
             surface(
                 "probe".into(),
                 rest,
@@ -420,6 +463,7 @@ mod tests {
                 self.enabled,
                 move |sample| {
                     paint.set(sample.background);
+
                     div().w(px(240.)).h(px(40.)).bg(sample.background).child(
                         div()
                             .id("slot")
@@ -431,25 +475,32 @@ mod tests {
             )
         }
     }
+
     fn draw(cx: &mut TestAppContext, view: WindowHandle<Probe>) {
         cx.run_until_parked();
         cx.update_window(view.into(), |_, w, cx| w.draw(cx).clear(cx))
             .expect("draw motion probe");
     }
+
     fn setup() -> (TestAppContext, WindowHandle<Probe>, Rc<Cell<gpui::Hsla>>) {
         let mut cx = TestAppContext::single();
+
         cx.update(|cx| crate::Theme::dark().install(cx));
         let paint = Rc::new(Cell::new(gpui::black()));
+
         let view = cx.add_window(|_, _| Probe {
             paint: paint.clone(),
             target: gpui::black(),
             enabled: true,
         });
+
         cx.update_window(view.into(), |_, window, _| window.activate_window())
             .expect("activate motion probe");
         draw(&mut cx, view);
+
         (cx, view, paint)
     }
+
     fn point(cx: &mut TestAppContext, view: WindowHandle<Probe>, x: f32, y: f32) {
         cx.update_window(view.into(), |_, w, cx| {
             w.dispatch_event(
@@ -465,14 +516,18 @@ mod tests {
         .expect("move pointer over motion probe");
         draw(cx, view);
     }
+
     fn tick(cx: &mut TestAppContext, view: WindowHandle<Probe>, time: Duration) -> usize {
         cx.executor().advance_clock(time);
         let scheduled = cx
             .update_window(view.into(), |_, w, cx| w.simulate_next_frame(cx))
             .expect("deliver animation frame");
+
         draw(cx, view);
+
         scheduled
     }
+
     fn lightness(value: gpui::Hsla) -> f32 {
         gpui::hsla_to_rgba(value).red
     }
@@ -480,9 +535,11 @@ mod tests {
     #[test]
     fn hover_covers_child_slots_and_interrupts_without_jumping_then_stops() {
         let (mut cx, view, paint) = setup();
+
         point(&mut cx, view, 12., 12.);
         tick(&mut cx, view, Duration::from_millis(60));
         let halfway = lightness(paint.get());
+
         assert!(
             halfway > 0. && halfway < 1.,
             "hover should be in flight: {halfway}"
@@ -502,6 +559,7 @@ mod tests {
     #[test]
     fn reduced_motion_snaps_hover_and_selection_without_scheduling() {
         let (mut cx, view, paint) = setup();
+
         cx.update(|cx| cx.set_reduce_motion(true));
         point(&mut cx, view, 230., 12.);
         assert!(

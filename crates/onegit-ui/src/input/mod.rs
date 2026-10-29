@@ -50,6 +50,7 @@ struct Config {
     size: ControlSize,
     rows: u16,
 }
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -73,6 +74,7 @@ macro_rules! field_rows {
         1
     };
 }
+
 macro_rules! field {
     ($name:ident, $kind:ident, $doc:literal $(,$row:ident)?) => {
         #[doc=$doc]
@@ -137,16 +139,19 @@ macro_rules! field {
         }
     };
 }
+
 field!(
     TextInput,
     Text,
     "A themed single-line native text editor with application-owned editing state."
 );
+
 field!(
     SearchField,
     Search,
     "A single-line search editor with a clear action and Escape-to-clear behavior."
 );
+
 field!(
     TextArea,
     Multiline,

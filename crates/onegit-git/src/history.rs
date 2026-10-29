@@ -14,6 +14,7 @@ use crate::{Cancellation, FileStatus, GitCommand, GitError};
 
 pub(super) const HISTORY_FORMAT: &str =
     "%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s%x00%B%x00";
+
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 
 static RAW_HEADER: LazyLock<Regex> = LazyLock::new(|| {

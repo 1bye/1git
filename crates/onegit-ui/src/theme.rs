@@ -118,11 +118,13 @@ impl Theme {
     pub fn for_appearance(appearance: Appearance) -> Self {
         let dark = appearance == Appearance::Dark;
         let color = |light, dark_color| rgb_to_hsla(rgb(if dark { dark_color } else { light }));
+
         let text = |size, height, weight| TextToken {
             size: px(size),
             line_height: Some(px(height)),
             weight: Some(weight),
         };
+
         Self {
             appearance,
             background: color(0xf7f7f8, 0x17191d),

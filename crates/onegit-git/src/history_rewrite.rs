@@ -1,9 +1,11 @@
 //! Reviewed unpublished-history edits built away from the user's files, then installed by ref CAS.
 use super::metadata_writes::{before, text};
+
 use super::{
     BranchIdentity, CommitInfo, Repository, RepositoryError, Snapshot, WriteError, WritePhase,
     check_cancelled,
 };
+
 use crate::validation::full_oid;
 use crate::{Cancellation, GitCommand, GitError};
 use std::collections::HashSet;
@@ -19,6 +21,7 @@ pub struct HistoryRange {
     /// Captured source HEAD and named branch.
     pub expected: BranchIdentity,
 }
+
 /// Reviewed squash intent; message validation is repeated at execution.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SquashCommits {
@@ -27,6 +30,7 @@ pub struct SquashCommits {
     /// Full replacement message with a nonblank first-line summary.
     pub message: String,
 }
+
 /// Reviewed reorder intent; every selected commit appears once, oldest-first in the new order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReorderCommits {
@@ -35,6 +39,7 @@ pub struct ReorderCommits {
     /// Exact permutation in desired oldest-first replay order.
     pub order: Vec<String>,
 }
+
 /// Read-only review of selected and later affected commits.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HistoryRewritePlan {
@@ -43,6 +48,7 @@ pub struct HistoryRewritePlan {
     /// Later commits in newest-first order, replayed after the new range.
     pub replay: Vec<CommitInfo>,
 }
+
 /// Acknowledged rewrite, preserving the original tip and distinguishing refresh/cleanup warnings.
 #[derive(Debug)]
 pub struct HistoryRewriteResult {
@@ -55,6 +61,7 @@ pub struct HistoryRewriteResult {
     /// Post-write cleanup/refresh issue; never automatically retry this result.
     pub warning: Option<String>,
 }
+
 /// Reviewed exact ancestor for a files/index-preserving branch reset.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResetCommit {
@@ -63,6 +70,7 @@ pub struct ResetCommit {
     /// Captured current named branch and HEAD.
     pub expected: BranchIdentity,
 }
+
 /// Read-only count of commits removed by a reviewed soft reset.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResetCommitPlan {
@@ -71,6 +79,7 @@ pub struct ResetCommitPlan {
     /// Number of removed commits across all ancestry, excluding the target.
     pub commit_count: u64,
 }
+
 /// Acknowledged guarded soft reset; files/index remain unchanged.
 #[derive(Debug)]
 pub struct ResetCommitResult {
@@ -84,6 +93,7 @@ pub struct ResetCommitResult {
 
 // Preserve the source's bounded rewrite policy, including later replayed commits.
 const MAX_REWRITE_COMMITS: usize = 1000;
+
 const COMMIT_CONFIG: &[&str] = &[
     "user.name",
     "user.email",
@@ -102,9 +112,11 @@ struct IndexLock {
     identity: crate::platform::FileIdentity,
     owned: bool,
 }
+
 impl IndexLock {
     fn new(repository: &Repository) -> Result<Self, RepositoryError> {
         let path = repository.info.git_directory.join("index.lock");
+
         let file = crate::platform::create_private_file(&path).map_err(|error| {
             if error.kind() == std::io::ErrorKind::AlreadyExists {
                 RepositoryError::RepositoryLocked
@@ -112,7 +124,9 @@ impl IndexLock {
                 error.into()
             }
         })?;
+
         let identity = crate::platform::FileIdentity::from_file(&file)?;
+
         Ok(Self {
             path,
             file,
@@ -120,6 +134,7 @@ impl IndexLock {
             owned: true,
         })
     }
+
     fn verify(&self) -> Result<(), RepositoryError> {
         if crate::platform::FileIdentity::from_file(&self.file)? != self.identity
             || crate::platform::FileIdentity::from_path(&self.path)? != self.identity
@@ -129,15 +144,19 @@ impl IndexLock {
                 "The owned index lock changed. Inspect the lock before continuing.",
             ));
         }
+
         Ok(())
     }
+
     fn release(&mut self) -> Result<(), RepositoryError> {
         self.verify()?;
         fs::remove_file(&self.path)?;
         self.owned = false;
+
         Ok(())
     }
 }
+
 impl Drop for IndexLock {
     fn drop(&mut self) {
         if self.owned {
@@ -154,8 +173,10 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<HistoryRewritePlan, RepositoryError> {
         self.mutations.wait_for_pending();
+
         self.review_rewrite(&request.range, None, cancellation)
     }
+
     /// Review an exact reorder permutation without changing repository data.
     pub fn reorder_plan(
         &self,
@@ -163,8 +184,10 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<HistoryRewritePlan, RepositoryError> {
         self.mutations.wait_for_pending();
+
         self.review_rewrite(&request.range, Some(&request.order), cancellation)
     }
+
     /// Squash in a disposable detached worktree; atomically retain the original and move only the reviewed branch.
     /// Hooks/signing run normally; a changed resulting tree or any replay conflict prevents installation.
     pub fn squash_commits(
@@ -176,6 +199,7 @@ impl Repository {
             self.rewrite(&request.range, None, Some(&request.message), cancellation)
         })
     }
+
     /// Replay an exact oldest-first permutation away from the user's files and install only an identical final tree.
     pub fn reorder_commits(
         &self,
@@ -198,7 +222,9 @@ impl Repository {
                 "Fetch the full history before rewriting a shallow repository.",
             ));
         }
+
         let distinct: HashSet<_> = range.commits.iter().collect();
+
         if range.commits.len() < 2
             || distinct.len() != range.commits.len()
             || !range.commits.iter().all(|id| full_oid(id))
@@ -208,6 +234,7 @@ impl Repository {
                 "Select at least two consecutive commits from History.",
             ));
         }
+
         if let Some(order) = order
             && (order.len() != range.commits.len()
                 || order.iter().collect::<HashSet<_>>() != distinct)
@@ -216,10 +243,12 @@ impl Repository {
                 "The new order must contain each selected commit exactly once.",
             ));
         }
+
         self.review_clean_branch(&range.expected, cancellation)?;
         let oldest = range.commits.last().expect("validated nonempty range");
         let oldest_commit = self.commit_uncoordinated(oldest, cancellation)?;
         let parent = oldest_commit.parent_oids.first();
+
         if let Some(order) = order
             && parent.is_none()
             && order.first() != Some(oldest)
@@ -228,8 +257,10 @@ impl Repository {
                 "The root commit must stay first. Reorder the commits after it instead.",
             ));
         }
+
         let head = range.expected.oid.as_deref().expect("reviewed HEAD");
         let revision = parent.map_or_else(|| head.to_owned(), |p| format!("{p}..{head}"));
+
         let output = self.run(
             [
                 "-c",
@@ -244,12 +275,15 @@ impl Repository {
             ],
             cancellation,
         )?;
+
         let affected = super::history::parse_history(&output.stdout)?;
+
         if affected.len() > MAX_REWRITE_COMMITS {
             return Err(RepositoryError::InvalidInput(
                 "This rewrite is too large. Use an external Git tool.",
             ));
         }
+
         let published = self.run(
             [
                 "for-each-ref",
@@ -259,12 +293,15 @@ impl Repository {
             ],
             cancellation,
         )?;
+
         if !published.stdout.iter().all(u8::is_ascii_whitespace) {
             return Err(RepositoryError::InvalidInput(
                 "These commits are published according to known remote branches. Fetch first if another tool may have pushed; only unpublished history can be rewritten.",
             ));
         }
+
         let tree = self.run(["ls-tree", "-r", head], cancellation)?;
+
         if tree
             .stdout
             .split(|b| *b == b'\n')
@@ -274,17 +311,20 @@ impl Repository {
                 "Repositories with submodules require an external Git tool for history rewriting.",
             ));
         }
+
         let offset = affected
             .iter()
             .position(|c| Some(&c.oid) == range.commits.first())
             .ok_or(RepositoryError::InvalidInput(
                 "Select consecutive commits on the current branch, newest first.",
             ))?;
+
         let selected = affected.get(offset..offset + range.commits.len()).ok_or(
             RepositoryError::InvalidInput(
                 "Select consecutive commits on the current branch, newest first.",
             ),
         )?;
+
         if affected.first().map(|c| c.oid.as_str()) != Some(head)
             || affected.last().map(|c| &c.oid) != Some(oldest)
             || selected.iter().map(|c| &c.oid).ne(range.commits.iter())
@@ -299,6 +339,7 @@ impl Repository {
                 "Select consecutive commits in linear history without merge commits.",
             ));
         }
+
         Ok(HistoryRewritePlan {
             commits: selected.to_vec(),
             replay: affected[..offset].to_vec(),
@@ -315,14 +356,17 @@ impl Repository {
         let plan = self
             .review_rewrite(range, order, cancellation)
             .map_err(before)?;
+
         if let Some(message) = message {
             text(message).map_err(before)?;
+
             if message.lines().next().is_none_or(|s| s.trim().is_empty()) {
                 return Err(before(RepositoryError::InvalidInput(
                     "A first-line summary is required.",
                 )));
             }
         }
+
         if let Some(order) = order
             && order.iter().eq(range.commits.iter().rev())
         {
@@ -330,6 +374,7 @@ impl Repository {
                 "Choose a different commit order first.",
             )));
         }
+
         let action = if order.is_some() { "reorder" } else { "squash" };
         let oldest = plan.commits.last().expect("validated selected range");
         let newest = &plan.commits[0];
@@ -340,21 +385,27 @@ impl Repository {
         let mut worktree = None;
         let mut installed = None;
         let mut warning = None;
+
         let built = (|| -> Result<(), WriteError> {
             let config = self.rewrite_configuration(cancellation).map_err(before)?;
+
             let directory = tempfile::Builder::new()
                 .prefix(&format!("1git-{action}-"))
                 .tempdir()
                 .map_err(before)?;
+
             let scratch = directory.path().join("worktree");
+
             temporary = Some(directory);
             worktree = Some(scratch.clone());
             let destination = crate::platform::git_native_path(&scratch).map_err(before)?;
+
             let base = if order.is_some() {
                 oldest.parent_oids.first().unwrap_or(&oldest.oid)
             } else {
                 &oldest.oid
             };
+
             self.run(
                 vec![
                     OsString::from("worktree"),
@@ -369,8 +420,10 @@ impl Repository {
             .map_err(before)?;
             let run = |args: Vec<OsString>, input: &[u8]| -> Result<Vec<u8>, WriteError> {
                 let mut command = GitCommand::new(&scratch, config.iter().cloned().chain(args));
+
                 command.stdin = input;
                 command.cancellation = cancellation;
+
                 self.process
                     .run(command)
                     .map(|o| o.stdout)
@@ -379,6 +432,7 @@ impl Repository {
                         error: e.into(),
                     })
             };
+
             if let Some(message) = message {
                 run(
                     vec![
@@ -400,6 +454,7 @@ impl Repository {
                     format!("{message}\n").as_bytes(),
                 )?;
             }
+
             let selected = order
                 .map(|o| {
                     if oldest.parent_oids.is_empty() {
@@ -409,6 +464,7 @@ impl Repository {
                     }
                 })
                 .unwrap_or(&[]);
+
             for id in selected
                 .iter()
                 .map(String::as_str)
@@ -424,9 +480,12 @@ impl Repository {
                     &[],
                 )?;
             }
+
             let oid =
                 one_line(&run(vec!["rev-parse".into(), "HEAD".into()], &[])?).map_err(before)?;
+
             let final_tree = run(vec!["rev-parse".into(), "HEAD^{tree}".into()], &[])?;
+
             let original_tree = self
                 .run(
                     [
@@ -440,18 +499,22 @@ impl Repository {
                 )
                 .map_err(before)?
                 .stdout;
+
             if !full_oid(&oid) || final_tree != original_tree {
                 return Err(before(RepositoryError::InvalidInput(
                     "Hooks or replay changed the resulting files. Rewrite was not installed; your branch and working files are unchanged.",
                 )));
             }
+
             self.review_rewrite(range, order, cancellation)
                 .map_err(before)?;
             lock.verify().map_err(before)?;
             self.install_history(&range.expected, &oid, &recovery_ref, cancellation)?;
             installed = Some(oid);
+
             Ok(())
         })();
+
         if let Some(path) = worktree {
             let removed = crate::platform::git_native_path(&path)
                 .map_err(RepositoryError::Io)
@@ -468,16 +531,19 @@ impl Repository {
                     )
                     .map(|_| ())
                 });
+
             if removed.is_err() {
                 if let Some(directory) = temporary.take() {
                     let _ = directory.keep();
                 }
+
                 warning = Some(format!(
                     "Temporary {action} worktree cleanup failed: {}. Inspect History before retrying.",
                     path.display()
                 ));
             }
         }
+
         if let Some(directory) = temporary
             && let Err(error) = directory.close()
         {
@@ -486,6 +552,7 @@ impl Repository {
                 format!("Temporary rewrite directory cleanup failed: {error}"),
             );
         }
+
         if let Err(error) = lock.release() {
             append_warning(
                 &mut warning,
@@ -494,6 +561,7 @@ impl Repository {
                 ),
             );
         }
+
         if let Err(error) = built {
             if let Some(warning) = warning {
                 return Err(WriteError {
@@ -501,14 +569,18 @@ impl Repository {
                     error: RepositoryError::Conflict(format!("{}; {warning}", error.error)),
                 });
             }
+
             return Err(error);
         }
+
         let oid = installed.ok_or_else(|| {
             before(RepositoryError::InvalidInput(
                 "Rewrite outcome is uncertain. Refresh History before retrying.",
             ))
         })?;
+
         let snapshot = self.history_refresh(&range.expected, &oid, &recovery_ref, &mut warning);
+
         Ok(HistoryRewriteResult {
             oid,
             recovery_ref,
@@ -523,10 +595,13 @@ impl Repository {
     ) -> Result<Vec<OsString>, RepositoryError> {
         let read = |key: &str, path: bool| -> Result<Option<String>, RepositoryError> {
             let mut args = vec!["config"];
+
             if path {
                 args.push("--path");
             }
+
             args.extend(["--get", key]);
+
             match self.run(args, cancellation) {
                 Ok(output) => Ok(Some(
                     String::from_utf8(output.stdout)
@@ -543,8 +618,10 @@ impl Repository {
                 Err(e) => Err(e),
             }
         };
+
         let hooks = read("core.hooksPath", true)?;
         let mut hook_arg = OsString::from("core.hooksPath=");
+
         if cfg!(windows)
             && hooks
                 .as_deref()
@@ -557,14 +634,18 @@ impl Repository {
                 || self.info.common_directory.join("hooks"),
                 |path| self.info.root.join(path),
             );
+
             hook_arg.push(crate::platform::git_native_path(&hooks)?);
         }
+
         let mut args = vec!["-c".into(), hook_arg];
+
         for key in COMMIT_CONFIG {
             if let Some(value) = read(key, false)? {
                 args.extend(["-c".into(), format!("{key}={value}").into()]);
             }
         }
+
         Ok(args)
     }
 
@@ -579,17 +660,21 @@ impl Repository {
         self.check_write_identity().map_err(before)?;
         let branch = expected.branch.as_deref().expect("reviewed named branch");
         let head = expected.oid.as_deref().expect("reviewed HEAD");
+
         let input = format!(
             "start\ncreate {recovery_ref} {head}\nupdate refs/heads/{branch} {oid} {head}\nprepare\ncommit\n"
         );
+
         // Installation must complete atomically even if the UI cancels after preparation.
         self.write_command(
             ["update-ref", "-m", "1git: rewrite history", "--stdin"],
             input.as_bytes(),
             None,
         )?;
+
         Ok(())
     }
+
     fn history_refresh(
         &self,
         expected: &BranchIdentity,
@@ -612,6 +697,7 @@ impl Repository {
                         ),
                     );
                 }
+
                 Some(snapshot)
             }
             Err(_) => {
@@ -621,6 +707,7 @@ impl Repository {
                         "History edit completed; refresh failed. Refresh History before continuing. Originals: {recovery_ref}."
                     ),
                 );
+
                 None
             }
         }
@@ -633,8 +720,10 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<ResetCommitPlan, RepositoryError> {
         self.mutations.wait_for_pending();
+
         self.review_reset(request, cancellation)
     }
+
     fn review_reset(
         &self,
         request: &ResetCommit,
@@ -645,47 +734,59 @@ impl Repository {
                 "Select an exact commit from History.",
             ));
         }
+
         if self.info.is_shallow {
             return Err(RepositoryError::InvalidInput(
                 "Fetch the full history before resetting a shallow repository.",
             ));
         }
+
         self.review_clean_branch(&request.expected, cancellation)?;
         let head = request.expected.oid.as_deref().expect("reviewed HEAD");
+
         if request.target == head || !self.is_ancestor(&request.target, head, cancellation)? {
             return Err(RepositoryError::InvalidInput(
                 "Select an earlier ancestor of the current branch tip.",
             ));
         }
+
         let target = self.commit_uncoordinated(&request.target, cancellation)?;
+
         let count = |unpublished: bool| -> Result<u64, RepositoryError> {
             let exclusion = format!("^{}", request.target);
             let mut args = vec!["rev-list", "--count", head, &exclusion];
+
             if unpublished {
                 args.extend(["--not", "--remotes"]);
             }
+
             one_line(&self.run(args, cancellation)?.stdout)?
                 .parse::<u64>()
                 .ok()
                 .filter(|n| *n <= 9_007_199_254_740_991)
                 .ok_or(RepositoryError::InvalidOutput)
         };
+
         let commit_count = count(false)?;
+
         if target.oid != request.target || commit_count == 0 {
             return Err(RepositoryError::InvalidInput(
                 "Select an exact earlier commit from History.",
             ));
         }
+
         if count(true)? != commit_count {
             return Err(RepositoryError::InvalidInput(
                 "Later commits are published according to known remote branches. Only unpublished commits can be reset.",
             ));
         }
+
         Ok(ResetCommitPlan {
             target,
             commit_count,
         })
     }
+
     /// Retain the original tip and soft-reset only the reviewed branch atomically, preserving all files/index bytes.
     pub fn reset_to_commit(
         &self,
@@ -694,24 +795,34 @@ impl Repository {
     ) -> Result<ResetCommitResult, WriteError> {
         self.mutate(cancellation,|| {
             let mut lock=IndexLock::new(self).map_err(before)?;
+
             self.review_reset(request,cancellation).map_err(before)?;lock.verify().map_err(before)?;
             let id=super::mutations::recovery_id().map_err(before)?;let recovery_ref=format!("refs/1git/reset/{id}");
+
             self.install_history(&request.expected,&request.target,&recovery_ref,cancellation)?;
-            let mut warning=None;if let Err(e)=lock.release() {append_warning(&mut warning,format!("Could not release index lock: {e}. Inspect History and the lock before continuing."));}
+            let mut warning=None;
+
+            if let Err(e)=lock.release() {append_warning(&mut warning,format!("Could not release index lock: {e}. Inspect History and the lock before continuing."));}
+
             let snapshot=self.history_refresh(&request.expected,&request.target,&recovery_ref,&mut warning);
+
             Ok(ResetCommitResult {recovery_ref,snapshot,warning})
         })
     }
 }
+
 fn one_line(bytes: &[u8]) -> Result<String, RepositoryError> {
     let s = std::str::from_utf8(bytes)
         .map_err(|_| RepositoryError::InvalidOutput)?
         .trim();
+
     if s.is_empty() || s.contains(['\n', '\r', '\0']) {
         return Err(RepositoryError::InvalidOutput);
     }
+
     Ok(s.into())
 }
+
 fn append_warning(warning: &mut Option<String>, message: String) {
     if let Some(previous) = warning {
         previous.push(' ');

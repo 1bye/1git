@@ -24,6 +24,7 @@ pub struct Pane {
     /// Body inset, supporting edge-to-edge lists and editors.
     pub padding: PanePadding,
 }
+
 impl Pane {
     /// Construct an empty, normally padded surface with no header/footer.
     #[must_use]
@@ -37,6 +38,7 @@ impl Pane {
         }
     }
 }
+
 impl std::fmt::Debug for Pane {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Pane")
@@ -46,6 +48,7 @@ impl std::fmt::Debug for Pane {
             .finish_non_exhaustive()
     }
 }
+
 impl RenderOnce for Pane {
     fn render(self, _: &mut gpui::Window, _: &mut gpui::App) -> impl IntoElement {
         rake::view! {

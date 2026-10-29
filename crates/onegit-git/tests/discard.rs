@@ -14,6 +14,7 @@ use common::Fixture;
 use onegit_git::{
     BranchIdentity, DiscardFiles, DiscardRecovery, GitCommand, Repository, WritePhase,
 };
+
 #[cfg(unix)]
 use onegit_git::{Cancellation, GitError, GitProcess, RepositoryCoordinator, RepositoryError};
 
@@ -508,10 +509,13 @@ fn preflight_refuses_entire_stale_or_unsupported_batches_without_creating_backup
 
     missing.paths.push("missing.txt".try_into().unwrap());
     cases.push(missing);
+
     for path in ["../outside", "./selected.txt"] {
         assert!(onegit_git::GitPath::new(path).is_err());
     }
+
     let mut metadata = valid.clone();
+
     metadata.paths = vec![common::git_path(".git/config")];
     cases.push(metadata);
     let before = common::files_under(&fixture.root);
@@ -1201,6 +1205,7 @@ fn lower_requests_preserve_rename_and_type_change_undo_semantics() {
 
         if cfg!(windows) && kind == "type-change" {
             let error = repository.discard_files(&request, None).unwrap_err();
+
             assert_eq!(error.phase, WritePhase::BeforeCommand);
             assert!(error.recovery.is_none());
             assert_eq!(
@@ -1369,12 +1374,15 @@ fn discarding_a_hardlinked_working_file_never_changes_the_other_link() {
 fn windows_discard_refuses_final_symlinks_without_reading_or_changing_targets() {
     let (fixture, repository) = setup();
     let outside = fixture.temporary.path().join("outside");
+
     fs::write(&outside, b"private target bytes").unwrap();
     symlink(&outside, fixture.root.join("external")).unwrap();
     let before = common::files_under(&fixture.root);
+
     let error = repository
         .discard_files(&review(&fixture, &repository, &["external"]), None)
         .unwrap_err();
+
     assert_eq!(error.phase, WritePhase::BeforeCommand);
     assert!(error.recovery.is_none());
     assert_eq!(fs::read(&outside).unwrap(), b"private target bytes");

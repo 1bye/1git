@@ -340,12 +340,14 @@ impl GitProcess {
             .take()
             .map(platform::input_pipe)
             .transpose()?;
+
         let mut stdout = owned
             .child
             .stdout
             .take()
             .map(platform::output_pipe)
             .transpose()?;
+
         let mut stderr = owned
             .child
             .stderr
@@ -399,6 +401,7 @@ impl GitProcess {
             if let Some(parser) = progress.as_mut() {
                 parser.write(&output.stderr[previous_stderr..]);
             }
+
             if input.http_authentication.is_none()
                 && let Some(observer) = input.on_output
             {
@@ -418,6 +421,7 @@ impl GitProcess {
                 if !platform::GRACEFUL_TERMINATION {
                     owned.signal(platform::Signal::Kill);
                 }
+
                 stdin.take();
                 stdout.take();
                 stderr.take();
@@ -446,6 +450,7 @@ impl GitProcess {
                 && let Some(status) = owned.child.try_wait()?
             {
                 owned.finish(stopped.is_none())?;
+
                 if let Some(parser) = progress.as_mut() {
                     parser.finish();
                 }
@@ -455,6 +460,7 @@ impl GitProcess {
                     None if status.success() => Ok(output),
                     None => Err(GitError::CommandFailed { status, output }),
                 };
+
                 return result.map_err(|error| {
                     if input.http_authentication.is_some() {
                         crate::authentication::sanitized(error)

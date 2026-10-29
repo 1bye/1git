@@ -7,6 +7,7 @@ use onegit_ui::{
     SearchField, Text, TextArea, TextInput, TextRole, TextTone, Theme, Toast, ToastAction,
     ToastHost, ToastId, ToastKind, ToastState, Tooltip,
 };
+
 use rake::gpui::{self, Context, FocusHandle, Focusable, ScrollHandle, Window, prelude::*, px};
 
 rake::theme!(Theme);
@@ -29,6 +30,7 @@ enum DialogOperation {
     Create(String),
     Discard,
 }
+
 impl DialogOperation {
     fn progress(&self) -> &'static str {
         match self {
@@ -77,10 +79,12 @@ impl Gallery {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Theme::dark().install(cx);
         let focus = cx.focus_handle();
+
         window.focus(&focus, cx);
         window.activate_window();
         let branch = cx.new(|cx| InputState::new("feature/native-inputs", window, cx));
         let search = cx.new(|cx| InputState::new("", window, cx));
+
         let message = cx.new(|cx| {
             InputState::new(
                 "Refine native inputs\n\nKeep editing state stable while the appearance changes.",
@@ -88,6 +92,7 @@ impl Gallery {
                 cx,
             )
         });
+
         let validation = cx.new(|cx| InputState::new("feature branch", window, cx));
         let readonly = cx.new(|cx| InputState::new("main", window, cx));
         let disabled_input = cx.new(|cx| InputState::new("Waiting for a repository", window, cx));
@@ -96,6 +101,7 @@ impl Gallery {
         let discard_dialog = dialogs.dialog(cx);
         let toasts = cx.new(|cx| ToastState::new(window, cx));
         let new_branch = cx.new(|cx| InputState::new("", window, cx));
+
         let mut subscriptions: Vec<_> = [&branch, &search, &message, &validation]
             .into_iter()
             .map(|input| {
@@ -103,10 +109,12 @@ impl Gallery {
                     if *event == InputEvent::Submitted {
                         this.submissions += 1;
                     }
+
                     cx.notify();
                 })
             })
             .collect();
+
         subscriptions.push(cx.subscribe_in(
             &new_branch,
             window,
@@ -114,9 +122,11 @@ impl Gallery {
                 if *event == InputEvent::Submitted && this.create_dialog.read(cx).is_open() {
                     this.create_branch(window, cx);
                 }
+
                 cx.notify();
             },
         ));
+
         Self {
             dialogs,
             create_dialog,
@@ -155,6 +165,7 @@ impl Gallery {
 
     fn branch_error(&self, cx: &gpui::App) -> Option<&'static str> {
         let name = self.new_branch.read(cx).text();
+
         if name.is_empty() {
             Some("Enter a branch name.")
         } else if name.chars().any(char::is_whitespace) {
@@ -165,6 +176,7 @@ impl Gallery {
             None
         }
     }
+
     fn open_create(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.create_attempted = false;
         self.create_dialog.update(cx, |state, cx| {
@@ -172,24 +184,32 @@ impl Gallery {
         });
         cx.notify();
     }
+
     fn create_branch(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.dialog_busy {
             return;
         }
+
         self.create_attempted = true;
+
         if self.branch_error(cx).is_some() {
             window.focus(&self.new_branch.read(cx).focus_handle(cx), cx);
             cx.notify();
+
             return;
         }
+
         let name = self.new_branch.read(cx).text().to_owned();
+
         self.start_operation(DialogOperation::Create(name), window, cx);
     }
+
     fn discard_changes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.dialog_busy {
             self.start_operation(DialogOperation::Discard, window, cx);
         }
     }
+
     fn start_operation(
         &mut self,
         operation: DialogOperation,
@@ -199,6 +219,7 @@ impl Gallery {
         if self.dialog_busy {
             return;
         }
+
         self.dialog_busy = true;
         let toast = self.toasts.update(cx, |state, cx| {
             state.show(
@@ -207,7 +228,9 @@ impl Gallery {
                 cx,
             )
         });
+
         let fail = self.fail_dialogs;
+
         if self.slow_dialogs {
             self.dialog_task = Some(cx.spawn_in(window, async move |this, cx| {
                 cx.background_executor()
@@ -220,8 +243,10 @@ impl Gallery {
         } else {
             self.finish_operation(operation, toast, fail, window, cx);
         }
+
         cx.notify();
     }
+
     fn finish_operation(
         &mut self,
         operation: DialogOperation,
@@ -261,12 +286,14 @@ impl Gallery {
                 },
             ),
         };
+
         dialog.update(cx, |state, cx| {
             state.close(window, cx);
         });
         self.dialog_result = detail.clone();
         let action = if fail {
             let weak = cx.weak_entity();
+
             Some(ToastAction::new("Retry", move |window, cx| {
                 let _ = weak.update(cx, |this, cx| {
                     this.fail_dialogs = false;
@@ -276,6 +303,7 @@ impl Gallery {
         } else {
             None
         };
+
         let toast = Toast {
             description: Some(detail.into()),
             action,
@@ -288,11 +316,13 @@ impl Gallery {
                 title,
             )
         };
+
         self.toasts.update(cx, |state, cx| {
             let _ = state.update(id, toast, window, cx);
         });
         cx.notify();
     }
+
     fn toast_examples(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let progress = self.progress_toast.is_some_and(|id| {
             self.toasts
@@ -300,6 +330,7 @@ impl Gallery {
                 .get(id)
                 .is_some_and(|toast| toast.kind == ToastKind::Progress)
         });
+
         rake::view! {
             <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Toasts")}/>}.into_any_element())} {..Pane::new("toasts")}>
                 <Text tone={TextTone::Muted} {..Text::new("intro","Compact feedback without taking keyboard focus. Drag a card sideways to dismiss; short pulls snap back.")}/>
@@ -322,6 +353,7 @@ impl Gallery {
             </Pane>
         }
     }
+
     fn dialog_examples(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         rake::view! {
             <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Dialogs")}/>}.into_any_element())} {..Pane::new("dialogs")}>
@@ -339,9 +371,11 @@ impl Gallery {
             </Pane>
         }
     }
+
     fn create_modal(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let busy = self.dialog_busy;
         let error = self.branch_error(cx);
+
         let footer=rake::view! {
             <div class="flex flex-row flex-wrap items-center gap-2">
                 <Button state={if busy{ControlState::Disabled}else{ControlState::Enabled}} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.create_dialog.update(cx,|state,cx|{state.close(window,cx);});})))} {..Button::new("cancel","Cancel")}/>
@@ -349,6 +383,7 @@ impl Gallery {
                     on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.create_branch(window,cx))))} {..Button::new("create",if busy{"Creating…"}else{"Create branch"})}/>
             </div>
         }.into_any_element();
+
         rake::view! {
             <Dialog description={Some("Create a branch from the current commit on main.".into())} footer={Some(footer)}
                 dismissal={DialogDismissal::EscapeAndOutside} availability={if busy{DialogAvailability::Busy}else{DialogAvailability::Ready}}
@@ -361,8 +396,10 @@ impl Gallery {
             </Dialog>
         }
     }
+
     fn discard_modal(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let busy = self.dialog_busy;
+
         let footer=rake::view! {
             <div class="flex flex-row flex-wrap items-center gap-2">
                 <Button focus={Some(self.discard_cancel.clone())} state={if busy{ControlState::Disabled}else{ControlState::Enabled}}
@@ -371,6 +408,7 @@ impl Gallery {
                     on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.discard_changes(window,cx))))} {..Button::new("discard",if busy{"Discarding…"}else{"Discard changes"})}/>
             </div>
         }.into_any_element();
+
         rake::view! {
             <Dialog kind={DialogKind::Confirmation} description={Some("Discard uncommitted changes in these 2 files?".into())} footer={Some(footer)}
                 initial_focus={Some(self.discard_cancel.clone())} availability={if busy{DialogAvailability::Busy}else{DialogAvailability::Ready}}
@@ -408,6 +446,7 @@ impl Gallery {
                 .into()
             })
             .collect();
+
         let files = vec![
             MenuItem {
                 icon: Some(IconName::Plus),
@@ -432,6 +471,7 @@ impl Gallery {
             }
             .into(),
         ];
+
         rake::view! {
             <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Dropdown menus")}/>}.into_any_element())} {..Pane::new("menus")}>
                 <Text tone={TextTone::Muted} {..Text::new("intro","Compact actions with keyboard navigation and clear selection.")}/>
@@ -564,11 +604,13 @@ impl Gallery {
 
     fn selection(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let included = self.included.iter().filter(|v| **v).count();
+
         let all = match included {
             0 => CheckState::Unchecked,
             3 => CheckState::Checked,
             _ => CheckState::Mixed,
         };
+
         let footer=rake::view! {
             <div class="flex flex-row items-center justify-between gap-2">
                 <Text tone={TextTone::Muted} {..Text::new("included",format!("{included} of 3 included"))}/>
@@ -578,6 +620,7 @@ impl Gallery {
                     {..Button::new("commit","Preview commit")}/>
             </div>
         }.into_any_element();
+
         rake::view! {
             <Pane header={Some(rake::view! {
                 <div class="flex flex-row items-center justify-between">
@@ -620,15 +663,18 @@ impl Gallery {
     fn inputs(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let query = self.search.read(cx).text().to_lowercase();
         let names = ["theme.rs", "button.rs", "日本語 · café.rs"];
+
         let matched: Vec<_> = names
             .into_iter()
             .filter(|name| name.to_lowercase().contains(&query))
             .collect();
+
         let characters = unicode_segmentation::UnicodeSegmentation::graphemes(
             self.message.read(cx).text(),
             true,
         )
         .count();
+
         rake::view! {
             <Pane header={Some(rake::view! {<Text role={TextRole::Title} {..Text::new("title","Text & search")}/>}.into_any_element())}
                 {..Pane::new("inputs")}>
@@ -653,6 +699,7 @@ impl Gallery {
 
     fn input_states(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let invalid = self.validation.read(cx).text().contains(' ');
+
         rake::view! {
             <Pane header={Some(rake::view! {<Text role={TextRole::Title} {..Text::new("title","Input states")}/>}.into_any_element())}
                 {..Pane::new("input-states")}>
@@ -708,12 +755,15 @@ impl Render for Gallery {
         } else {
             2
         };
+
         let item_count: u16 = match self.section {
             Section::Overview => 10,
             Section::Actions | Section::Inputs | Section::Overlays | Section::Toasts => 2,
             Section::Selection | Section::Typography | Section::Dialogs => 1,
         };
+
         let rows = item_count.div_ceil(columns);
+
         let body = rake::view! {
             <main class="size-full flex flex-col bg-background text-ink" focus={&self.focus} tab-navigation={true}>
                 <header class="flex flex-row items-center justify-between gap-4 px-6 py-4 border-b-1 border-line">
@@ -756,6 +806,7 @@ impl Render for Gallery {
                 </footer>
             </main>
         }.into_any_element();
+
         rake::view! {
             <DialogHost state={self.dialogs.clone()} body={body}>
                 {self.create_modal(cx)}

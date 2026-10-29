@@ -16,6 +16,7 @@ use onegit_git::{
     OperationState, Repository, RepositoryError, WritePhase, ignore_extension, ignore_folders,
     ignore_pattern,
 };
+
 #[cfg(unix)]
 use onegit_git::{GitProcess, RepositoryCoordinator};
 

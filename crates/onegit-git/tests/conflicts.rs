@@ -11,6 +11,7 @@ use onegit_git::{
     BranchIdentity, Cancellation, ConflictSide, GitCommand, OperationState, Repository,
     ResolveConflict, WritePhase,
 };
+
 #[cfg(unix)]
 use onegit_git::{GitError, GitProcess, RepositoryCoordinator};
 

@@ -74,8 +74,10 @@ impl Recovery {
         cancellation: Option<&Cancellation>,
     ) -> Result<Self, RepositoryError> {
         let mut backup = Self::create(None, vec![path])?;
+
         backup.working.file.write_all(patch)?;
         backup.finish(root, head, cancellation)?;
+
         Ok(backup)
     }
 
@@ -110,9 +112,11 @@ impl Recovery {
                     .tempdir()?;
 
                 let path = fs::canonicalize(temporary.path())?;
+
                 let parent = crate::platform::open_directory_no_follow(
                     path.parent().ok_or(RepositoryError::InvalidPath)?,
                 )?;
+
                 let directory = crate::platform::open_private_directory(&path)?;
 
                 let _ = temporary.keep();
@@ -162,6 +166,7 @@ impl Recovery {
                 name.to_str().map_err(std::io::Error::other)?.as_ref(),
                 crate::platform::Access::Read,
             )?;
+
             let named = entry.metadata()?;
 
             if !named.is_file()
@@ -281,20 +286,24 @@ impl Repository {
             };
 
             let batches = path_batches(&backup.paths, crate::platform::MAX_PATHSPEC_ARGUMENT_BYTES);
+
             for paths in &batches {
                 for (file, base) in [
                     (&mut backup.staged.file, Some(head)),
                     (&mut backup.working.file, None),
                 ] {
                     let mut args = diff_args(base, paths, false)?;
+
                     if batches.len() > 1 {
                         // Batches cannot detect cross-batch renames; independent add/delete
                         // patches preserve every selected path without duplicate rename hunks.
                         args.insert(1, "--no-renames".into());
                     }
+
                     self.capture_discard_patch(file, args, None, &[], cancellation)?;
                 }
             }
+
             let untracked: Vec<_> = selected
                 .iter()
                 .filter(|file| file.record_type == RecordType::Untracked)
@@ -436,16 +445,21 @@ fn path_batches(paths: &[GitPath], limit: usize) -> Vec<&[GitPath]> {
     let mut batches = Vec::new();
     let mut start = 0;
     let mut bytes = 0usize;
+
     for (index, path) in paths.iter().enumerate() {
         let next = path.as_bytes().len().saturating_add(3);
+
         if index > start && bytes.saturating_add(next) > limit {
             batches.push(&paths[start..index]);
             start = index;
             bytes = 0;
         }
+
         bytes = bytes.saturating_add(next);
     }
+
     batches.push(&paths[start..]);
+
     batches
 }
 
@@ -475,6 +489,7 @@ fn diff_args(
     }
 
     args.push("--".into());
+
     for path in paths {
         args.push(path.to_argument()?);
     }
@@ -598,11 +613,13 @@ mod windows_tests {
             "folder\\.\\file",
         ] {
             let path = GitPath::new(path).unwrap();
+
             assert!(validate_paths(std::slice::from_ref(&path)).is_err());
             assert!(path.to_native().is_err());
         }
 
         let path = GitPath::new("folder/file.txt").unwrap();
+
         assert!(validate_paths(std::slice::from_ref(&path)).is_ok());
         assert!(path.to_native().is_ok());
         assert!(validate_paths(&[GitPath::new("folder/.git/config").unwrap()]).is_err());
@@ -620,7 +637,9 @@ mod batching_tests {
             .into_iter()
             .map(|name| GitPath::new(name).unwrap())
             .collect();
+
         let batches = path_batches(&paths, 20);
+
         assert!(batches.len() > 1);
         assert!(batches.iter().all(|batch| !batch.is_empty()));
         assert_eq!(

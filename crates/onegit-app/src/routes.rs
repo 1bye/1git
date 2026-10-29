@@ -27,11 +27,14 @@ impl RouteViews<Destination> for AppRoutes {
         if rake::theme::try_current::<Theme>().is_none() {
             Theme::dark().install(cx);
         }
+
         match destination {
             Destination::Home => Ok(cx
                 .new(|cx| {
                     let focus = cx.focus_handle();
+
                     window.focus(&focus, cx);
+
                     Home { page, focus }
                 })
                 .into()),
@@ -47,6 +50,7 @@ struct Home {
 impl Render for Home {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let navigator = self.page.navigator();
+
         rake::view! {
             <main class="size-full flex flex-col items-center justify-center gap-4 bg-background text-ink"
                 focus={&self.focus} tab-navigation={true}>

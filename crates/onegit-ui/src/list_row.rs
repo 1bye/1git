@@ -35,6 +35,7 @@ pub struct ListRow {
     /// Activates the viewed row, independently of slot controls.
     pub on_press: Option<PressHandler>,
 }
+
 impl ListRow {
     /// Create a selectable row without slots or secondary text.
     #[must_use]
@@ -51,6 +52,7 @@ impl ListRow {
         }
     }
 }
+
 impl std::fmt::Debug for ListRow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListRow")
@@ -61,22 +63,26 @@ impl std::fmt::Debug for ListRow {
             .finish_non_exhaustive()
     }
 }
+
 impl RenderOnce for ListRow {
     fn render(self, _: &mut gpui::Window, _: &mut gpui::App) -> impl IntoElement {
         let theme = Theme::current();
         let selected = self.selection == RowSelection::Selected;
         let enabled = self.state.is_interactive();
         let description = self.description.clone().unwrap_or_default();
+
         let rest = Surface::new(if selected {
             theme.selection
         } else {
             Theme::transparent()
         });
+
         let hover = Surface::new(if selected {
             theme.selection.blend(&theme.hover.opacity(0.4))
         } else {
             theme.hover
         });
+
         // Slots remain independently interactive even when the main action is disabled.
         motion::surface(self.id.clone(), rest, hover, hover, true, move |paint| {
             rake::view! {

@@ -2,6 +2,7 @@
 mod common;
 
 use common::Fixture;
+
 use onegit_git::{
     AddRemote, Cancellation, ConfigScope, CreateTag, Repository, ResetMode, ResetOptions,
     RestoreOptions, SetRemoteUrl, StashOptions, StashReference,
@@ -10,9 +11,11 @@ use onegit_git::{
 #[test]
 fn adds_renames_updates_and_removes_remotes_without_persisting_http_credentials() {
     let f = Fixture::new();
+
     f.write("base", "base");
     f.commit("Base");
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     assert!(
         r.add_remote(
             AddRemote {
@@ -46,6 +49,7 @@ fn adds_renames_updates_and_removes_remotes_without_persisting_http_credentials(
             None,
         )
         .unwrap();
+
     assert_eq!(urls[0].fetch_urls, ["https://example.invalid/repo"]);
     assert_eq!(urls[0].push_urls, ["https://example.invalid/push"]);
     r.set_remote_url(
@@ -65,9 +69,11 @@ fn adds_renames_updates_and_removes_remotes_without_persisting_http_credentials(
 #[test]
 fn creates_and_deletes_lightweight_and_annotated_tags_with_explicit_force() {
     let f = Fixture::new();
+
     f.write("base", "base");
     f.commit("Base");
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     let tags = r
         .create_tag(
             CreateTag {
@@ -79,6 +85,7 @@ fn creates_and_deletes_lightweight_and_annotated_tags_with_explicit_force() {
             None,
         )
         .unwrap();
+
     assert_eq!(tags[0].name, "v1");
     assert!(
         r.create_tag(
@@ -110,6 +117,7 @@ fn creates_and_deletes_lightweight_and_annotated_tags_with_explicit_force() {
 fn reads_writes_and_idempotently_unsets_local_and_worktree_configuration() {
     let f = Fixture::new();
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     assert!(
         r.set_config("--global", "value", ConfigScope::Local, None)
             .is_err()
@@ -161,6 +169,7 @@ fn reads_writes_and_idempotently_unsets_local_and_worktree_configuration() {
 #[test]
 fn stashes_selected_literal_paths_and_applies_pops_and_drops_entries() {
     let f = Fixture::new();
+
     f.write("file[1]", "base");
     f.write("other", "base");
     f.commit("Base");
@@ -168,6 +177,7 @@ fn stashes_selected_literal_paths_and_applies_pops_and_drops_entries() {
     f.write("other", "keep");
     let r = Repository::open(&f.root, f.process(), None).unwrap();
     let paths = ["file[1]".try_into().unwrap()];
+
     let snapshot = r
         .stash(
             StashOptions {
@@ -178,6 +188,7 @@ fn stashes_selected_literal_paths_and_applies_pops_and_drops_entries() {
             None,
         )
         .unwrap();
+
     assert_eq!(snapshot.status.files.len(), 1);
     r.apply_stash(
         StashReference {
@@ -213,13 +224,16 @@ fn stashes_selected_literal_paths_and_applies_pops_and_drops_entries() {
 #[test]
 fn restore_and_hard_reset_require_consent_and_preserve_literal_neighbors() {
     let f = Fixture::new();
+
     f.write("file[1]", "base");
     f.write("file1", "neighbor");
     f.commit("Base");
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     f.write("file[1]", "change");
     f.write("file1", "keep");
     let paths = ["file[1]".try_into().unwrap()];
+
     assert!(
         r.restore(
             RestoreOptions {
@@ -261,6 +275,7 @@ fn restore_and_hard_reset_require_consent_and_preserve_literal_neighbors() {
     .unwrap();
     assert_eq!(std::fs::read(f.root.join("file1")).unwrap(), b"neighbor");
     let stop = Cancellation::default();
+
     stop.cancel();
     assert!(
         r.create_tag(
@@ -280,9 +295,11 @@ fn restore_and_hard_reset_require_consent_and_preserve_literal_neighbors() {
 #[test]
 fn keeps_a_stash_when_pop_produces_conflicts() {
     let f = Fixture::new();
+
     f.write("file", "base\n");
     f.commit("Base");
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     f.write("file", "stashed\n");
     r.stash(StashOptions::default(), None).unwrap();
     f.write("file", "committed\n");
@@ -307,12 +324,15 @@ fn keeps_a_stash_when_pop_produces_conflicts() {
             .any(|f| f.record_type == onegit_git::RecordType::Unmerged)
     );
 }
+
 #[test]
 fn stash_includes_untracked_files_and_restores_saved_staging_when_requested() {
     let f = Fixture::new();
+
     f.write("base", "base");
     f.commit("Base");
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     f.write("base", "staged");
     r.stage_all(None).unwrap();
     f.write("untracked", "untracked");
@@ -340,12 +360,14 @@ fn stash_includes_untracked_files_and_restores_saved_staging_when_requested() {
 #[test]
 fn stashes_only_selected_untracked_literal_names_without_consuming_the_glob_neighbor() {
     let f = Fixture::new();
+
     f.write("base", "base");
     f.commit("Base");
     f.write("new[1]", "selected");
     f.write("new1", "keep");
     let r = Repository::open(&f.root, f.process(), None).unwrap();
     let paths = ["new[1]".try_into().unwrap()];
+
     r.stash(
         StashOptions {
             include_untracked: true,

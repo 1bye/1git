@@ -83,6 +83,7 @@ impl RenderOnce for Text {
         let color = self.tone.color(&theme);
         // Rake's paragraph owns wrapping and preserves the complete accessible name.
         let limit = self.max_lines.unwrap_or(usize::MAX).max(1);
+
         rake::view! {
             <p id={self.id} class={match self.role {
                     TextRole::Body => "min-w-0 text-body",

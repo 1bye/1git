@@ -19,6 +19,7 @@ mod status;
 mod validation;
 
 pub use authentication::HttpAuthentication;
+
 pub use progress::{
     CommitObserver, CommitPhase, CommitProgress, OutputObserver, OutputStream, TransferPhase,
     TransferProgress,

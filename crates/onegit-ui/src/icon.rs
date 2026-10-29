@@ -86,6 +86,7 @@ impl RenderOnce for Icon {
         let dimension = px(self.size.pixels());
         let name = self.name;
         let labelled = self.label.as_ref().is_some_and(|s| !s.is_empty());
+
         rake::view! {
             <span id={self.id} class="shrink-0" aria-label={self.label.unwrap_or_default()}
                 style={|s| s.size(dimension).when(labelled, |s| s.role(gpui::accesskit::Role::Image))}>
@@ -101,6 +102,7 @@ fn paint_icon(name: IconName, bounds: gpui::Bounds<gpui::Pixels>, window: &mut g
     let unit = bounds.size.width / 24.;
     let position = |x: f32, y: f32| bounds.origin + point(unit * x, unit * y);
     let mut path = PathBuilder::stroke(unit * 1.65);
+
     match name {
         IconName::Check => stroke(&mut path, &position, &[(5., 12.), (10., 17.), (19., 7.)]),
         IconName::Minus => stroke(&mut path, &position, &[(5., 12.), (19., 12.)]),
@@ -181,6 +183,7 @@ fn paint_icon(name: IconName, bounds: gpui::Bounds<gpui::Pixels>, window: &mut g
         }
         IconName::Sun => {
             circle(&mut path, &position, (12., 12.), 4.);
+
             for (a, b) in [
                 ((12., 2.), (12., 5.)),
                 ((12., 19.), (12., 22.)),
@@ -195,6 +198,7 @@ fn paint_icon(name: IconName, bounds: gpui::Bounds<gpui::Pixels>, window: &mut g
             }
         }
     }
+
     if let Ok(path) = path.build() {
         window.paint_path(path, window.text_style().color);
     }
@@ -208,6 +212,7 @@ fn stroke(
     if let Some(&(x, y)) = points.first() {
         path.move_to(position(x, y));
     }
+
     for &(x, y) in points.iter().skip(1) {
         path.line_to(position(x, y));
     }
@@ -221,6 +226,7 @@ fn circle(
 ) {
     // Four cubic segments approximate a circle at every logical-pixel glyph size.
     let control = radius * 0.552_284_8;
+
     path.move_to(position(x + radius, y));
     path.cubic_bezier_to(
         position(x, y + radius),

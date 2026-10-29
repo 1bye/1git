@@ -4,6 +4,7 @@ use crate::{
     motion::{self, Surface},
     overlay,
 };
+
 use rake::gpui::{self, accesskit, prelude::*, px};
 use std::time::{Duration, Instant};
 
@@ -25,6 +26,7 @@ pub struct MenuItem {
     /// Destructive actions use the theme's danger color.
     pub tone: ButtonTone,
 }
+
 impl MenuItem {
     /// Create an enabled action with a stable identity.
     #[must_use]
@@ -40,6 +42,7 @@ impl MenuItem {
         }
     }
 }
+
 /// Ordered menu content. Separators have no navigation or activation behavior.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuEntry {
@@ -48,11 +51,13 @@ pub enum MenuEntry {
     /// A visual and accessible group divider.
     Separator,
 }
+
 impl From<MenuItem> for MenuEntry {
     fn from(item: MenuItem) -> Self {
         Self::Item(item)
     }
 }
+
 /// Horizontal placement relative to the trigger; both options remain inside the window.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MenuAlignment {
@@ -62,6 +67,7 @@ pub enum MenuAlignment {
     /// Align the trailing edges, useful for file action buttons.
     End,
 }
+
 /// Receives an enabled item's stable identity after the menu closes.
 pub type MenuHandler = Box<dyn Fn(&gpui::ElementId, &mut gpui::Window, &mut gpui::App)>;
 
@@ -92,6 +98,7 @@ pub struct DropdownMenu {
     /// One activation per selection; no callback runs for dismissals.
     pub on_select: Option<MenuHandler>,
 }
+
 impl DropdownMenu {
     /// Create a medium secondary menu button with an empty entry list.
     #[must_use]
@@ -111,6 +118,7 @@ impl DropdownMenu {
         }
     }
 }
+
 impl std::fmt::Debug for DropdownMenu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DropdownMenu")
@@ -121,6 +129,7 @@ impl std::fmt::Debug for DropdownMenu {
             .finish_non_exhaustive()
     }
 }
+
 struct Menu {
     trigger: gpui::FocusHandle,
     focus: gpui::FocusHandle,
@@ -134,20 +143,24 @@ struct Menu {
     config: DropdownMenu,
     _subscriptions: Vec<gpui::Subscription>,
 }
+
 impl Menu {
     fn new(window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> Self {
         let scope = cx.focus_handle();
+
         let blur = cx.on_focus_out(&scope, window, |this, _, window, cx| {
             // Opening focuses the popup before its first paint establishes ancestry.
             if !this.focus.contains_focused(window, cx) && !this.trigger.is_focused(window) {
                 this.close(false, window, cx);
             }
         });
+
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             if !window.is_window_active() {
                 this.close(false, window, cx);
             }
         });
+
         Self {
             trigger: cx.focus_handle().tab_stop(true),
             focus: cx.focus_handle(),
@@ -162,6 +175,7 @@ impl Menu {
             _subscriptions: vec![blur, activation],
         }
     }
+
     fn enabled(&self) -> impl Iterator<Item = (usize, &MenuItem)> {
         self.config
             .entries
@@ -172,11 +186,13 @@ impl Menu {
                 _ => None,
             })
     }
+
     fn set_active(&mut self, id: Option<gpui::ElementId>, cx: &mut gpui::Context<Self>) {
         if self.active != id {
             self.active = id;
             cx.notify();
         }
+
         if let Some((index, _)) = self
             .enabled()
             .find(|(_, item)| Some(&item.id) == self.active.as_ref())
@@ -184,10 +200,12 @@ impl Menu {
             self.scroll.scroll_to_item(index);
         }
     }
+
     fn open(&mut self, last: bool, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
         if !self.config.state.is_interactive() {
             return;
         }
+
         self.open = true;
         self.prefix.clear();
         self.typed_at = None;
@@ -199,22 +217,28 @@ impl Menu {
                 .or_else(|| self.enabled().next())
         }
         .map(|(_, item)| item.id.clone());
+
         self.set_active(active, cx);
         window.focus(&self.focus, cx);
         cx.notify();
     }
+
     fn close(&mut self, restore: bool, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
         if !self.open {
             return;
         }
+
         self.open = false;
         self.prefix.clear();
         self.typed_at = None;
+
         if restore && self.focus.contains_focused(window, cx) {
             window.focus(&self.trigger, cx);
         }
+
         cx.notify();
     }
+
     fn activate(
         &mut self,
         id: &gpui::ElementId,
@@ -227,26 +251,35 @@ impl Menu {
         {
             return;
         }
+
         self.close(true, window, cx);
+
         if let Some(handler) = &self.config.on_select {
             handler(id, window, cx);
         }
     }
+
     fn navigate(&mut self, backwards: bool, cx: &mut gpui::Context<Self>) {
         let ids: Vec<_> = self.enabled().map(|(_, item)| item.id.clone()).collect();
+
         if ids.is_empty() {
             self.set_active(None, cx);
+
             return;
         }
+
         let index = ids.iter().position(|id| Some(id) == self.active.as_ref());
+
         let next = match index {
             Some(i) if backwards => (i + ids.len() - 1) % ids.len(),
             Some(i) => (i + 1) % ids.len(),
             None if backwards => ids.len() - 1,
             None => 0,
         };
+
         self.set_active(Some(ids[next].clone()), cx);
     }
+
     fn key(
         &mut self,
         event: &gpui::KeyDownEvent,
@@ -259,7 +292,9 @@ impl Menu {
         {
             return;
         }
+
         let key = event.keystroke.key.as_str();
+
         if !self.open {
             if matches!(key, "down" | "up") && self.config.state.is_interactive() {
                 self.open(key == "up", window, cx);
@@ -276,6 +311,7 @@ impl Menu {
                         self.enabled().next()
                     }
                     .map(|(_, item)| item.id.clone());
+
                     self.set_active(id, cx);
                 }
                 "enter" | "space" => {
@@ -286,6 +322,7 @@ impl Menu {
                 "escape" => self.close(true, window, cx),
                 "tab" => {
                     self.close(true, window, cx);
+
                     if event.keystroke.modifiers.shift {
                         window.focus_prev(cx);
                     } else {
@@ -294,55 +331,69 @@ impl Menu {
                 }
                 _ => {
                     let text = event.keystroke.key_char.as_deref().unwrap_or(key);
+
                     if text.chars().count() != 1 || text.chars().any(char::is_control) {
                         return;
                     }
+
                     let now = cx.background_executor().now();
+
                     if self
                         .typed_at
                         .is_none_or(|time| now.duration_since(time) > Duration::from_millis(700))
                     {
                         self.prefix.clear();
                     }
+
                     self.typed_at = Some(now);
                     let text = text.to_lowercase();
+
                     // Repeated initial letters cycle through matching entries.
                     if self.prefix != text {
                         self.prefix.push_str(&text);
                     }
+
                     let entries: Vec<_> = self.enabled().map(|(_, item)| item).collect();
+
                     let start = entries
                         .iter()
                         .position(|item| Some(&item.id) == self.active.as_ref())
                         .map_or(0, |i| (i + 1) % entries.len());
+
                     let id = (0..entries.len())
                         .map(|i| entries[(start + i) % entries.len()])
                         .find(|item| item.label.to_lowercase().starts_with(&self.prefix))
                         .map(|item| item.id.clone());
+
                     if id.is_some() {
                         self.set_active(id, cx);
                     }
                 }
             }
         }
+
         window.prevent_default();
         cx.stop_propagation();
     }
+
     fn trigger(&self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
         let theme = Theme::current();
         let enabled = self.config.state.is_interactive();
         let icon_only = self.config.icon_only;
+
         let icon = if self.config.state == ControlState::Busy {
             Some(IconName::Working)
         } else {
             self.config.icon
         };
+
         let label = self.config.label.clone();
         let focus = self.trigger.clone();
         let expanded = self.open;
         let size = self.config.size;
         let height = px(size.height());
         let variant = self.config.variant;
+
         let rest = Surface {
             background: match variant {
                 ButtonVariant::Primary => theme.primary,
@@ -357,6 +408,7 @@ impl Menu {
             opacity: if enabled { 1. } else { 0.5 },
             ..Surface::new(theme.surface_raised)
         };
+
         let hover = Surface {
             background: if variant == ButtonVariant::Primary {
                 theme.primary_hover
@@ -365,6 +417,7 @@ impl Menu {
             },
             ..rest
         };
+
         let pressed = Surface {
             background: if variant == ButtonVariant::Primary {
                 theme.primary_pressed
@@ -373,7 +426,9 @@ impl Menu {
             },
             ..rest
         };
+
         let content_label = label.clone();
+
         let content = move || {
             rake::view! {
                 <div class="flex flex-row items-center justify-center gap-1.5 min-w-0">
@@ -382,6 +437,7 @@ impl Menu {
                 </div>
             }
         };
+
         let padding = px(if icon_only {
             0.
         } else {
@@ -391,6 +447,7 @@ impl Menu {
                 ControlSize::Large => 14.,
             }
         });
+
         let measurement = gpui::div()
             .flex()
             .h(height)
@@ -398,8 +455,10 @@ impl Menu {
             .border_1()
             .when(icon_only, |s| s.w(height))
             .child(content());
+
         let entity = cx.entity();
         let press = entity.clone();
+
         motion::resize("trigger-size".into(),measurement,move |dimensions|motion::surface("trigger-surface".into(),rest,hover,pressed,enabled,move |paint| {
             rake::view! {
                 <button id="trigger" focus={&focus} disabled={!enabled} aria-label={label} aria-expanded={expanded}
@@ -412,17 +471,20 @@ impl Menu {
             }
         })).into_any_element()
     }
+
     fn surface(&self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
         let theme = Theme::current();
         let height = px(self.config.size.height());
         let outside = cx.entity();
         let row_height = height;
+
         gpui::div().id("popup").track_focus(&self.focus).role(accesskit::Role::Menu).aria_label(self.config.label.clone())
             .w(self.config.width.max(px(120.))).max_w((window.viewport_size().width-px(16.)).max(px(1.)))
             .max_h((window.viewport_size().height-px(24.)).clamp(px(1.),px(340.))).overflow_y_scroll().track_scroll(&self.scroll)
             .flex().flex_col().p(px(4.)).border_1().border_color(theme.line).rounded(theme.control).shadow_lg().bg(theme.surface_raised).text_color(theme.ink).occlude()
             .on_mouse_down_out(move |event,window,cx|{
                 if outside.read(cx).anchor.get().is_some_and(|anchor|anchor.contains(&event.position)){return;}
+
                 outside.update(cx,|this,cx|this.close(true,window,cx));window.prevent_default();cx.stop_propagation();
             })
             .children(self.config.entries.iter().enumerate().map(|(index,entry)|match entry {
@@ -430,6 +492,7 @@ impl Menu {
                 MenuEntry::Item(item)=>{
                     let selected=item.selected;let disabled=item.disabled;let id=item.id.clone();let hover_id=id.clone();let active=self.active.as_ref()==Some(&id);
                     let choose=cx.entity();let hover=cx.entity();let ink=if item.tone==ButtonTone::Danger {theme.danger}else{theme.ink};
+
                     let row=rake::view! {
                         <div id={id.clone()} role={if selected.is_some(){accesskit::Role::MenuItemRadio}else{accesskit::Role::MenuItem}} aria-label={item.label.clone()}
                             class="flex flex-row items-center gap-2 px-2 shrink-0 rounded-control"
@@ -446,20 +509,24 @@ impl Menu {
                             if let Some(shortcut)=&item.shortcut {<p class="text-caption shrink-0" style={|s|s.text_color(theme.muted_ink)}>{shortcut.clone()}</p>}
                         </div>
                     };
+
                     row.into_any_element()
                 }
             })).when(self.config.entries.is_empty(),|s|s.child(gpui::div().p_2().text_color(theme.muted_ink).child("No actions available"))).into_any_element()
     }
 }
+
 impl RenderOnce for DropdownMenu {
     fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
         let state = window.use_keyed_state(self.id.clone(), cx, Menu::new);
+
         state.update(cx, |this, cx| {
             this.config = self;
             this.trigger = this
                 .trigger
                 .clone()
                 .tab_stop(this.config.state.is_interactive());
+
             if !this.config.state.is_interactive() {
                 this.close(true, window, cx);
             } else if this.open
@@ -468,15 +535,18 @@ impl RenderOnce for DropdownMenu {
             {
                 this.close(false, window, cx);
             }
+
             if this.open
                 && !this
                     .enabled()
                     .any(|(_, item)| Some(&item.id) == this.active.as_ref())
             {
                 let active = this.enabled().next().map(|(_, item)| item.id.clone());
+
                 this.active = active;
             }
         });
+
         state.update(cx, |this, cx| {
             let bounds = this.anchor.clone();
             let root_id = this.config.id.clone();
@@ -484,6 +554,7 @@ impl RenderOnce for DropdownMenu {
             let overlay_state = cx.entity();
             let scope = this.scope.clone();
             let trigger = overlay::track(this.trigger(cx), bounds.clone());
+
             gpui::div()
                 .id(root_id)
                 .flex()
@@ -497,8 +568,10 @@ impl RenderOnce for DropdownMenu {
                         overlay_state.update(cx, |this, cx| {
                             let Some(anchor) = anchor else {
                                 this.close(true, window, cx);
+
                                 return gpui::Empty.into_any_element();
                             };
+
                             let (position, corner) = match this.config.alignment {
                                 MenuAlignment::Start => {
                                     (anchor.bottom_left(), gpui::Anchor::TopLeft)
@@ -507,6 +580,7 @@ impl RenderOnce for DropdownMenu {
                                     (anchor.bottom_right(), gpui::Anchor::TopRight)
                                 }
                             };
+
                             gpui::anchored()
                                 .position(position)
                                 .anchor(corner)

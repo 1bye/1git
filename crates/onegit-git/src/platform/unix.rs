@@ -105,6 +105,7 @@ pub(crate) fn open_directory_no_follow(path: &Path) -> io::Result<File> {
 
 pub(crate) fn open_component(parent: &File, name: &OsStr, access: Access) -> io::Result<File> {
     let name = CString::new(name.as_bytes())?;
+
     let (flags, mode) = match access {
         Access::Read => (libc::O_RDONLY, 0),
         Access::ReadWrite => (libc::O_RDWR, 0),
@@ -200,6 +201,7 @@ pub(crate) fn validate_discard_path(root: &File, path: &Path) -> io::Result<bool
                 "Expected a relative normal path",
             ));
         };
+
         let name = CString::new(name.as_bytes())?;
 
         if components.peek().is_some() {

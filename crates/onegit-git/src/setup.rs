@@ -91,17 +91,21 @@ impl Repository {
     ) -> Result<Self, RepositoryError> {
         require_destination(options.destination)?;
         require_remote(options.remote)?;
+
         if let Some(auth) = options.authentication {
             auth.validate_for(&[options.remote.into()])?;
+
             if options.recurse_submodules {
                 return Err(RepositoryError::InvalidInput(
                     "Authenticated submodule recursion is not supported.",
                 ));
             }
         }
+
         super::check_cancelled(cancellation)?;
 
         let mut args = vec![OsString::from("clone")];
+
         if options.on_progress.is_some() {
             args.push("--progress".into());
         }

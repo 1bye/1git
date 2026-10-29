@@ -60,5 +60,8 @@ coverage
 tmp
 temp
 
+# Python tooling
+__pycache__/
+
 # Rust
 /target/

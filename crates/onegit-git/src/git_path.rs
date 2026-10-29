@@ -106,10 +106,12 @@ impl GitPath {
 
 pub(crate) fn pathspec_list(paths: &[GitPath]) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
+
     for path in paths {
         bytes.extend_from_slice(path.pathspec_bytes()?);
         bytes.push(0);
     }
+
     Ok(bytes)
 }
 
@@ -141,6 +143,7 @@ mod tests {
         ] {
             assert_eq!(GitPath::new(bytes), Err(GitPathError));
         }
+
         for name in [
             "folder\\file",
             "a:b",
@@ -157,6 +160,7 @@ mod tests {
     fn equality_ordering_and_hashing_use_exact_bytes() {
         let literal = GitPath::new(b"folder\\file").unwrap();
         let separated = GitPath::new(b"folder/file").unwrap();
+
         assert_ne!(literal, separated);
         assert_eq!(
             HashSet::from([literal.clone(), separated.clone(), literal.clone()]).len(),
@@ -181,10 +185,13 @@ mod tests {
             "private\u{e000}name",
         ] {
             let path = GitPath::new(name).unwrap();
+
             assert_eq!(path.display().to_string(), name);
             assert_eq!(path.to_str(), Some(name));
         }
+
         let path = GitPath::new(b"non-utf8-\xff").unwrap();
+
         assert_eq!(path.as_bytes(), b"non-utf8-\xff");
         assert_eq!(path.to_str(), None);
         assert_eq!(path.display().to_string(), "non-utf8-�");
@@ -193,6 +200,7 @@ mod tests {
     #[test]
     fn component_filename_and_parent_views_split_only_on_git_separators() {
         let path = GitPath::new(b"folder/sub\\name/a:b").unwrap();
+
         assert_eq!(
             path.components().collect::<Vec<_>>(),
             vec![b"folder".as_slice(), b"sub\\name", b"a:b"]
@@ -200,9 +208,11 @@ mod tests {
         assert_eq!(path.file_name(), b"a:b");
         assert_eq!(path.parent(), Some(b"folder/sub\\name".as_slice()));
         let leaf = GitPath::new(b"folder\\file").unwrap();
+
         assert_eq!(leaf.file_name(), b"folder\\file");
         assert_eq!(leaf.parent(), None);
         let directory = GitPath::new(b"folder/sub/").unwrap();
+
         assert_eq!(directory.as_bytes(), b"folder/sub/");
         assert_eq!(directory.file_name(), b"sub");
         assert_eq!(directory.parent(), Some(b"folder".as_slice()));
@@ -220,14 +230,17 @@ mod tests {
             b"literal*",
             b"non-utf8-\xff",
         ];
+
         let paths: Vec<_> = names
             .iter()
             .map(|name| GitPath::new(name).unwrap())
             .collect();
+
         for (path, name) in paths.iter().zip(names) {
             assert_eq!(path.to_argument().unwrap().as_encoded_bytes(), name);
             assert_eq!(path.pathspec_bytes().unwrap(), name);
         }
+
         assert_eq!(
             pathspec_list(&paths).unwrap(),
             b"folder\\file\0folder/file\0ordinary\0literal*\0non-utf8-\xff\0"
@@ -238,6 +251,7 @@ mod tests {
     #[test]
     fn argv_and_nul_lists_refuse_backslashes_with_the_same_typed_error() {
         let path = GitPath::new(b"folder\\file").unwrap();
+
         for error in [
             path.to_argument().unwrap_err(),
             pathspec_list(&[path]).unwrap_err(),
@@ -254,7 +268,9 @@ mod tests {
                     .contains("Git for Windows cannot address this file name")
             );
         }
+
         let path = GitPath::new(b"folder/file").unwrap();
+
         assert_eq!(path.to_argument().unwrap(), OsString::from("folder/file"));
         assert_eq!(pathspec_list(&[path]).unwrap(), b"folder/file\0");
     }
@@ -264,6 +280,7 @@ mod tests {
     fn native_conversion_refuses_unrepresentable_names_with_the_typed_error() {
         for name in ["folder\\file", "a:b", "aux.c"] {
             let error = GitPath::new(name).unwrap().to_native().unwrap_err();
+
             assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
             assert!(
                 error
@@ -271,6 +288,7 @@ mod tests {
                     .is_some_and(|cause| cause.is::<crate::platform::PathEncodingError>())
             );
         }
+
         assert_eq!(
             GitPath::new("folder/file.txt")
                 .unwrap()

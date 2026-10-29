@@ -22,11 +22,13 @@ use serde_json::{Value, json};
 #[test]
 fn matches_frozen_legacy_diff_service_results_without_modifying_repositories() {
     let text = include_str!("diff-reference.json");
+
     let text = if cfg!(windows) {
         text.replace("literal*", "literal[1]")
     } else {
         text.to_owned()
     };
+
     let reference: Value = serde_json::from_str(&text).unwrap();
 
     for case in reference["cases"].as_array().unwrap() {

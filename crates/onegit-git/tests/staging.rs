@@ -24,6 +24,7 @@ use onegit_git::{
     Cancellation, ErrorCode, Failure, FileStatus, GitCommand, GitError, Operation, Repository,
     RepositoryError, WritePhase,
 };
+
 #[cfg(unix)]
 use onegit_git::{GitProcess, RepositoryCoordinator};
 
@@ -267,6 +268,7 @@ fn handles_all_and_selected_unstaging_on_unborn_and_committed_branches() {
 #[test]
 fn treats_magic_globs_options_unicode_and_control_characters_as_literal_paths() {
     let fixture = Fixture::new();
+
     let names = [
         common::filename("*", "[literal]"),
         "[abc]",
@@ -313,6 +315,7 @@ fn rejects_invalid_cancelled_and_foreign_locked_writes_without_changing_files() 
     for path in ["../outside", "/absolute", "nul\0name"] {
         assert!(onegit_git::GitPath::new(path).is_err());
     }
+
     for paths in [vec![], vec![common::git_path(".git/config")]] {
         let error = repository.stage(&paths, None).unwrap_err();
 
@@ -404,6 +407,7 @@ fn pins_process_cwd_and_rejects_a_replaced_repository_before_writing() {
         .unwrap()
         .strip_suffix('\n')
         .unwrap();
+
     assert_eq!(
         fs::canonicalize(returned).unwrap(),
         fs::canonicalize(moved).unwrap()
@@ -739,17 +743,22 @@ exec git "$@""#,
 #[test]
 fn streams_literal_bulk_selections_beyond_windows_argv_limits_including_unborn_unstage() {
     let f = Fixture::new();
+
     let paths: Vec<onegit_git::GitPath> = (0..600)
         .map(|i| {
             let name = format!(
                 "literal-selection-abcdefghijklmnopqrstuvwxyz-abcdefghijklmnopqrstuvwxyz-[{i:04}]"
             );
+
             f.write(&name, "value");
+
             onegit_git::GitPath::new(name.as_bytes()).unwrap()
         })
         .collect();
+
     assert!(paths.iter().map(|p| p.as_bytes().len() + 3).sum::<usize>() > 32_767);
     let r = Repository::open(&f.root, f.process(), None).unwrap();
+
     r.stage(&paths, None).unwrap();
     assert_eq!(
         f.git(&["ls-files", "-z"])
@@ -769,9 +778,11 @@ fn streams_literal_bulk_selections_beyond_windows_argv_limits_including_unborn_u
         None,
     )
     .unwrap();
+
     for path in &paths {
         std::fs::write(f.root.join(path.to_str().unwrap()), "changed").unwrap();
     }
+
     r.stage(&paths, None).unwrap();
     r.unstage(&paths, None).unwrap();
     assert!(f.git(&["diff", "--cached"]).is_empty());

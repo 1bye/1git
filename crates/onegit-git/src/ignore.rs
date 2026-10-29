@@ -147,6 +147,7 @@ impl Repository {
             .map(crate::platform::file_state)
             .transpose()
             .map_err(|error| before(error.into()))?;
+
         if let Some(state) = state.as_ref() {
             validate_file(state).map_err(before)?;
         }
