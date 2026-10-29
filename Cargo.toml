@@ -19,6 +19,7 @@ onegit-ui = { path = "crates/onegit-ui" }
 rake = { git = "https://github.com/1bye/rake", rev = "6c643cedd195898d4d6297f61ba32786d0387ed4" }
 # Must match the GPUI CE revision Rake pins so both resolve to one crate.
 gpui = { package = "gpui_ce", git = "https://github.com/gpui-ce/gpui-ce", rev = "99109e3a77ddadbcb46cba8567e779a651600608", default-features = false }
+gpui-ce-motion = { version = "=0.4.0", default-features = false }
 libc = "=0.2.191"
 tempfile = "=3.27.0"
 serde_json = "=1.0.154"
@@ -42,6 +43,20 @@ libraries = [{ git = "https://github.com/1bye/workflow", rev = "f62c7d7dcdf3ffd9
 
 [profile.dev]
 debug = 0
+
+# Native UI layout must stay optimized for interactive frame rates.
+# Keep onegit-app in the normal development profile for application debugging.
+[profile.dev.package.gpui_ce]
+opt-level = 2
+
+[profile.dev.package.rake-ui]
+opt-level = 2
+
+[profile.dev.package.onegit-ui]
+opt-level = 2
+
+[profile.dev.package.gpui-ce-motion]
+opt-level = 2
 
 [profile.release]
 lto = "thin"

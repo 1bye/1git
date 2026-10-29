@@ -2101,6 +2101,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-ce-motion"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02abe0a96698ecae757fb8fbb170b0eb2e9123355775a9bb1c4d8dd26b081ab7"
+
+[[package]]
 name = "gpui_ce"
 version = "0.2.2"
 source = "git+https://github.com/gpui-ce/gpui-ce?rev=99109e3a77ddadbcb46cba8567e779a651600608#99109e3a77ddadbcb46cba8567e779a651600608"
@@ -3939,6 +3945,7 @@ dependencies = [
 name = "onegit-ui"
 version = "0.0.1"
 dependencies = [
+ "gpui-ce-motion",
  "rake",
 ]
 

@@ -10,6 +10,7 @@ mod button;
 mod checkbox;
 mod icon;
 mod list_row;
+mod motion;
 mod pane;
 mod text;
 mod theme;

@@ -1,3 +1,4 @@
+use crate::motion::{self, Surface};
 use crate::{Icon, IconName, IconSize, Theme, focusable};
 use rake::gpui::{self, ClickEvent, ElementId, Hsla, SharedString, prelude::*, px};
 
@@ -187,11 +188,6 @@ impl RenderOnce for Button {
                     },
                 ),
             };
-        let line = if self.variant == ButtonVariant::Secondary {
-            theme.line
-        } else {
-            Theme::transparent()
-        };
         let label = self
             .accessibility_label
             .unwrap_or_else(|| self.label.clone());
@@ -200,29 +196,68 @@ impl RenderOnce for Button {
         } else {
             self.icon
         };
-        rake::view! {
-            <button id={self.id} disabled={!enabled} aria-label={label}
-                aria-description={if busy { "In progress" } else { "" }}
-                class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 max-w-[100%] font-medium"
-                style={|s| focusable(s).h(px(self.size.height()))
+        let rest = Surface {
+            background,
+            ink: foreground,
+            opacity: if enabled { 1. } else { 0.5 },
+            ..Surface::new(background)
+        };
+        // The inert measurement uses the same native geometry and typography as
+        // the live control, without duplicate focus handles or event listeners.
+        let icon_size = if self.size == ControlSize::Small {
+            IconSize::Small
+        } else {
+            IconSize::Medium
+        };
+        let measurement = rake::view! {
+            <div class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 font-medium border-1"
+                style={|s| s.h(px(self.size.height()))
                     .px(px(if icon_only {0.} else {self.size.padding()}))
-                    .when(icon_only, |s| s.w(px(self.size.height())))
-                    .bg(background).text_color(foreground).border_color(line)
-                    .when(enabled, |s| s.hover(move |s| s.bg(hover)).active(move |s| s.bg(pressed)))
-                    .when(!enabled, |s| s.opacity(0.5))}
-                on:click={move |event, window, cx| {
-                    cx.stop_propagation();
-                    if let Some(handler)=&self.on_press { handler(event,window,cx); }
-                }}>
-                if let Some(name)=glyph {
-                    <Icon name={name} size={if self.size==ControlSize::Small {IconSize::Small} else {IconSize::Medium}}
-                        {..Icon::new("glyph", name)}/>
-                }
+                    .when(icon_only, |s| s.w(px(self.size.height())))}>
+                if glyph.is_some() { <div style={|s| s.size(px(icon_size.pixels())).flex_shrink_0()}/> }
                 if !icon_only {
-                    <p class="text-body min-w-0 font-medium" wrap={false} ellipsis={true}>{self.label}</p>
+                    <p class="text-body min-w-0 font-medium" wrap={false} ellipsis={true}>{self.label.clone()}</p>
                 }
-            </button>
-        }
+            </div>
+        };
+        motion::resize(self.id.clone(), measurement, move |dimensions| {
+            motion::surface(
+                "surface".into(),
+                rest,
+                Surface {
+                    background: hover,
+                    ..rest
+                },
+                Surface {
+                    background: pressed,
+                    ..rest
+                },
+                enabled,
+                move |paint| {
+                    rake::view! {
+                        <button id={self.id} disabled={!enabled} aria-label={label}
+                            aria-description={if busy { "In progress" } else { "" }}
+                            class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 max-w-[100%] font-medium"
+                            style={|s| focusable(s).w(dimensions.width).h(dimensions.height)
+                                .px(px(if icon_only {0.} else {self.size.padding()}))
+                                .bg(paint.background).text_color(paint.ink).border_color(paint.border)
+                                .opacity(paint.opacity)}
+                            on:click={move |event, window, cx| {
+                                cx.stop_propagation();
+                                if let Some(handler)=&self.on_press { handler(event,window,cx); }
+                            }}>
+                            if let Some(name)=glyph {
+                                <Icon name={name} size={icon_size}
+                                    {..Icon::new("glyph", name)}/>
+                            }
+                            if !icon_only {
+                                <p class="text-body min-w-0 font-medium" wrap={false} ellipsis={true}>{self.label}</p>
+                            }
+                        </button>
+                    }
+                },
+            )
+        })
     }
 }
 

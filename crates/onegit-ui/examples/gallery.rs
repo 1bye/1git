@@ -26,6 +26,7 @@ struct Gallery {
     selected: usize,
     activations: usize,
     busy: bool,
+    expanded: bool,
 }
 
 impl Gallery {
@@ -33,6 +34,7 @@ impl Gallery {
         Theme::dark().install(cx);
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
+        window.activate_window();
         Self {
             appearance: Appearance::Dark,
             section: Section::Overview,
@@ -42,6 +44,7 @@ impl Gallery {
             selected: 0,
             activations: 0,
             busy: false,
+            expanded: false,
         }
     }
 
@@ -85,6 +88,14 @@ impl Gallery {
                         {..IconButton::new("refresh",IconName::Refresh,"Refresh sample")}/>
                     <IconButton tone={ButtonTone::Danger} {..IconButton::new("close",IconName::Close,"Close sample")}/>
                 </div>
+                <div class="flex flex-row items-center gap-3">
+                    <Button variant={ButtonVariant::Primary}
+                        size={if self.expanded {ControlSize::Large} else {ControlSize::Small}}
+                        icon={if self.expanded {Some(IconName::Check)} else {None}}
+                        on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.expanded= !this.expanded;cx.notify();})))}
+                        {..Button::new("resize",if self.expanded {"Commit selected changes"} else {"Commit"})}/>
+                    <Text tone={TextTone::Muted} {..Text::new("resize-hint","Click to resize")}/>
+                </div>
                 <Text role={TextRole::Caption} tone={TextTone::Muted}
                     {..Text::new("count",format!("{} action activations",self.activations))}/>
             </Pane>
@@ -110,6 +121,10 @@ impl Gallery {
                     on_change={Some(Box::new(cx.listener(|this,value:&CheckState,_,cx|{
                         this.busy= *value==CheckState::Checked;cx.notify();
                     })))} {..Checkbox::new("simulate","Show busy state")}/>
+                <Checkbox checked={if cx.reduce_motion() {CheckState::Checked} else {CheckState::Unchecked}}
+                    on_change={Some(Box::new(cx.listener(|_,value:&CheckState,_,cx|{
+                        cx.set_reduce_motion(*value==CheckState::Checked);cx.notify();
+                    })))} {..Checkbox::new("reduce-motion","Reduce motion")}/>
                 <Checkbox state={ControlState::Disabled} checked={CheckState::Checked}
                     {..Checkbox::new("disabled-check","Disabled selection")}/>
                 <Text role={TextRole::Caption} tone={TextTone::Muted}
@@ -154,16 +169,21 @@ impl Gallery {
                             <Icon {..Icon::new("file-icon",IconName::File)}/>
                         }.into_any_element())}
                         trailing={Some(rake::view! {
-                            <Checkbox show_label={false} checked={if self.included[index] {CheckState::Checked} else {CheckState::Unchecked}}
-                                on_change={Some(Box::new(cx.listener(move |this,value:&CheckState,_,cx|{
-                                    this.included[index]= *value==CheckState::Checked;cx.notify();
-                                })))} {..Checkbox::new("include",format!("Include {name}"))}/>
+                            <div class="flex flex-row items-center gap-1">
+                                <IconButton size={ControlSize::Small}
+                                    on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.activations+=1;cx.notify();})))}
+                                    {..IconButton::new("refresh",IconName::Refresh,format!("Refresh {name}"))}/>
+                                <Checkbox show_label={false} checked={if self.included[index] {CheckState::Checked} else {CheckState::Unchecked}}
+                                    on_change={Some(Box::new(cx.listener(move |this,value:&CheckState,_,cx|{
+                                        this.included[index]= *value==CheckState::Checked;cx.notify();
+                                    })))} {..Checkbox::new("include",format!("Include {name}"))}/>
+                            </div>
                         }.into_any_element())}
                         on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{this.selected=index;cx.notify();})))}
                         {..ListRow::new("file",name)}/>
                 }
                 <Text role={TextRole::Caption} tone={TextTone::Muted}
-                    {..Text::new("caption","Sample data · row selection and checkbox inclusion are independent")}/>
+                    {..Text::new("caption","Hover anywhere on a row; actions and checkboxes keep independent activation.")}/>
             </Pane>
         }
     }

@@ -1,3 +1,4 @@
+use crate::motion::{self, Surface};
 use crate::{ControlState, Icon, IconName, IconSize, Theme, focusable};
 use rake::gpui::{self, ElementId, SharedString, accesskit, prelude::*, px};
 
@@ -77,27 +78,55 @@ impl RenderOnce for Checkbox {
             CheckState::Checked => accesskit::Toggled::True,
             CheckState::Mixed => accesskit::Toggled::Mixed,
         };
-        rake::view! {
-            <button id={self.id} disabled={!enabled} aria-label={self.label.clone()}
-                class="flex flex-row items-center justify-start gap-2 px-1 shrink-0"
-                style={|s| focusable(s).h(px(24.)).border_color(Theme::transparent())
-                    .role(accesskit::Role::CheckBox).aria_toggled(toggled)
-                    .text_color(theme.ink).when(!enabled,|s|s.opacity(0.5))
-                    .when(enabled,|s|s.hover(|s|s.bg(theme.hover)))}
-                on:click={move |_, window, cx| {
-                    cx.stop_propagation();
-                    if let Some(handler)=&self.on_change {handler(&next,window,cx);}
-                }}>
-                <span class="size-[14px] border-1 rounded-[3px] items-center justify-center shrink-0"
-                    style={|s| s.border_color(if filled {theme.accent} else {theme.line})
-                        .bg(if filled {theme.accent} else {theme.surface_sunken}).text_color(theme.on_accent)}>
-                    if filled {
-                        <Icon name={if self.checked==CheckState::Mixed {IconName::Minus} else {IconName::Check}}
-                            size={IconSize::Small} {..Icon::new("mark",IconName::Check)}/>
-                    }
-                </span>
-                if self.show_label { <p class="text-body" wrap={false} ellipsis={true}>{self.label}</p> }
-            </button>
-        }
+        let rest = Surface {
+            opacity: if enabled { 1. } else { 0.5 },
+            ..Surface::new(Theme::transparent())
+        };
+        let box_paint = Surface {
+            border: if filled { theme.accent } else { theme.line },
+            ink: theme.on_accent,
+            ..Surface::new(if filled {
+                theme.accent
+            } else {
+                theme.surface_sunken
+            })
+        };
+        motion::surface(
+            self.id.clone(),
+            rest,
+            Surface {
+                background: theme.hover,
+                ..rest
+            },
+            Surface {
+                background: theme.pressed,
+                ..rest
+            },
+            enabled,
+            move |paint| {
+                rake::view! {
+                    <button id={self.id} disabled={!enabled} aria-label={self.label.clone()}
+                        class="flex flex-row items-center justify-start gap-2 px-1 shrink-0"
+                        style={|s| focusable(s).h(px(24.)).border_color(Theme::transparent())
+                            .role(accesskit::Role::CheckBox).aria_toggled(toggled)
+                            .text_color(paint.ink).bg(paint.background).opacity(paint.opacity)}
+                        on:click={move |_, window, cx| {
+                            cx.stop_propagation();
+                            if let Some(handler)=&self.on_change {handler(&next,window,cx);}
+                        }}>
+                        {motion::surface("box-motion".into(), box_paint, box_paint, box_paint, false, move |paint| rake::view! {
+                        <span class="size-[14px] border-1 rounded-[3px] items-center justify-center shrink-0"
+                            style={|s| s.border_color(paint.border).bg(paint.background).text_color(paint.ink)}>
+                            if filled {
+                                <Icon name={if self.checked==CheckState::Mixed {IconName::Minus} else {IconName::Check}}
+                                    size={IconSize::Small} {..Icon::new("mark",IconName::Check)}/>
+                            }
+                        </span>
+                        })}
+                        if self.show_label { <p class="text-body" wrap={false} ellipsis={true}>{self.label}</p> }
+                    </button>
+                }
+            },
+        )
     }
 }

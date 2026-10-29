@@ -1,5 +1,6 @@
+use crate::motion::{self, Surface};
 use crate::{ControlState, PressHandler, Text, TextRole, TextTone, Theme, focusable};
-use rake::gpui::{self, AnyElement, ElementId, SharedString, prelude::*, px};
+use rake::gpui::{self, AnyElement, ColorExt, ElementId, SharedString, prelude::*, px};
 
 /// Persistent selection, independent of hover, keyboard focus and checkbox inclusion.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -66,28 +67,40 @@ impl RenderOnce for ListRow {
         let selected = self.selection == RowSelection::Selected;
         let enabled = self.state.is_interactive();
         let description = self.description.clone().unwrap_or_default();
-        rake::view! {
-            <div id={self.id} class="flex flex-row items-center gap-1 px-1 rounded-control min-w-0"
-                style={|s| s.bg(if selected {theme.selection} else {Theme::transparent()})}>
-                if let Some(leading)=self.leading { {leading} }
-                <button id="action" disabled={!enabled} aria-label={self.label.clone()}
-                    aria-description={description}
-                    class="flex flex-col items-start justify-center flex-1 min-w-0 text-left px-1.5 py-1"
-                    style={|s| focusable(s).min_h(px(28.)).border_color(Theme::transparent())
-                        .aria_selected(selected).when(!enabled,|s|s.opacity(0.5))
-                        .when(enabled,|s|s.hover(|s|s.bg(theme.hover)))}
-                    on:click={move |event,window,cx| {
-                        cx.stop_propagation();
-                        if let Some(handler)=&self.on_press {handler(event,window,cx);}
-                    }}>
-                    <Text max_lines={Some(1)} {..Text::new("label",self.label)}/>
-                    if let Some(description)=self.description {
-                        <Text role={TextRole::Caption} tone={TextTone::Muted} max_lines={Some(1)}
-                            {..Text::new("description",description)}/>
-                    }
-                </button>
-                if let Some(trailing)=self.trailing { {trailing} }
-            </div>
-        }
+        let rest = Surface::new(if selected {
+            theme.selection
+        } else {
+            Theme::transparent()
+        });
+        let hover = Surface::new(if selected {
+            theme.selection.blend(&theme.hover.opacity(0.4))
+        } else {
+            theme.hover
+        });
+        // Slots remain independently interactive even when the main action is disabled.
+        motion::surface(self.id.clone(), rest, hover, hover, true, move |paint| {
+            rake::view! {
+                <div id={self.id} class="flex flex-row items-center gap-1 px-1 rounded-control min-w-0"
+                    style={|s| s.bg(paint.background)}>
+                    if let Some(leading)=self.leading { {leading} }
+                    <button id="action" disabled={!enabled} aria-label={self.label.clone()}
+                        aria-description={description}
+                        class="flex flex-col items-start justify-center flex-1 min-w-0 text-left px-1.5 py-1"
+                        style={|s| focusable(s).min_h(px(28.)).border_color(Theme::transparent())
+                            .aria_selected(selected).when(!enabled,|s|s.opacity(0.5))}
+                        on:click={move |event,window,cx| {
+                            cx.stop_propagation();
+                            if let Some(handler)=&self.on_press {handler(event,window,cx);}
+                        }}>
+                        <Text max_lines={Some(1)} {..Text::new("label",self.label)}/>
+                        if let Some(description)=self.description {
+                            <Text role={TextRole::Caption} tone={TextTone::Muted} max_lines={Some(1)}
+                                {..Text::new("description",description)}/>
+                        }
+                    </button>
+                    if let Some(trailing)=self.trailing { {trailing} }
+                </div>
+            }
+        })
     }
 }
