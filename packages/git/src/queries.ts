@@ -679,24 +679,34 @@ const loadUntrackedDiff = async (
 		.split("\0")
 		.filter(Boolean);
 
-	const diffs = await Promise.all(
-		untrackedPaths.map(async (path) => {
-			const [patch, counts] = await Promise.all([
-				loadUntrackedPathDiff(context, path, input, "patch"),
-				loadUntrackedPathDiff(context, path, input, "numstat"),
-			]);
+	const diffs: Pick<FileDiff, "patch" | "stats">[] = [];
+	let bytes = 0;
 
-			return {
-				patch,
-				// --no-index compares /dev/null to this path; it is not a rename.
-				stats: parseDiffStats(counts).map(({ addedLines, deletedLines }) => ({
-					path,
-					addedLines,
-					deletedLines,
-				})),
-			};
-		})
-	);
+	// Batched selections must not spawn two Git processes per untracked file at once.
+	for (const path of untrackedPaths) {
+		const [patch, counts] = await Promise.all([
+			loadUntrackedPathDiff(context, path, input, "patch"),
+			loadUntrackedPathDiff(context, path, input, "numstat"),
+		]);
+
+		bytes += Buffer.byteLength(patch);
+
+		if (bytes > context.process.maxOutputBytes)
+			throw new GitProcessFailure(
+				"output-too-large",
+				"The combined untracked diff exceeds the output limit."
+			);
+
+		diffs.push({
+			patch,
+			// --no-index compares /dev/null to this path; it is not a rename.
+			stats: parseDiffStats(counts).map(({ addedLines, deletedLines }) => ({
+				path,
+				addedLines,
+				deletedLines,
+			})),
+		});
+	}
 
 	return {
 		patch: diffs

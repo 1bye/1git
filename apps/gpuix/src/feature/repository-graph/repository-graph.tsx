@@ -141,6 +141,17 @@ export function RepositoryGraph({
 	const [branchCommit, setBranchCommit] = useState<CommitInfo | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
 
+	const branchDisabled =
+		disabled ||
+		(historyActions !== undefined &&
+			historyActions.state.repository?.operation !== "normal");
+
+	const createBranch = onCreateBranch
+		? (commit: CommitInfo) => {
+				if (!branchDisabled) setBranchCommit(commit);
+			}
+		: undefined;
+
 	useEffect(() => {
 		if (disabled) return;
 
@@ -223,7 +234,8 @@ export function RepositoryGraph({
 					)
 				)}
 				onFilesWidthChange={setFilesWidth}
-				onCreateBranch={onCreateBranch ? setBranchCommit : undefined}
+				onCreateBranch={createBranch}
+				branchDisabled={branchDisabled}
 				onCommitMenu={onCommitMenu}
 				{...readers}
 			/>
@@ -250,8 +262,11 @@ export function RepositoryGraph({
 								.filter((ref) => ref.kind === "local")
 								.map((ref) => ref.name) ?? []
 						}
-						disabled={disabled}
+						disabled={branchDisabled}
 						onCreate={async (name, oid) => {
+							if (branchDisabled)
+								return "Finish the current Git operation before creating a branch.";
+
 							const message = await onCreateBranch(name, oid);
 
 							if (!message) {
@@ -447,7 +462,7 @@ export function RepositoryGraph({
 							<RepositoryRevert
 								{...historyActions}
 								tags={result?.tags}
-								onCreateBranch={onCreateBranch ? setBranchCommit : undefined}
+								onCreateBranch={createBranch}
 							>
 								{renderResults}
 							</RepositoryRevert>
@@ -466,6 +481,7 @@ function GraphResults({
 	tips,
 	references,
 	disabled,
+	branchDisabled,
 	splitRatio,
 	onSplitRatioChange,
 	filesWidth,
@@ -480,6 +496,7 @@ function GraphResults({
 	tips: readonly string[];
 	references: GraphReferences;
 	disabled: boolean;
+	branchDisabled: boolean;
 	splitRatio: number;
 	onSplitRatioChange: (ratio: number) => void;
 	filesWidth: number;
@@ -716,12 +733,12 @@ function GraphResults({
 									const choice = NativeFileMenu.show(
 										renderer,
 										["Create branch here…"],
-										[!disabled],
+										[!branchDisabled],
 										event.x ?? box?.x ?? 0,
 										event.y ?? box?.y ?? 0
 									);
 
-									if (choice === 0 && !disabled) onCreateBranch(commit);
+									if (choice === 0 && !branchDisabled) onCreateBranch(commit);
 								} catch (cause) {
 									setError(
 										cause instanceof Error
@@ -802,7 +819,7 @@ function GraphResults({
 											tokens={tokens}
 											size="sm"
 											variant="ghost"
-											disabled={disabled}
+											disabled={branchDisabled}
 											onPress={() => onCreateBranch(selected)}
 										>
 											{window.width < 850 ? "+" : "New Branch…"}

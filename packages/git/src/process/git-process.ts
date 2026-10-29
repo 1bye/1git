@@ -135,7 +135,8 @@ export interface GitProcessOptions {
  */
 export class GitProcess {
 	private readonly executable: string;
-	private readonly maxOutputBytes: number;
+	/** Aggregate readers use the same byte ceiling as an individual command. */
+	readonly maxOutputBytes: number;
 
 	constructor(options: GitProcessOptions = {}) {
 		this.executable = options.executable ?? "git";

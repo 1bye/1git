@@ -141,8 +141,20 @@ export class Machines {
 				"Wait for remote operations to finish before removing this machine."
 			);
 
-		await this.vault?.delete(MachineStore.credentialKey(id));
-		this.store.save(next);
+		const vault = this.vault;
+		const key = MachineStore.credentialKey(id);
+		const oldSecret = vault ? await vault.read(key) : null;
+
+		await vault?.delete(key);
+
+		try {
+			this.store.save(next);
+		} catch (cause) {
+			if (oldSecret !== null && vault) await vault.write(key, oldSecret);
+
+			throw cause;
+		}
+
 		this.saved = next;
 		await this.disconnect(id);
 		this.emit();

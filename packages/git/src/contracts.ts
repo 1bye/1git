@@ -681,6 +681,8 @@ export interface SetUpstreamInput extends GitCallOptions {
 }
 
 export interface MergeInput extends GitCallOptions {
+	readonly expectedHead?: string | null;
+	readonly expectedBranch?: string | null;
 	readonly fastForward?: "allow" | "only" | "prevent";
 	readonly message?: string;
 	readonly revision: string;

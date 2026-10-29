@@ -1819,9 +1819,8 @@ export class GitRepository {
 			}
 
 			args.push(requireRevision(input.revision, "Revision", "merge"));
-			await this.run(args, input.signal);
 
-			return await loadSnapshot(this.context, false, input.signal);
+			return await BranchIntegration.merge(this.context, input, args);
 		});
 	}
 

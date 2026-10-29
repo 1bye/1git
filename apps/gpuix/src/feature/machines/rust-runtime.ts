@@ -184,7 +184,11 @@ export class RustRuntime implements GitExecutionRuntime {
 				throw new Error(`Unsupported remote filesystem operation: ${method}`);
 		}
 
-		const result = await this.request(input);
+		// Calls made after cancellation include transaction cleanup; let those finish.
+		const result = await this.request(
+			input,
+			this.signal?.aborted ? undefined : this.signal
+		);
 
 		if (method === "stat" || method === "lstat") return stats(result);
 
@@ -234,13 +238,20 @@ export class RustRuntime implements GitExecutionRuntime {
 
 	private handle(id: number) {
 		// Handles retain their originating runtime even when a caller leaves the async scope.
-		const call = async (method: string, extra: Record<string, unknown> = {}) =>
-			await this.request({
-				operation: "fs",
-				method: `handle-${method}`,
-				handle: id,
-				...extra,
-			});
+		const call = async (
+			method: string,
+			extra: Record<string, unknown> = {}
+		) => {
+			return await this.request(
+				{
+					operation: "fs",
+					method: `handle-${method}`,
+					handle: id,
+					...extra,
+				},
+				method === "close" || this.signal?.aborted ? undefined : this.signal
+			);
+		};
 
 		return {
 			fd: id,

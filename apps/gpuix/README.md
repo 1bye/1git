@@ -1255,6 +1255,8 @@ including whitespace changes even when hidden in the viewer. Unchecked additions
 never enter prompts or tool results; retained context is original code. Binary
 contents stay local. Collection supports up to 1000 files and 16 MiB of selected
 context (32 MiB per Git command), replacing the former 96 KiB prompt limit.
+Whole-file selections are collected in batches of up to 16 files; partial-line
+selections retain per-file canonical checks before inclusion.
 Conservative byte ceilings bound input without relying on a particular tokenizer:
 the model context minus an output reserve, capped at 192 KiB, with at most half
 available for tool results. Unknown model context sizes fall back to 32K. Runs
@@ -1463,6 +1465,9 @@ and the physical folder dialog still need manual checks.
   not persisted.
 - Every restored root is read again. Branches, status, files, inclusion checkboxes,
   History/Stashes caches, diffs and pending Git operations are never deserialized.
+  The active tab loads first, with at most two repository reads in progress.
+  Tabs for the same path share an in-flight read; closing one keeps the read
+  alive for any remaining tabs.
   Startup neither checks out a branch nor contacts a remote or resumes a write.
 - Missing/unavailable folders stay in their tab with an editable draft and
   **Retry repository**. Slow reads cannot steal the active tab; closing a restored

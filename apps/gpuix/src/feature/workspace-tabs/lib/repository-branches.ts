@@ -230,6 +230,8 @@ export class RepositoryBranches {
 							message: request.message,
 						})
 					: await opened.value.merge({
+							expectedHead: head.oid,
+							expectedBranch: head.branch,
 							revision: target.oid,
 							message: `Merge branch '${target.name}' into ${head.branch}`,
 						});

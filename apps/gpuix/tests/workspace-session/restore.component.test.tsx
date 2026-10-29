@@ -276,8 +276,8 @@ it("restores order and the active tab immediately, reads each saved root and kee
 		root.renderer.getElementBounds(node("workspace-1").id)?.x ?? 0
 	);
 	expect(reader.mock.calls.map(([path]) => path)).toEqual([
-		"/test/linked",
 		"/test/project",
+		"/test/linked",
 	]);
 	expect(save).not.toHaveBeenCalled();
 	main.resolve(await read("/test/project", new AbortController().signal));
@@ -425,9 +425,13 @@ it("cancels restored reads when tabs close or the app unmounts and ignores late 
 	);
 	await settle();
 	click("close-workspace-3");
-	expect(reader.mock.calls[0]?.[1].aborted).toBe(true);
+	expect(
+		reader.mock.calls.find(([path]) => path === "/test/linked")?.[1].aborted
+	).toBe(true);
 	root.render(<div />);
-	expect(reader.mock.calls[1]?.[1].aborted).toBe(true);
+	expect(
+		reader.mock.calls.find(([path]) => path === "/test/project")?.[1].aborted
+	).toBe(true);
 	pending.resolve(await read("/test/linked", new AbortController().signal));
 	await settle();
 	expect(root.renderer.getAllText()).toEqual([]);

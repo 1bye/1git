@@ -63,6 +63,41 @@ const settle = async (): Promise<void> => {
 	root.renderer.flush();
 };
 
+it("restores the active repository first, bounds background loads and shares duplicate tabs", async () => {
+	const pending =
+		Promise.withResolvers<Awaited<ReturnType<typeof RepositoryReader.read>>>();
+
+	const reader = mock<typeof RepositoryReader.read>(() => pending.promise);
+
+	root.render(
+		<App
+			initialSession={{
+				version: 1,
+				activeId: "active",
+				tabs: [
+					{ id: "first", path: "/test/shared", draft: "" },
+					{ id: "duplicate", path: "/test/shared", draft: "" },
+					{ id: "queued", path: "/test/queued", draft: "" },
+					{ id: "active", path: "/test/active", draft: "" },
+				],
+			}}
+			readRepository={reader}
+			readDiff={readDiff}
+		/>
+	);
+	await settle();
+
+	expect(reader.mock.calls.map(([path]) => path)).toEqual([
+		"/test/active",
+		"/test/shared",
+	]);
+	root.render(<div />);
+	expect(reader.mock.calls.every(([, signal]) => signal.aborted)).toBe(true);
+	pending.resolve({ ok: true, value: repositorySnapshot() });
+	await settle();
+	expect(reader).toHaveBeenCalledTimes(2);
+});
+
 it("opens real-status rows and refreshes without staging, clearing drafts or replacing checkbox choices", async () => {
 	const snapshot = repositorySnapshot([
 		changedFile("src/a.ts"),

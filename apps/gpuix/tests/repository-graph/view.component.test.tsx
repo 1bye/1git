@@ -225,6 +225,23 @@ async function open(): Promise<void> {
 	await settle();
 }
 
+it("disables graph branch creation during an unfinished Git operation", async () => {
+	show("light", 12, {
+		readRepository: async () => ({
+			ok: true,
+			value: { ...repositorySnapshot(), operationState: "merge" },
+		}),
+	});
+	await open();
+	click(`entry-${commits[0]!.oid}`);
+	await settle();
+
+	expect(element("graph-new-branch").customProps?.tabIndex).toBeUndefined();
+	click("graph-new-branch");
+	expect(root.renderer.findByTestId("graph-branch-dialog")).toBeUndefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+});
+
 it("switches Graph file navigation to a read-only tree without changing commit navigation", async () => {
 	show();
 	await open();
