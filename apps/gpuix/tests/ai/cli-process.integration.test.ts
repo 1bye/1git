@@ -29,7 +29,10 @@ afterEach(async () => {
 async function fixture(
 	source: string,
 	provider: "claude-code" | "codex" = "claude-code",
-	levels: readonly string[] = ["low", "medium", "high", "xhigh", "max"]
+	levels: readonly string[] = ["low", "medium", "high", "xhigh", "max"],
+	servers: unknown = [
+		{ name: "example-server", enabled: true, transport: { type: "stdio" } },
+	]
 ): Promise<AiPreferences> {
 	const executable = join(directory, "agent with spaces");
 
@@ -38,7 +41,7 @@ async function fixture(
 		`#!/usr/bin/env bun
 const args = process.argv.slice(2);
 if (args.includes("--version")) { console.info("fixture CLI 1.0"); process.exit(0); }
-if (args[0] === "mcp") { console.info(JSON.stringify([{name:"example-server",enabled:true,transport:{type:"stdio"}}])); process.exit(0); }
+if (args[0] === "mcp") { console.info(JSON.stringify(${JSON.stringify(servers)})); process.exit(0); }
 if (args[0] === "app-server" || args.includes("--input-format")) {
  const { createInterface } = await import("node:readline");
  const levels = ${JSON.stringify(levels)};
@@ -88,6 +91,41 @@ for await (const line of createInterface({input:process.stdin})) {
 
 	return { ...emptyAiPreferences, provider, executable };
 }
+
+it("accepts dotted and quoted Codex MCP names while disabling their transports", async () => {
+	const names = ["foo.bar", 'quoted"server\\name'];
+
+	const preferences = await fixture(
+		'console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: preserve filenames"}})); console.info(JSON.stringify({type:"turn.completed"}));',
+		"codex",
+		[],
+		[
+			{ name: names[0], enabled: true, transport: { type: "stdio" } },
+			{ name: names[1], enabled: true, transport: { type: "streamable_http" } },
+		]
+	);
+
+	const message = await new CliAgent().generate(
+		preferences,
+		"+selected",
+		new AbortController().signal
+	);
+
+	const captured = JSON.parse(await readFile(record, "utf8"));
+
+	const override = captured.args.find((value: string) =>
+		value.startsWith("mcp_servers=")
+	);
+
+	expect(message).toBe("fix: preserve filenames");
+	expect(Bun.TOML.parse(override)).toEqual({
+		mcp_servers: {
+			[names[0]!]: { enabled: false, command: "/usr/bin/false" },
+			[names[1]!]: { enabled: false, url: "http://127.0.0.1:1" },
+		},
+	});
+	expect(captured.args).toContain("features.shell_tool=false");
+});
 
 it("reads Claude aliases, resolved IDs and model-specific effort from initialization without sending a prompt", async () => {
 	const preferences = await modelFixture(
@@ -320,9 +358,15 @@ console.info(JSON.stringify({type:"turn.completed"}));`;
 			expect(captured.args).toContain("read-only");
 			expect(captured.args).toContain("features.shell_tool=false");
 			expect(captured.args).toContain("features.hooks=false");
-			expect(captured.args).toContain(
-				"mcp_servers.example-server.enabled=false"
+			const override = captured.args.find((value: string) =>
+				value.startsWith("mcp_servers=")
 			);
+
+			expect(Bun.TOML.parse(override)).toEqual({
+				mcp_servers: {
+					"example-server": { enabled: false, command: "/usr/bin/false" },
+				},
+			});
 		}
 	}
 );

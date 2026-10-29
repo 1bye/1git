@@ -1,7 +1,7 @@
 /**
  * Covers: helper discovery, folder browsing/setup, worktrees, remote reads/diffs/commits, stale-write guards and rejected RPC methods.
  * Real: helper process, JSON protocol, application repository services, Git and isolated working trees.
- * Doubles: SSH channel (requests use the actual helper's stdin/stdout); no saved machines or credentials.
+ * Doubles: SSH channel and timed symlink replacement; requests use actual helper stdin/stdout, without credentials.
  * Requires: Rust, Bun, Git and writable temporary storage.
  */
 import {
@@ -22,9 +22,11 @@ import {
 	mkdir,
 	mkdtemp,
 	writeFile,
+	readFile,
 	rm,
 	realpath,
 	symlink,
+	unlink,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -42,6 +44,7 @@ import { RepositoryFileActions } from "../../src/feature/repository-workspace/li
 import { RepositoryReader } from "../../src/feature/repository-workspace/lib/repository-reader";
 import { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
+import { RepositoryConflicts } from "../../src/feature/repository-workspace/lib/repository-conflicts";
 import { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
 import { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 
@@ -190,6 +193,87 @@ afterEach(async () => {
 	child?.stdin.end();
 	child?.kill();
 	await rm(directory, { recursive: true, force: true });
+});
+
+it("resolves through the real helper without following a symlink swapped at the final write", async () => {
+	const git = async (...args: string[]) =>
+		(
+			await execute("git", ["-C", directory, ...args], {
+				env: {
+					...process.env,
+					GIT_CONFIG_GLOBAL: "/dev/null",
+					GIT_CONFIG_NOSYSTEM: "1",
+				},
+			})
+		).stdout.trimEnd();
+
+	const path = "file with spaces.txt";
+	const absolute = join(directory, path);
+
+	await git("add", ".");
+	await git("commit", "-m", "Prepare conflict");
+	await git("checkout", "-b", "incoming");
+	await writeFile(absolute, "theirs\n");
+	await git("commit", "-am", "Incoming");
+	await git("checkout", "main");
+	await writeFile(absolute, "ours\n");
+	await git("commit", "-am", "Current");
+	await expect(git("merge", "incoming")).rejects.toThrow();
+	const preview = await RepositoryConflicts.read(
+		location,
+		path,
+		new AbortController().signal
+	);
+
+	if (!preview.ok || !preview.value)
+		throw new Error("Expected conflict preview");
+
+	const outsideDirectory = await mkdtemp(
+		join(tmpdir(), "1git-helper-outside-")
+	);
+
+	const outside = join(outsideDirectory, "private.txt");
+
+	await writeFile(outside, "outside data\n");
+	const original = RustRuntime.prototype.files;
+	let swapped = false;
+
+	const files = spyOn(RustRuntime.prototype, "files").mockImplementation(
+		async function (this: RustRuntime, method, args) {
+			if (
+				!swapped &&
+				((method === "writeFile" && args[0] === absolute) ||
+					(method === "rename" && args[1] === absolute))
+			) {
+				swapped = true;
+				await unlink(absolute);
+				await symlink(outside, absolute);
+			}
+
+			return await original.call(this, method, args);
+		}
+	);
+
+	try {
+		const result = await RepositoryConflicts.write(location, {
+			path,
+			side: "ours",
+			expectedHead: await git("rev-parse", "HEAD"),
+			expectedBranch: "main",
+			expectedContentHash: preview.value.hash,
+			expectedSideOid: preview.value.ours?.revision,
+		});
+
+		expect(swapped).toBe(true);
+		expect(result.ok).toBe(true);
+		expect(await readFile(outside, "utf8")).toBe("outside data\n");
+		expect(await readFile(absolute, "utf8")).toBe("ours\n");
+		expect(await git("show", `:${path}`)).toBe("ours");
+		expect(await git("ls-files", "--unmerged")).toBe("");
+	} finally {
+		files.mockRestore();
+		await rm(outsideDirectory, { recursive: true, force: true });
+	}
 });
 
 it("opens a remote checkout, renders its diff and commits only the selected files through existing services", async () => {

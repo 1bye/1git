@@ -180,7 +180,8 @@ export class Machines {
 		if (current && this.state(id).status === "Disconnected") {
 			this.connections.delete(id);
 			await current.dispose();
-			current = undefined;
+			// Another caller may have registered a replacement while disposal awaited.
+			current = this.connections.get(id);
 		}
 
 		if (current) {

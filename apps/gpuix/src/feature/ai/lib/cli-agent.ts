@@ -757,6 +757,8 @@ export class CliAgent {
 			"features.code_mode_only_strict_3p_tools=false",
 		];
 
+		const disabledServers: string[] = [];
+
 		for (const server of servers) {
 			if (
 				server &&
@@ -771,13 +773,12 @@ export class CliAgent {
 				typeof server !== "object" ||
 				!("name" in server) ||
 				typeof server.name !== "string" ||
-				!/^[a-zA-Z0-9_-]{1,256}$/u.test(server.name)
+				server.name.length === 0 ||
+				server.name.length > 256
 			)
 				throw new Error(
 					"Codex returned invalid configuration. Update Codex CLI and try again."
 				);
-
-			overrides.push(`mcp_servers.${server.name}.enabled=false`);
 
 			// Built-in entries may have no saved table; a disabled override still needs a valid transport.
 			if (
@@ -791,14 +792,22 @@ export class CliAgent {
 				);
 
 			if (server.transport.type === "stdio")
-				overrides.push(`mcp_servers.${server.name}.command="/usr/bin/false"`);
+				disabledServers.push(
+					`${JSON.stringify(server.name)}={enabled=false,command="/usr/bin/false"}`
+				);
 			else if (server.transport.type === "streamable_http")
-				overrides.push(`mcp_servers.${server.name}.url="http://127.0.0.1:1"`);
+				disabledServers.push(
+					`${JSON.stringify(server.name)}={enabled=false,url="http://127.0.0.1:1"}`
+				);
 			else
 				throw new Error(
 					"Codex returned an unsupported MCP transport. Update Codex CLI and try again."
 				);
 		}
+
+		// Quote table keys instead of interpolating names into dotted override paths.
+		if (disabledServers.length)
+			overrides.push(`mcp_servers={${disabledServers.join(",")}}`);
 
 		if (readPatch) {
 			if (!readerUrl)

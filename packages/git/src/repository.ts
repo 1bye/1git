@@ -3,10 +3,12 @@ export { GitIdentity, type GitIdentityValues } from "./identity.js";
 export { GitIgnore } from "./ignore.js";
 export { PartialPatch } from "./partial-patch.js";
 import {
+	copyFile,
 	mkdir,
 	mkdtemp,
 	open,
 	realpath,
+	rename,
 	rm,
 	stat,
 	lstat,
@@ -938,7 +940,46 @@ export class GitRepository {
 						"Resolve binary, oversized, or nested conflicts outside this app."
 					);
 
-				await writeFile(absolute, chosen);
+				const directory = await mkdtemp(
+					join(dirname(absolute), ".1git-conflict-")
+				);
+
+				try {
+					const info = await lstat(absolute);
+
+					if (!info.isFile() || (await realpath(absolute)) !== absolute)
+						throw invalidInput(
+							"stage",
+							"The file changed since the preview. Refresh and review it before resolving."
+						);
+
+					const replacement = join(directory, "resolved");
+
+					await copyFile(absolute, replacement);
+					await writeFile(replacement, chosen);
+					const latest = await loadFileContent(
+						this.context,
+						{ kind: "working" },
+						path,
+						input.signal
+					);
+
+					if (
+						createHash("sha256").update(latest.content).digest("hex") !==
+							input.expectedContentHash ||
+						(await realpath(dirname(absolute))) !== dirname(absolute)
+					)
+						throw invalidInput(
+							"stage",
+							"The file changed since the preview. Refresh and review it before resolving."
+						);
+
+					input.signal?.throwIfAborted();
+					// Atomic replacement replaces a final symlink itself instead of writing through it.
+					await rename(replacement, absolute);
+				} finally {
+					await rm(directory, { recursive: true, force: true });
+				}
 			} else if (CONFLICT_MARKER_LINE.test(content.content))
 				throw invalidInput(
 					"stage",

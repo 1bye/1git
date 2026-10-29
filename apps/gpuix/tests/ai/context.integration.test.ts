@@ -73,6 +73,39 @@ async function state() {
 	};
 }
 
+it("collects selected tracked and untracked filenames containing tabs", async () => {
+	const tracked = "tracked\tfile.txt";
+	const untracked = "new\tfile.txt";
+
+	await writeFile(join(directory, tracked), "before\n");
+	await git("add", tracked);
+	await git("commit", "-m", "Tabbed filename");
+	await writeFile(join(directory, tracked), "tracked-selection\n");
+	await writeFile(join(directory, untracked), "new-selection\n");
+	const captured = await state();
+	const index = await readFile(join(directory, ".git/index"));
+
+	const diff = await captured.repository.getDiff({
+		target: { kind: "changes" },
+		paths: [tracked, untracked],
+	});
+
+	if (!diff.ok) throw new Error(diff.error.message);
+
+	expect(diff.value.stats.map((stat) => stat.path)).toEqual([
+		tracked,
+		untracked,
+	]);
+	const patch = await CommitContext.read(
+		{ ...captured.state, includedFileIds: [tracked, untracked] },
+		new AbortController().signal
+	);
+
+	expect(patch).toContain("+tracked-selection");
+	expect(patch).toContain("+new-selection");
+	expect(await readFile(join(directory, ".git/index"))).toEqual(index);
+});
+
 it("sends only selected changes including untracked files, without changing the index or working files", async () => {
 	await writeFile(join(directory, "selected.txt"), "one\nchanged\nthree\n");
 	await git("add", "selected.txt");

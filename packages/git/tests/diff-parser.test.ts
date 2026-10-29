@@ -1,3 +1,9 @@
+/**
+ * Covers: diff counts, binary and rename records, and filenames with embedded tabs.
+ * Real: NUL-delimited numstat parser.
+ * Doubles: none.
+ * Requires: none.
+ */
 import { describe, expect, test } from "bun:test";
 
 import { parseDiffStats } from "../src/parsers/diff.js";
@@ -9,6 +15,20 @@ describe("parseDiffStats", () => {
 				addedLines: 12,
 				deletedLines: 3,
 				path: "src/app.ts",
+			},
+		]);
+	});
+
+	test("preserves tabs inside ordinary and renamed filenames", () => {
+		expect(
+			parseDiffStats("1\t2\ttab\tname.txt\0-\t-\t\0old\tname\0new\tname\0")
+		).toEqual([
+			{ addedLines: 1, deletedLines: 2, path: "tab\tname.txt" },
+			{
+				addedLines: null,
+				deletedLines: null,
+				originalPath: "old\tname",
+				path: "new\tname",
 			},
 		]);
 	});
