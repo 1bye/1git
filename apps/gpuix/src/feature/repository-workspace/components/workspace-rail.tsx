@@ -189,8 +189,15 @@ export function WorkspaceRail({
 	tourAnchorRef,
 	onMenuOpenChange,
 	onSpaceSwipe,
+	branches,
 	children,
 }: {
+	branches?: {
+		readonly name: string;
+		readonly open: boolean;
+		readonly onOpen: () => void;
+		readonly ref: Ref<PublicInstance>;
+	};
 	ignoredHistory?: { readonly active: boolean; readonly onOpen: () => void };
 	view?: RepositoryView;
 	onView?: (view: RepositoryView) => void;
@@ -407,19 +414,31 @@ export function WorkspaceRail({
 					gap: spacing[1],
 				}}
 			>
+				{children}
+				{branches ? (
+					<RailAction
+						ref={branches.ref}
+						testId="rail-branches"
+						role="button"
+						label={`Branches · ${branches.name}`}
+						icon={workspaceRailIcons.branches}
+						aria-haspopup="dialog"
+						aria-expanded={branches.open}
+						disabled={disabled}
+						onClick={branches.onOpen}
+						onKeyDown={actionKey(branches.onOpen)}
+					/>
+				) : null}
 				{children ? (
-					<>
-						{children}
-						<div
-							testId="rail-sync-separator"
-							style={{
-								width: 20,
-								height: 1,
-								flexShrink: 0,
-								backgroundColor: appColors.editorHairlineStrong,
-							}}
-						/>
-					</>
+					<div
+						testId="rail-sync-separator"
+						style={{
+							width: 20,
+							height: 1,
+							flexShrink: 0,
+							backgroundColor: appColors.editorHairlineStrong,
+						}}
+					/>
 				) : null}
 				{view && onView ? (
 					<div

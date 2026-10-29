@@ -63,12 +63,12 @@ function TourDelay({
 
 const copy = {
 	"tab-menu": {
-		title: "Switch branch or worktree",
-		body: "Click the current tab to change its branch or open a worktree.",
+		title: "Find your current branch",
+		body: "Open Branches in the left rail to see your current branch, switch branches, or create one.",
 	},
-	worktrees: {
-		title: "Work on two branches at once",
-		body: "Worktrees open another branch in its own folder, without stashing.",
+	"create-branch": {
+		title: "Create your own branch",
+		body: "Choose New Branch to name a local branch and switch to it. You can cancel without changing your repository.",
 	},
 	"space-swipe": {
 		title: "Switch spaces",
@@ -82,7 +82,8 @@ export function GuidedTourLayer({
 	context,
 	repositoryKey,
 	tabAnchor,
-	worktreesAnchor,
+	createBranchAnchor,
+	branchesOpen = false,
 	spaceAnchor,
 	railAnchor,
 	onSkip,
@@ -91,7 +92,8 @@ export function GuidedTourLayer({
 	context: TourContext;
 	repositoryKey: string | null;
 	tabAnchor: RefObject<PublicInstance | null>;
-	worktreesAnchor: RefObject<PublicInstance | null>;
+	createBranchAnchor: RefObject<PublicInstance | null>;
+	branchesOpen?: boolean;
 	spaceAnchor: RefObject<PublicInstance | null>;
 	railAnchor: RefObject<PublicInstance | null>;
 	onSkip: () => void;
@@ -105,7 +107,7 @@ export function GuidedTourLayer({
 	const previous = useRef(tips);
 
 	const [standalone, setStandalone] = useState(
-		tips.completed.includes("worktrees")
+		tips.completed.includes("create-branch")
 	);
 
 	const step = GuidedTour.current(tips, context);
@@ -125,7 +127,7 @@ export function GuidedTourLayer({
 			completedNow &&
 			!tips.dismissed &&
 			tips.completed.includes("tab-menu") &&
-			tips.completed.includes("worktrees") &&
+			tips.completed.includes("create-branch") &&
 			(context.spaceCount < 2 || tips.completed.includes("space-swipe"))
 		)
 			setConfirmation(true);
@@ -133,7 +135,7 @@ export function GuidedTourLayer({
 		if (
 			completedNow &&
 			context.spaceCount < 2 &&
-			tips.completed.includes("worktrees")
+			tips.completed.includes("create-branch")
 		)
 			setStandalone(true);
 
@@ -162,14 +164,13 @@ export function GuidedTourLayer({
 	const total = standalone ? 1 : context.spaceCount > 1 ? 3 : 2;
 	let number = 1;
 
-	if (!standalone && visible === "worktrees") number = 2;
+	if (!standalone && visible === "create-branch") number = 2;
 
 	if (!standalone && visible === "space-swipe") number = 3;
 
 	let anchor = tabAnchor;
 
-	if (visible === "worktrees" && worktreesAnchor.current)
-		anchor = worktreesAnchor;
+	if (visible === "create-branch" && branchesOpen) anchor = createBranchAnchor;
 
 	if (visible === "space-swipe") anchor = spaceAnchor;
 
@@ -189,7 +190,7 @@ export function GuidedTourLayer({
 				<CoachMark
 					key={visible}
 					anchor={anchor}
-					side={visible === "tab-menu" ? "bottom" : "right"}
+					side="right"
 					{...copy[visible]}
 					step={{ id: visible, number }}
 					total={total}

@@ -78,7 +78,8 @@ export function ResizableSidebar({
 				// Native scrollbars paint above siblings; reserve the divider's hit area.
 				paddingRight: 6,
 				borderRightWidth: 1,
-				borderColor: colors.editorHairline,
+				borderColor:
+					focused && !pointerFocus ? colors.brand : colors.editorHairline,
 				...(hidden
 					? {
 							top: 0,
@@ -162,17 +163,7 @@ export function ResizableSidebar({
 					else if (event.key === "home") resize(minWidth);
 					else if (event.key === "end") resize(maximum);
 				}}
-			>
-				<div
-					style={{
-						width: 1,
-						height: "100%",
-						pointerEvents: "none",
-						backgroundColor:
-							focused && !pointerFocus ? colors.brand : colors.editorHairline,
-					}}
-				/>
-			</div>
+			/>
 		</div>
 	);
 }

@@ -145,6 +145,7 @@ import {
 	RepositoryWorkspaceModel,
 	type RepositoryWorkspaceAction,
 } from "./feature/repository-workspace/lib/repository-workspace-model";
+import { WorkspaceMenu } from "./feature/workspace-tabs/components/workspace-menu";
 import { WorkspaceTabs } from "./feature/workspace-tabs/workspace-tabs";
 import { WorkspaceTabsModel } from "./feature/workspace-tabs/lib/workspace-tabs-model";
 import { AppShell } from "./fixture/app-shell";
@@ -665,8 +666,11 @@ function AppContent({
 			}
 	);
 
-	const tabTourAnchor = useRef<PublicInstance>(null);
-	const worktreesTourAnchor = useRef<PublicInstance>(null);
+	const branchRailAnchor = useRef<PublicInstance>(null);
+	const createBranchTourAnchor = useRef<PublicInstance>(null);
+
+	const [branchPanelId, setBranchPanelId] = useState<string | null>(null);
+
 	const spaceTourAnchor = useRef<PublicInstance>(null);
 	const railTourAnchor = useRef<PublicInstance>(null);
 	const [tabMenuOpen, setTabMenuOpen] = useState(false);
@@ -690,19 +694,15 @@ function AppContent({
 			setTabMenuOpen(open);
 
 			if (open || previousTabMenuOpen.current)
-				completeTip(open ? "tab-menu" : "worktrees");
+				completeTip(open ? "tab-menu" : "create-branch");
 
 			previousTabMenuOpen.current = open;
 		},
 		[completeTip]
 	);
 
-	const tourTabChanged = useCallback((instance: PublicInstance | null) => {
-		tabTourAnchor.current = instance;
-	}, []);
-
-	const worktreesOpened = useCallback(
-		() => completeTip("worktrees"),
+	const createBranchOpened = useCallback(
+		() => completeTip("create-branch"),
 		[completeTip]
 	);
 
@@ -860,6 +860,27 @@ function AppContent({
 	const workspace = activeTab?.workspace;
 	const settingsTab = state.tabs.find((tab) => tab.kind === "settings");
 	const settingsOpen = activeTab?.kind === "settings";
+
+	const branchPanelOpen =
+		branchPanelId === activeTab?.id && !!workspace?.repository && !settingsOpen;
+
+	useEffect(() => setBranchPanelId(null), [state.activeId]);
+
+	const openBranches = (): void => {
+		if (!activeTab || !workspace?.repository) return;
+
+		setBranchPanelId(activeTab.id);
+		completeTip("tab-menu");
+	};
+
+	const closeBranches = (): void => {
+		setBranchPanelId(null);
+		completeTip("create-branch");
+
+		if (branchRailAnchor.current)
+			renderer.focusElement?.(branchRailAnchor.current.id);
+	};
+
 	const settingsContextId = useRef<string | null>(null);
 	const settingsOriginFocus = useRef<number | null>(null);
 	const lastAppearanceTab = useRef<string | undefined>(undefined);
@@ -2303,7 +2324,8 @@ function AppContent({
 		railMenuOpen ||
 		!!appearanceEditor ||
 		!!closeNotice ||
-		(tabMenuOpen && (pendingTip !== "worktrees" || tabMenuBusy));
+		((tabMenuOpen || branchPanelOpen) &&
+			(pendingTip !== "create-branch" || tabMenuBusy));
 	activeTourStep.current = GuidedTour.current(tips, tourContext);
 
 	const settingsContent = settingsTab ? (
@@ -2422,8 +2444,9 @@ function AppContent({
 							? `${activeTab?.id}:${workspace.repository.root}`
 							: null
 					}
-					tabAnchor={tabTourAnchor}
-					worktreesAnchor={worktreesTourAnchor}
+					tabAnchor={branchRailAnchor}
+					createBranchAnchor={createBranchTourAnchor}
+					branchesOpen={branchPanelOpen}
 					spaceAnchor={spaceTourAnchor}
 					railAnchor={railTourAnchor}
 					onSkip={skipTour}
@@ -2436,6 +2459,17 @@ function AppContent({
 						onboardingOpen ? undefined : (
 							<WorkspaceRail
 								tourAnchorRef={railTourAnchor}
+								branches={
+									activeTab && workspace?.repository && !settingsOpen
+										? {
+												name:
+													workspace.repository.branchName ?? "Detached HEAD",
+												open: branchPanelOpen,
+												onOpen: openBranches,
+												ref: branchRailAnchor,
+											}
+										: undefined
+								}
 								onMenuOpenChange={setRailMenuOpen}
 								ignoredHistory={
 									workspace?.repository &&
@@ -2663,10 +2697,8 @@ function AppContent({
 					}
 					toolbar={
 						<WorkspaceTabs
-							onTourAnchor={tourTabChanged}
 							onTabMenuOpenChange={tabMenuChanged}
-							worktreesAnchorRef={worktreesTourAnchor}
-							onWorktreesOpen={worktreesOpened}
+							onCreateBranchOpen={createBranchOpened}
 							onMenuBusyChange={setTabMenuBusy}
 							state={{ ...state, tabs: visibleTabs }}
 							dispatch={dispatch}
@@ -2690,6 +2722,24 @@ function AppContent({
 					}
 					workspaceLabel={activeTab ? `${activeTab.name} workspace` : "Home"}
 				>
+					{branchPanelOpen && activeTab ? (
+						<WorkspaceMenu
+							tab={activeTab}
+							anchor={branchRailAnchor.current ?? undefined}
+							placement="sidebar"
+							dispatch={dispatch}
+							readBranches={readBranches}
+							readRepository={readRepository}
+							onChangeBranch={mutations.changeBranch}
+							onCreateWorktree={mutations.createWorktree}
+							onRemoveWorktree={mutations.removeWorktree}
+							onBusyChange={setTabMenuBusy}
+							createBranchAnchorRef={createBranchTourAnchor}
+							onCreateBranchOpen={createBranchOpened}
+							onClose={closeBranches}
+						/>
+					) : null}
+
 					<div
 						aria-hidden={settingsOpen || undefined}
 						style={{

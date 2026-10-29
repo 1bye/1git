@@ -24,12 +24,14 @@ welcome in [GitHub Issues](https://github.com/1bye/1git/issues).
 - Best-in-class UX: polish every flow, starting with the Settings redesign, onboarding etc.
 - Issues and pull requests: browse, create, and review them in the app
 - [ACP](https://agentclientprotocol.com) support for AI agents
-- Periodic background Git fetch with a configurable interval to keep remote branches
-  and ahead/behind counts current, without automatically pulling or merging
 
 ## 🔭 Later
 
 - Port to Rust [GPUI](https://www.gpui.rs) (likely with gpui-fast, gpui-motion, and rake)
+- Rust port: configurable background Git fetch to refresh remote branches and
+  ahead/behind counts, including an optional lightweight Rust helper for updates
+  while minimized or after the main app quits, with minimal idle resource use and
+  no automatic pulling or merging
 - Multiple platforms: Intel and Universal macOS builds, Linux, and Windows
 - More Git hosting providers (Forge, Trylle, Git Cafe etc.)
 - Interactive rebase: reorder, squash, and edit commits visually

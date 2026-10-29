@@ -25,6 +25,7 @@ import {
 } from "react";
 
 import { workspaceLayout } from "../../../styles/workspace-layout";
+import { StateMessage } from "../../../fixture/state-message";
 import { WorkspaceTabPreview } from "./workspace-tab";
 import { WorkspaceTabIcon } from "./workspace-tab-icon";
 import { WorkspaceWorktreeForm } from "./workspace-worktree-form";
@@ -55,6 +56,7 @@ const menuWidth = 288;
 const windowInset = 8;
 const recentBranchCount = 3;
 const rowHeight = 28;
+const emptySearchHeight = 156;
 const menuPadding = spacing[1];
 const headerHeight = 48;
 const separatorHeight = 9;
@@ -322,6 +324,9 @@ export function WorkspaceMenu({
 	onBusyChange,
 	branchIntent,
 	onBranchIntentHandled,
+	placement = "tab",
+	createBranchAnchorRef,
+	onCreateBranchOpen,
 }: WorkspaceMenuActions & {
 	tab: WorkspaceTabRecord;
 	anchor: PublicInstance | undefined;
@@ -332,6 +337,9 @@ export function WorkspaceMenu({
 	onBusyChange?: (busy: boolean) => void;
 	branchIntent?: "new" | "switch";
 	onBranchIntentHandled?: () => void;
+	placement?: "tab" | "sidebar";
+	createBranchAnchorRef?: Ref<PublicInstance>;
+	onCreateBranchOpen?: () => void;
 }) {
 	const theme = useAppTheme();
 	const { tokens: appTokens } = theme;
@@ -373,6 +381,9 @@ export function WorkspaceMenu({
 		useState<WorktreeRemoval | null>(null);
 
 	const [expanded, setExpanded] = useState(false);
+	const [query, setQuery] = useState("");
+	const [focusedBranchId, setFocusedBranchId] = useState<string | null>(null);
+	const search = useRef<PublicInstance>(null);
 	const [submenu, setSubmenu] = useState<Submenu | null>(null);
 	const [opening, setOpening] = useState(false);
 	const mounted = useRef(true);
@@ -479,11 +490,30 @@ export function WorkspaceMenu({
 		...WorkspaceMenuModel.untrackedRemoteBranches(data?.branches),
 	];
 
-	const visibleBranches = expanded
-		? branches
-		: branches.slice(0, recentBranchCount);
+	const currentIndex = branches.findIndex(
+		(item) => item.type === "local" && item.name === branch
+	);
 
-	const hasMore = branches.length > recentBranchCount;
+	if (placement === "sidebar" && currentIndex > 0) {
+		const current = branches.splice(currentIndex, 1)[0];
+
+		if (current) branches.unshift(current);
+	}
+
+	const normalizedQuery = query.trim().toLowerCase();
+
+	const visibleBranches = normalizedQuery
+		? branches.filter((item) =>
+				item.name.toLowerCase().includes(normalizedQuery)
+			)
+		: expanded
+			? branches
+			: branches.slice(0, recentBranchCount);
+
+	const hasMore = !normalizedQuery && branches.length > recentBranchCount;
+
+	const emptySearch =
+		!!data && !!normalizedQuery && visibleBranches.length === 0;
 
 	const currentBranch = branches.find(
 		(item) => item.type === "local" && item.name === branch
@@ -624,15 +654,23 @@ export function WorkspaceMenu({
 			(item) => `branch-${item.type === "remote" ? item.fullName : item.name}`
 		);
 
+	const enabledBranchCount = enabledIds.length;
+
 	if (canRestore) enabledIds.push("restore-branch-changes");
 
 	if (!busy && hasMore) enabledIds.push("more-branches");
 
 	if (!busy && data) enabledIds.push("worktrees");
 
-	if (canCompare) enabledIds.push("compare-branches");
+	if (placement !== "sidebar" && canCompare)
+		enabledIds.push("compare-branches");
 
-	if (canNew) enabledIds.push("new-actions");
+	if (placement === "sidebar") {
+		if (onCreateWorktree && canCreateWorktree)
+			enabledIds.push("create-worktree");
+
+		if (canCreate) enabledIds.push("create-branch");
+	} else if (canNew) enabledIds.push("new-actions");
 
 	if (canMerge) enabledIds.push("merge-branch");
 
@@ -642,6 +680,11 @@ export function WorkspaceMenu({
 		error ??
 		tab.workspace.error ??
 		(busy && !syncKind ? "Updating workspace…" : null);
+
+	const menuTop =
+		placement === "sidebar"
+			? Math.max(windowInset, anchorBounds?.y ?? 0)
+			: (anchorBounds?.y ?? 0) + workspaceLayout.tabHeight - 1;
 
 	// Fixed header/action rows surround a scrollable list; the expanded menu stays inside the window.
 	const contentHeight = mergeSource
@@ -657,22 +700,22 @@ export function WorkspaceMenu({
 					: creating
 						? createFormHeight
 						: menuPadding * 2 +
-							headerHeight +
-							separatorHeight * 2 +
+							(placement === "sidebar" ? 36 : headerHeight + separatorHeight) +
+							separatorHeight +
 							rowHeight +
 							(savedChanges.length ? rowHeight : 0) +
+							(placement === "sidebar" && onCreateWorktree ? rowHeight : 0) +
 							(onSettings ? separatorHeight + rowHeight : 0) +
 							rowHeight +
-							Math.max(1, visibleBranches.length) * rowHeight +
+							(emptySearch
+								? emptySearchHeight
+								: Math.max(1, visibleBranches.length) * rowHeight) +
 							(hasMore ? rowHeight : 0) +
 							rowHeight;
 
 	const menuHeight = Math.min(
 		expanded || mergeSource ? maxExpandedMenuHeight : maxMenuHeight,
-		windowSize.height -
-			(anchorBounds?.y ?? 0) -
-			workspaceLayout.tabHeight -
-			windowInset,
+		windowSize.height - menuTop - windowInset,
 		contentHeight + (notice ? noticeHeight : 0)
 	);
 
@@ -688,6 +731,16 @@ export function WorkspaceMenu({
 		setError(null);
 
 		if (dialog.current) renderer.focusElement?.(dialog.current.id);
+	};
+
+	const beginCreateBranch = (): void => {
+		if (!canCreate) return;
+
+		closeSubmenu();
+		setCreating(true);
+		setName("");
+		setError(null);
+		onCreateBranchOpen?.();
 	};
 
 	const openComparison = (): void => {
@@ -762,7 +815,30 @@ export function WorkspaceMenu({
 		)
 			return;
 
-		const activeIds = inSubmenu ? submenuIds : enabledIds;
+		if (placement === "sidebar" && !inSubmenu && search.current) {
+			if (
+				search.current.id === focused &&
+				(event.key === "up" || enabledBranchCount === 0)
+			)
+				return;
+
+			if (
+				event.key === "up" &&
+				rows.current.get(enabledIds[0] ?? "")?.id === focused
+			) {
+				closeSubmenu();
+				setFocusedBranchId(null);
+				renderer.focusElement?.(search.current.id);
+
+				return;
+			}
+		}
+
+		const activeIds = inSubmenu
+			? submenuIds
+			: placement === "sidebar" && normalizedQuery
+				? enabledIds.slice(0, enabledBranchCount)
+				: enabledIds;
 
 		if (!inSubmenu) closeSubmenu();
 
@@ -781,6 +857,7 @@ export function WorkspaceMenu({
 		const node = next ? rows.current.get(next) : undefined;
 
 		if (node) {
+			setFocusedBranchId(next?.startsWith("branch-") ? next : null);
 			renderer.focusElement?.(node.id);
 
 			const scrollList = inSubmenu ? submenuList.current : list.current;
@@ -925,7 +1002,9 @@ export function WorkspaceMenu({
 	const menuLeft = Math.max(
 		windowInset,
 		Math.min(
-			anchorBounds.x + workspaceLayout.tabWidth / 2 - menuWidth / 2,
+			placement === "sidebar"
+				? anchorBounds.x + anchorBounds.width + submenuGap
+				: anchorBounds.x + workspaceLayout.tabWidth / 2 - menuWidth / 2,
 			windowSize.width - menuWidth - windowInset
 		)
 	);
@@ -952,6 +1031,58 @@ export function WorkspaceMenu({
 		windowSize.height - windowInset * 2,
 		menuPadding * 2 + Math.max(1, worktrees.length) * rowHeight
 	);
+
+	const newBranchAction = (
+		<Button
+			testId="create-branch"
+			ref={(node) => {
+				setRefs(
+					node,
+					placement === "sidebar" ? createBranchAnchorRef : undefined
+				);
+
+				if (node) rows.current.set("create-branch", node);
+				else rows.current.delete("create-branch");
+			}}
+			tokens={appTokens}
+			variant="ghost"
+			size="sm"
+			style={styles.row}
+			disabled={!canCreate}
+			aria-label="Create new branch"
+			onPress={beginCreateBranch}
+		>
+			<WorkspaceTabIcon name="add" />
+			<Text tokens={appTokens} style={styles.label}>
+				{placement === "sidebar" ? "New Branch" : "New branch…"}
+			</Text>
+		</Button>
+	);
+
+	const newWorktreeAction = onCreateWorktree ? (
+		<Button
+			testId="create-worktree"
+			ref={(node) => {
+				if (node) rows.current.set("create-worktree", node);
+				else rows.current.delete("create-worktree");
+			}}
+			tokens={appTokens}
+			variant="ghost"
+			size="sm"
+			style={styles.row}
+			disabled={!canCreateWorktree}
+			onPress={() => {
+				closeSubmenu();
+				setCreatingWorktree(true);
+				setError(null);
+			}}
+		>
+			<WorkspaceTabIcon name="add" />
+			<Text tokens={appTokens} style={styles.label}>
+				{placement === "sidebar" ? "New Worktree" : "New worktree…"}
+			</Text>
+		</Button>
+	) : null;
 
 	// Match floating controls' priority so nested selects paint after this surface, not behind it.
 	return (
@@ -986,11 +1117,11 @@ export function WorkspaceMenu({
 				role="dialog"
 				aria-label="Workspace branches"
 				tabIndex={-1}
-				autoFocus
+				autoFocus={placement !== "sidebar"}
 				onKeyDown={onKeyDown}
 				style={StyleSheet.compose(styles.surface, {
 					left: menuLeft,
-					top: anchorBounds.y + workspaceLayout.tabHeight - 1,
+					top: menuTop,
 				})}
 			>
 				<motion.div
@@ -1152,7 +1283,7 @@ export function WorkspaceMenu({
 										: "Deletes only the local branch. Unmerged work is protected."
 									: remoteBranch
 										? `Tracks ${remoteBranch.replace("refs/remotes/", "")} in this workspace.`
-										: `Create from ${repository?.branch ?? "HEAD"} and switch this workspace to it.`}
+										: `Create locally from ${repository?.branch ?? "HEAD"} and switch to it. Publish later to share it.`}
 							</Text>
 							<div style={styles.footer}>
 								<Button
@@ -1187,47 +1318,85 @@ export function WorkspaceMenu({
 						</div>
 					) : (
 						<>
-							<div
-								style={StyleSheet.compose(styles.header, {
-									paddingRight: spacing[20],
-								})}
-							>
-								<Button
-									testId="compare-branches"
-									aria-label="Compare branches"
-									ref={(node) => {
-										if (node) rows.current.set("compare-branches", node);
-										else rows.current.delete("compare-branches");
+							{placement === "tab" ? (
+								<>
+									<div
+										style={StyleSheet.compose(styles.header, {
+											paddingRight: spacing[20],
+										})}
+									>
+										<Button
+											testId="compare-branches"
+											aria-label="Compare branches"
+											ref={(node) => {
+												if (node) rows.current.set("compare-branches", node);
+												else rows.current.delete("compare-branches");
+											}}
+											tokens={appTokens}
+											variant="secondary"
+											size="sm"
+											style={{ position: "absolute", right: 4, top: 8 }}
+											disabled={!canCompare}
+											onPress={openComparison}
+										>
+											Compare
+										</Button>
+										<Text
+											tokens={appTokens}
+											style={StyleSheet.compose(styles.label, styles.heading, {
+												flexGrow: 0,
+												whiteSpace: "nowrap",
+												textOverflow: "ellipsis",
+												overflowX: "hidden",
+											})}
+										>
+											{branch ?? "Detached HEAD"}
+										</Text>
+										<Text
+											testId="branch-tracking"
+											tokens={appTokens}
+											style={StyleSheet.compose(styles.label, styles.muted, {
+												flexGrow: 0,
+											})}
+										>
+											{data
+												? WorkspaceMenuModel.trackingLabel(currentBranch)
+												: ""}
+										</Text>
+									</div>
+									<div style={styles.separator} />
+								</>
+							) : null}
+							{placement === "sidebar" ? (
+								<input
+									ref={search}
+									autoFocus
+									testId="branch-search"
+									aria-label="Find a branch"
+									aria-description="Type to filter branches. Down moves through results; Up from the first result returns to search. Enter selects a branch."
+									placeholder="Find a branch…"
+									value={query}
+									onFocus={() => setFocusedBranchId(null)}
+									onChange={(event) => {
+										setQuery(event.value ?? "");
+										setFocusedBranchId(null);
 									}}
-									tokens={appTokens}
-									variant="secondary"
-									size="sm"
-									style={{ position: "absolute", right: 4, top: 8 }}
-									disabled={!canCompare}
-									onPress={openComparison}
-								>
-									Compare
-								</Button>
-								<Text
-									tokens={appTokens}
-									style={StyleSheet.compose(styles.label, styles.heading, {
-										flexGrow: 0,
+									style={StyleSheet.compose(styles.input, {
+										height: 32,
+										flexShrink: 0,
 									})}
-								>
-									{branch ?? "Detached HEAD"}
-								</Text>
-								<Text
-									testId="branch-tracking"
-									tokens={appTokens}
-									style={StyleSheet.compose(styles.label, styles.muted, {
-										flexGrow: 0,
-									})}
-								>
-									{data ? WorkspaceMenuModel.trackingLabel(currentBranch) : ""}
-								</Text>
-							</div>
-							<div style={styles.separator} />
+								/>
+							) : null}
 							<div ref={list} testId="workspace-menu-list" style={styles.list}>
+								{emptySearch ? (
+									<StateMessage
+										testId="branch-search-empty"
+										artwork="search"
+										title="No matching branches"
+										description="Try another name, or create a new branch."
+										compact
+									/>
+								) : null}
 								{!data && !error ? (
 									<Text tokens={appTokens} style={styles.muted}>
 										Loading branches…
@@ -1253,7 +1422,19 @@ export function WorkspaceMenu({
 											tokens={appTokens}
 											variant="ghost"
 											size="sm"
-											style={styles.row}
+											style={StyleSheet.compose(
+												styles.row,
+												focusedBranchId === id && {
+													backgroundColor: colors.selected,
+													hover: { backgroundColor: colors.selected },
+												}
+											)}
+											onFocus={() => setFocusedBranchId(id)}
+											onBlur={() =>
+												setFocusedBranchId((currentId) =>
+													currentId === id ? null : currentId
+												)
+											}
 											disabled={
 												busy ||
 												!!target?.error ||
@@ -1338,7 +1519,7 @@ export function WorkspaceMenu({
 										</Button>
 									);
 								})}
-								{data && !branches.length ? (
+								{data && !branches.length && !emptySearch ? (
 									<div style={styles.sectionLabel}>
 										<Text tokens={appTokens} style={styles.muted}>
 											No local branches available.
@@ -1571,77 +1752,38 @@ export function WorkspaceMenu({
 									</Text>
 								</Button>
 							) : null}
-							<WorkspaceActionSubmenu
-								testId="new-actions"
-								label="New"
-								icon="add"
-								open={showNew}
-								disabled={!canNew}
-								height={
-									menuPadding * 2 + rowHeight * (onCreateWorktree ? 2 : 1)
-								}
-								side={submenuSide}
-								menuRef={submenuMenu}
-								triggerRef={(node) => {
-									if (node) rows.current.set("new-actions", node);
-									else rows.current.delete("new-actions");
-								}}
-								onOpen={(focus) => openSubmenu("new", focus)}
-								onEnter={() => {
-									submenuHovered.current = true;
-									cancelSubmenuClose();
-								}}
-								onLeave={scheduleSubmenuClose}
-							>
-								<Button
-									testId="create-branch"
-									ref={(node) => {
-										if (node) rows.current.set("create-branch", node);
-										else rows.current.delete("create-branch");
+							{placement === "sidebar" ? (
+								<>
+									{newWorktreeAction}
+									{newBranchAction}
+								</>
+							) : (
+								<WorkspaceActionSubmenu
+									testId="new-actions"
+									label="New"
+									icon="add"
+									open={showNew}
+									disabled={!canNew}
+									height={
+										menuPadding * 2 + rowHeight * (onCreateWorktree ? 2 : 1)
+									}
+									side={submenuSide}
+									menuRef={submenuMenu}
+									triggerRef={(node) => {
+										if (node) rows.current.set("new-actions", node);
+										else rows.current.delete("new-actions");
 									}}
-									tokens={appTokens}
-									variant="ghost"
-									size="sm"
-									style={styles.row}
-									disabled={!canCreate}
-									aria-label="Create new branch"
-									onPress={() => {
-										closeSubmenu();
-										setCreating(true);
-										setName("");
-										setError(null);
+									onOpen={(focus) => openSubmenu("new", focus)}
+									onEnter={() => {
+										submenuHovered.current = true;
+										cancelSubmenuClose();
 									}}
+									onLeave={scheduleSubmenuClose}
 								>
-									<WorkspaceTabIcon name="add" />
-									<Text tokens={appTokens} style={styles.label}>
-										New branch…
-									</Text>
-								</Button>
-								{onCreateWorktree ? (
-									<Button
-										testId="create-worktree"
-										ref={(node) => {
-											if (node) rows.current.set("create-worktree", node);
-											else rows.current.delete("create-worktree");
-										}}
-										tokens={appTokens}
-										variant="ghost"
-										size="sm"
-										style={styles.row}
-										disabled={!canCreateWorktree}
-										onPress={() => {
-											closeSubmenu();
-											setCreatingWorktree(true);
-											setError(null);
-										}}
-									>
-										<WorkspaceTabIcon name="add" />
-										<Text tokens={appTokens} style={styles.label}>
-											New worktree…
-										</Text>
-									</Button>
-								) : null}
-							</WorkspaceActionSubmenu>
+									{newBranchAction}
+									{newWorktreeAction}
+								</WorkspaceActionSubmenu>
+							)}
 							<Button
 								testId="merge-branch"
 								ref={(node) => {
@@ -1713,17 +1855,19 @@ export function WorkspaceMenu({
 					) : null}
 				</motion.div>
 			</div>
-			<div
-				style={{
-					position: "absolute",
-					left: anchorBounds.x,
-					top: anchorBounds.y,
-					width: workspaceLayout.tabWidth,
-					height: workspaceLayout.tabHeight,
-				}}
-			>
-				<WorkspaceTabPreview tab={tab} onClose={onClose} />
-			</div>
+			{placement === "tab" ? (
+				<div
+					style={{
+						position: "absolute",
+						left: anchorBounds.x,
+						top: anchorBounds.y,
+						width: workspaceLayout.tabWidth,
+						height: workspaceLayout.tabHeight,
+					}}
+				>
+					<WorkspaceTabPreview tab={tab} onClose={onClose} />
+				</div>
+			) : null}
 		</anchored>
 	);
 }

@@ -4,6 +4,9 @@ const svg = (paths: string): string =>
 
 /** Shared native glyphs for the workspace rail and its Settings preview. */
 export const workspaceRailIcons = {
+	branches: svg(
+		'<circle cx="7" cy="5" r="2"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="6" r="2"/><path d="M7 7v10m0-5h5a6 6 0 0 0 6-4"/>'
+	),
 	changes: svg(
 		'<path d="M5 3v12m14-6v12M5 9h9l-3-3m3 3-3 3"/><circle cx="5" cy="18" r="3"/><circle cx="19" cy="6" r="3"/>'
 	),

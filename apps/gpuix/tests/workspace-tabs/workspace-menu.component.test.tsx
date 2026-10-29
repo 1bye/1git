@@ -279,6 +279,253 @@ const menu = async (): Promise<void> => {
 	await settle();
 };
 
+it("finds and creates a branch from the left rail, keeps its identity in the rail and restores focus", async () => {
+	await open();
+	expect(root.renderer.findByTestId("current-branch")).toBeUndefined();
+	expect(element("rail-branches").customProps?.["aria-label"]).toBe(
+		"Branches · main"
+	);
+	expect(readBranches).not.toHaveBeenCalled();
+	click("rail-branches");
+	await settle();
+	expect(root.renderer.findByTestId("new-actions")).toBeUndefined();
+	expect(element("create-worktree")).toBeDefined();
+	expect(element("create-branch")).toBeDefined();
+	expect(bounds("create-worktree").y).toBeLessThan(bounds("create-branch").y);
+	expect(bounds("workspace-menu").x).toBeGreaterThan(bounds("rail-branches").x);
+	expect(root.renderer.findByTestId("branch-tracking")).toBeUndefined();
+	expect(root.renderer.findByTestId("new-branch")).toBeUndefined();
+	expect(element("branch-main").customProps?.["aria-label"]).toBe(
+		"main, current branch"
+	);
+	click("branch-search");
+	root.renderer.simulateKeystrokes("f e a t u r e");
+	await settle();
+	expect(root.renderer.findByTestId("branch-main")).toBeUndefined();
+	expect(element("branch-feature/ui")).toBeDefined();
+	await action("create-branch");
+	await settle();
+	expect(root.renderer.getAllText()).toContain(
+		"Create locally from main and switch to it. Publish later to share it."
+	);
+	root.renderer.simulateKeystrokes("t r y - b r a n c h");
+	await settle();
+	click("create-branch");
+	await settle();
+	expect(writeBranch.mock.calls.at(-1)?.[1]).toMatchObject({
+		kind: "create",
+		name: "try-branch",
+		expectedBranch: "main",
+	});
+	expect(element("rail-branches").customProps?.["aria-label"]).toBe(
+		"Branches · try-branch"
+	);
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-branches").id);
+	click("rail-branches");
+	await settle();
+	await dismissMenu();
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-branches").id);
+
+	if (process.env.GPUIX_BRANCHES_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_BRANCHES_SCREENSHOT}-current.png`
+		);
+});
+
+it("opens branches by keyboard and leaves the repository unchanged when creation is cancelled", async () => {
+	await open();
+	root.renderer.nativeSimulateKeyDown(element("rail-branches").id, "enter");
+	await settle();
+	expect(element("workspace-menu")).toBeDefined();
+	root.renderer.nativeSimulateKeyDown(element("create-branch").id, "enter");
+	await settle();
+	click("cancel-create-branch");
+	await settle();
+	expect(element("branch-main")).toBeDefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+	await dismissMenu();
+	expect(element("rail-branches").customProps?.["aria-label"]).toBe(
+		"Branches · main"
+	);
+
+	if (process.env.GPUIX_BRANCHES_SCREENSHOT) {
+		click("rail-branches");
+		await settle();
+		root.renderer.captureScreenshot(
+			`${process.env.GPUIX_BRANCHES_SCREENSHOT}-panel.png`
+		);
+	}
+});
+
+it("focuses search on open and navigates matching branches with arrows and Enter", async () => {
+	readBranches.mockResolvedValueOnce({
+		ok: true,
+		value: {
+			branches: {
+				current: "main",
+				branches: [
+					branch("main"),
+					branch("feature/ui"),
+					branch("feature/linked", "/test/linked"),
+					branch("feature/second"),
+				],
+			},
+			savedChanges: [],
+			remotes: [],
+			worktrees: [],
+		},
+	});
+	await open();
+	click("rail-branches");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(element("branch-search").id);
+	root.renderer.simulateKeystrokes("f e a t u r e");
+	await settle();
+	expect(element("branch-search").customProps?.value).toBe("feature");
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("branch-feature/ui").id
+	);
+	expect(element("branch-feature/ui").style.backgroundColor).toBe(
+		appThemes.light.tokens.colors.selected
+	);
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("branch-feature/second").id
+	);
+	expect(element("branch-feature/second").style.backgroundColor).toBe(
+		appThemes.light.tokens.colors.selected
+	);
+	expect(element("branch-feature/ui").style.backgroundColor).not.toBe(
+		appThemes.light.tokens.colors.selected
+	);
+
+	if (process.env.GPUIX_BRANCH_SELECTION_SCREENSHOT)
+		root.renderer.captureScreenshot(
+			process.env.GPUIX_BRANCH_SELECTION_SCREENSHOT
+		);
+
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("branch-feature/ui").id
+	);
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	root.renderer.simulateKeystrokes("up");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("branch-feature/ui").id
+	);
+	root.renderer.simulateKeystrokes("up");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(element("branch-search").id);
+	expect(element("branch-feature/ui").style.backgroundColor).not.toBe(
+		appThemes.light.tokens.colors.selected
+	);
+	root.renderer.simulateKeystrokes("cmd-a s e c o n d");
+	await settle();
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("branch-feature/second").id
+	);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(writeBranch.mock.calls.at(-1)?.[1]).toMatchObject({
+		kind: "switch",
+		name: "feature/second",
+	});
+	expect(root.renderer.findByTestId("workspace-menu")).toBeUndefined();
+	expect(root.renderer.getFocusedElementId()).toBe(element("rail-branches").id);
+});
+
+it("keeps empty search results in the input instead of selecting an unrelated action", async () => {
+	await open();
+	click("rail-branches");
+	await settle();
+	root.renderer.simulateKeystrokes("z z z down up enter");
+	await settle();
+	expect(root.renderer.getAllText()).toContain("No matching branches");
+	expect(root.renderer.getAllText()).toContain(
+		"Try another name, or create a new branch."
+	);
+	expect(bounds("state-art-search").height).toBe(56);
+	expect(bounds("branch-search-empty").height).toBeGreaterThan(140);
+	expect(root.renderer.getFocusedElementId()).toBe(element("branch-search").id);
+	expect(writeBranch).not.toHaveBeenCalled();
+
+	if (process.env.GPUIX_BRANCH_EMPTY_SCREENSHOT)
+		root.renderer.captureScreenshot(process.env.GPUIX_BRANCH_EMPTY_SCREENSHOT);
+
+	click("create-branch");
+	await settle();
+	expect(element("branch-name")).toBeDefined();
+	expect(writeBranch).not.toHaveBeenCalled();
+});
+
+it("opens worktree creation directly from the rail with the keyboard", async () => {
+	await open();
+	click("rail-branches");
+	await settle();
+	root.renderer.focusElement(element("worktrees").id);
+	root.renderer.simulateKeystrokes("down");
+	await settle();
+	expect(root.renderer.getFocusedElementId()).toBe(
+		element("create-worktree").id
+	);
+	root.renderer.simulateKeystrokes("enter");
+	await settle();
+	expect(element("confirm-create-worktree")).toBeDefined();
+	expect(root.renderer.findByTestId("workspace-new-actions")).toBeUndefined();
+	expect(writeWorktree).not.toHaveBeenCalled();
+});
+
+it("keeps long current branch names accessible in a compact window and explains detached HEAD", async () => {
+	root.unmount();
+	root = createTestRoot({
+		width: 640,
+		height: 420,
+		onKeyDown: windowOptions.onKeyDown,
+	});
+	root.renderer.clockPause();
+	const name =
+		"feature/a-long-branch-name-that-must-not-push-the-sidebar-outside-the-window";
+
+	spyOn(root.renderer, "promptForPaths").mockResolvedValue(["/test/project"]);
+
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, branch: name, upstream: "origin/main" },
+	};
+	await open();
+	expect(element("rail-branches").customProps?.["aria-label"]).toBe(
+		`Branches · ${name}`
+	);
+	expect(root.renderer.findByTestId("current-branch")).toBeUndefined();
+	click("rail-branches");
+	await settle();
+	expect(
+		bounds("create-branch").x + bounds("create-branch").width
+	).toBeLessThanOrEqual(640);
+	await dismissMenu();
+	snapshot = {
+		...snapshot,
+		head: { ...snapshot.head, branch: null, detached: true, upstream: null },
+	};
+	click("refresh-repository");
+	await settle();
+	expect(element("rail-branches").customProps?.["aria-label"]).toBe(
+		"Branches · Detached HEAD"
+	);
+	click("rail-branches");
+	await settle();
+	expect(root.renderer.findByTestId("branch-tracking")).toBeUndefined();
+});
+
 const worktrees = async (): Promise<void> => {
 	const box = bounds("worktrees");
 

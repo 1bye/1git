@@ -19,6 +19,12 @@ const context: TourContext = {
 	blocked: false,
 };
 
+it("migrates the previous worktree lesson without restarting completed tours", () => {
+	expect(
+		GuidedTour.parse({ completed: ["tab-menu", "worktrees", "space-swipe"] })
+	).toEqual({ completed: tourSteps });
+});
+
 it("progresses only through completed actions in order", () => {
 	let tips: TourTips = { completed: [] };
 
@@ -28,11 +34,11 @@ it("progresses only through completed actions in order", () => {
 	}
 
 	expect(GuidedTour.current(tips, context)).toBeNull();
-	expect(GuidedTour.complete(tips, "worktrees")).toBe(tips);
+	expect(GuidedTour.complete(tips, "create-branch")).toBe(tips);
 });
 
 it("defers the swipe until a second space exists, even when its new space has no repository", () => {
-	const tips: TourTips = { completed: ["tab-menu", "worktrees"] };
+	const tips: TourTips = { completed: ["tab-menu", "create-branch"] };
 
 	expect(GuidedTour.current(tips, { ...context, spaceCount: 1 })).toBeNull();
 	expect(
@@ -58,5 +64,5 @@ it("waits for onboarding and a repository, and resumes the same step after a blo
 	expect(
 		GuidedTour.current(tips, { ...context, hasRepositoryTab: false })
 	).toBeNull();
-	expect(GuidedTour.current(tips, context)).toBe("worktrees");
+	expect(GuidedTour.current(tips, context)).toBe("create-branch");
 });
