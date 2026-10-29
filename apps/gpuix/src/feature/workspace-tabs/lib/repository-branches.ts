@@ -24,6 +24,7 @@ export interface BranchRequest {
 	readonly kind:
 		| "switch"
 		| "create"
+		| "create-at"
 		| "remote"
 		| "rename"
 		| "delete"
@@ -129,10 +130,14 @@ export class RepositoryBranches {
 			operationState !== "normal" ||
 			files.some((file) => file.recordType === "unmerged")
 		)
-			message = integrating
-				? "Finish the current Git operation before integrating branches."
-				: "Finish the current Git operation before switching branches.";
+			message =
+				request.kind === "create-at"
+					? "Finish the current Git operation before creating a branch."
+					: integrating
+						? "Finish the current Git operation before integrating branches."
+						: "Finish the current Git operation before switching branches.";
 		else if (
+			request.kind !== "create-at" &&
 			files.some((file) => file.recordType !== "ignored") &&
 			!(
 				(request.kind === "switch" || request.kind === "remote") &&
@@ -149,15 +154,39 @@ export class RepositoryBranches {
 				error: {
 					code: "conflict",
 					operation:
-						request.kind === "merge" ||
-						request.kind === "rebase" ||
-						request.kind === "squash-merge"
-							? request.kind
-							: "checkout-branch",
+						request.kind === "create-at"
+							? "create-branch"
+							: request.kind === "merge" ||
+								  request.kind === "rebase" ||
+								  request.kind === "squash-merge"
+								? request.kind
+								: "checkout-branch",
 					retryable: false,
 					message,
 				},
 			};
+
+		if (request.kind === "create-at") {
+			if (
+				!request.expectedTarget ||
+				!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/iu.test(request.expectedTarget)
+			)
+				return {
+					ok: false,
+					error: {
+						code: "invalid-reference",
+						operation: "create-branch",
+						retryable: false,
+						message: "Select a commit before creating a branch.",
+					},
+				};
+
+			return await opened.value.createBranch({
+				name: request.name,
+				startPoint: request.expectedTarget,
+				checkout: false,
+			});
+		}
 
 		if (integrating) {
 			const branches = await opened.value.getBranches();

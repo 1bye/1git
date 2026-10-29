@@ -306,6 +306,67 @@ it("lists branches, switches and creates a branch without changing committed con
 	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe("base\n");
 });
 
+it("creates a branch at an exact older commit while preserving dirty work and the current branch", async () => {
+	const target = await git("rev-parse", "HEAD");
+
+	await writeFile(join(repository, "file.txt"), "second commit\n");
+	await git("add", "file.txt");
+	await git("commit", "-m", "Second");
+	const head = await git("rev-parse", "HEAD");
+
+	await writeFile(join(repository, "file.txt"), "staged work\n");
+	await git("add", "file.txt");
+	await writeFile(join(repository, "file.txt"), "unstaged work\n");
+	await writeFile(join(repository, "untracked.txt"), "keep me\n");
+	const status = await git("status", "--porcelain");
+	const index = await git("diff", "--cached");
+
+	const request = {
+		kind: "create-at" as const,
+		name: "graph/topic",
+		expectedTarget: target,
+		expectedHead: head,
+		expectedBranch: "main",
+	};
+
+	const result = await writeBranch(repository, request);
+
+	expect(result.ok).toBe(true);
+	expect(await git("rev-parse", "graph/topic")).toBe(target);
+	expect(await git("rev-parse", "HEAD")).toBe(head);
+	expect(await git("branch", "--show-current")).toBe("main");
+	expect(await git("status", "--porcelain")).toBe(status);
+	expect(await git("diff", "--cached")).toBe(index);
+	expect(await readFile(join(repository, "file.txt"), "utf8")).toBe(
+		"unstaged work\n"
+	);
+	expect(
+		(await writeBranch(repository, { ...request, expectedTarget: head })).ok
+	).toBe(false);
+	expect(await git("rev-parse", "graph/topic")).toBe(target);
+
+	for (const expectedTarget of [undefined, "HEAD", "--all", "a".repeat(40)])
+		expect(
+			(
+				await writeBranch(repository, {
+					...request,
+					name: "invalid-target",
+					expectedTarget,
+				})
+			).ok
+		).toBe(false);
+
+	expect(
+		(
+			await writeBranch(repository, {
+				...request,
+				name: "stale",
+				expectedHead: target,
+			})
+		).ok
+	).toBe(false);
+});
+
 it("leaves tracked and untracked changes on the source branch in a durable stash", async () => {
 	await writeFile(join(repository, "file.txt"), "work in progress\n");
 	await writeFile(join(repository, "new.txt"), "untracked\n");

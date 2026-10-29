@@ -3175,6 +3175,40 @@ function AppContent({
 						  contentWorkspace?.repository &&
 						  contentWorkspace.view === "graph" ? (
 							<RepositoryGraph
+								historyActions={{
+									state: contentWorkspace,
+									onWrite: (input) =>
+										mutations.revertCommit(contentTab.id, input),
+									onCherryPick: (input) =>
+										mutations.cherryPickCommit(contentTab.id, input),
+									onReset: (input) =>
+										mutations.resetCommit(contentTab.id, input),
+									readReset,
+									onCreateTag: (input) =>
+										mutations.createTag(contentTab.id, input),
+									onPushTag: (input) => mutations.pushTag(contentTab.id, input),
+									readBranches,
+									readCommitLink: async (root, oid, signal) =>
+										RepositoryHistory.readCommitLink(
+											root,
+											oid,
+											signal,
+											await accounts.hostProviders()
+										),
+									onFinished: () =>
+										dispatch({
+											type: "workspace",
+											id: contentTab.id,
+											action: { type: "view", view: "changes" },
+										}),
+								}}
+								onCreateBranch={(name, oid) =>
+									mutations.changeBranch(contentTab.id, {
+										kind: "create-at",
+										name,
+										expectedTarget: oid,
+									})
+								}
 								sidebarWidth={sidebarWidths.graph}
 								onSidebarWidthChange={(graph) =>
 									setSidebarWidths((previous) => ({ ...previous, graph }))

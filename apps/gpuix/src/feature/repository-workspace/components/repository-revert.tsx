@@ -60,7 +60,11 @@ type HistoryChoice =
 	| "revert"
 	| "cherry-pick";
 
-type CommitMenuChoice = HistoryChoice | "create-tag" | { tag: TagInfo };
+type CommitMenuChoice =
+	| HistoryChoice
+	| "create-branch"
+	| "create-tag"
+	| { tag: TagInfo };
 const remoteLookupTimeoutMs = 5000;
 
 /** Native commit actions; Git writes require a reviewed commit/branch and confirmation. */
@@ -70,6 +74,7 @@ export function RepositoryRevert({
 	onCherryPick,
 	onAmend,
 	onCreateTag,
+	onCreateBranch,
 	onPushTag,
 	onSquash,
 	readSquash,
@@ -89,6 +94,7 @@ export function RepositoryRevert({
 	onCherryPick?: (request: CherryPickCommitInput) => Promise<string | null>;
 	onAmend?: (commit: CommitInfo) => void;
 	onCreateTag?: (input: CreateReleaseTagInput) => Promise<string | null>;
+	onCreateBranch?: (commit: CommitInfo) => void;
 	onPushTag?: (input: PushTagInput) => Promise<string | null>;
 	onSquash?: (input: SquashCommitsInput) => Promise<string | null>;
 	readSquash?: typeof SquashReader.read;
@@ -102,7 +108,11 @@ export function RepositoryRevert({
 	readCommitLink?: typeof RepositoryHistory.readCommitLink;
 	onFinished: () => void;
 	children: (
-		onMenu: (entry: WorkspaceEntry, event: EventPayload) => void
+		onMenu: (
+			entry: WorkspaceEntry,
+			event: EventPayload,
+			commit?: CommitInfo
+		) => void
 	) => ReactNode;
 }) {
 	const theme = useAppTheme();
@@ -159,7 +169,8 @@ export function RepositoryRevert({
 
 	const openMenu = async (
 		entry: WorkspaceEntry,
-		event: EventPayload
+		event: EventPayload,
+		sourceCommit?: CommitInfo
 	): Promise<void> => {
 		if (
 			tracking.current ||
@@ -172,9 +183,9 @@ export function RepositoryRevert({
 		)
 			return;
 
-		const commit = state.entries.history.find(
-			(item) => item.id === entry.id
-		)?.commit;
+		const commit =
+			sourceCommit ??
+			state.entries.history.find((item) => item.id === entry.id)?.commit;
 
 		if (!commit) return;
 
@@ -340,6 +351,16 @@ export function RepositoryRevert({
 
 			const commitTags = tags.filter((tag) => tag.targetOid === commit.oid);
 
+			if (onCreateBranch)
+				items.push(
+					{ separator: true },
+					{
+						label: "Create branch here…",
+						enabled: canTag,
+						value: "create-branch",
+					}
+				);
+
 			if (onCreateTag || onPushTag) {
 				items.push(
 					{ separator: true },
@@ -382,6 +403,7 @@ export function RepositoryRevert({
 					expectedBranch: repository.branchName,
 					tag: typeof choice === "object" ? choice.tag : undefined,
 				});
+			else if (choice === "create-branch" && canTag) onCreateBranch?.(commit);
 			else if (choice === "copy-sha") await NativeClipboard.write(commit.oid);
 			// The Git reader's body is %B: the full message, including its subject.
 			else if (choice === "copy-message")
