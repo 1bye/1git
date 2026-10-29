@@ -14,10 +14,11 @@ Rake dependencies. Unix wrappers keep the original operations and behavior.
 | `truncate_no_follow` | Original no-follow open with truncation | Inspect the final object and verify its name before truncating the held, data-ready object. |
 | `FileIdentity::{from_file,from_path}` | Device + inode; no-follow path metadata | Volume serial + nonzero 128-bit `FileIdInfo`. Unsupported queries and all-zero IDs return `Unsupported`; no 64-bit or pathname fallback. |
 | `file_state`, `FileState` | Identity, length, links, mode, nanosecond mtime/ctime | Identity, length, links, file attributes, last-write/change times. Full equality for ignore preflight; length/timestamps for streamed recovery hashing. |
-| Private object APIs | Exclusive 0600 files / 0700 directories and mode checks | Protected OWNER RIGHTS DACL `D:P(A;;FA;;;OW)`, applied at creation and verified before private bytes are written. Existing temporary directories receive and verify it through a reopened handle. |
+| Private object APIs | Exclusive 0600 files / 0700 directories and mode checks | Protected OWNER RIGHTS DACL `D:P(A;;FA;;;OW)`, applied at creation and verified before private bytes are written. Private directory opens request `WRITE_DAC` initially; the held handle receives and verifies the DACL without reopening the directory. |
 | `validate_discard_path` | Original no-follow parent walk and `fstatat(AT_SYMLINK_NOFOLLOW)` | No-follow parent walk; final entry opened with attribute-only access, without hydration or a data read. Missing entries are accepted, ordinary files accepted, name-surrogate links refused. |
 | `GitPath::to_native` / `native_path_from_git_bytes` | Exact bytes become native `OsString` only at filesystem access | Validate UTF-8 and every Git component before creating a native path. Refuse literal backslashes, colons, device names and other unrepresentable names with the typed path error. |
 | `absolute_path_from_git_bytes` | Identical original byte conversion | Separate decoder for absolute `rev-parse` and worktree paths. Require an absolute native path and valid UTF-8 without NUL. |
+| `git_native_path` / `normalize_git_location` | Native spelling is unchanged | Serialize native Git argv and index-environment paths without verbatim prefixes. Normalize Git-reported repository/worktree locations against existing native ancestors before identity comparisons. |
 | `path_to_git_bytes` (native locations only) | Borrow native bytes | Encode UTF-8, normalize native separators, strip extended-length prefixes; reject unpaired surrogates. Never decodes private characters or Git names. |
 | `validate_relative_filesystem_path` | No-op, preserving existing validation | Validate Windows filename representability and reject root/prefix/parent components before a repository path is joined to its root. Component and path-based native open helpers validate too. Unrepresentable names return `io::ErrorKind::InvalidInput` carrying `PathEncodingError`. |
 | `GRACEFUL_TERMINATION` | `true`: retain the two-second TERM/KILL grace | `false`: kill immediately because console signalling is unavailable. |
@@ -367,6 +368,32 @@ Windows tests were compiled and linted, not executed: no Windows runtime test wa
 possible. Linux was cross-compiled/linted only. All 43 OS-specific source references
 remain in `src/platform/`. `git diff --check` passed. No public API, dependency,
 changeset, main-checkout or Rake source changes were needed; the crate is unreleased.
+
+## Windows CI repairs (2026-10-29)
+
+Real Windows CI exposed differences beyond cross-compilation: Git rejected native
+verbatim paths in argv and `GIT_INDEX_FILE`, worktree paths used different native
+spellings, and recovery directory reopening failed with access denied. Native
+command serialization and location normalization now handle those boundaries;
+private directory handles acquire DACL access during their original no-follow open.
+Cancellation kills the owned job before pipe workers are joined.
+
+Recovery capture splits large Windows path selections into batches with a 12 KiB
+path-argument budget, leaving room below the Windows command-line limit. Multi-batch
+capture disables rename detection so each batch produces independent add/delete
+patches. Unix keeps its original single command and rename behavior. Debug builds
+optimize SHA-256 because recovery repeatedly verifies large binary patches; the
+54 MiB stress fixtures and five-minute per-test timeout remain unchanged.
+
+Fixtures use representable Windows names, portable file URLs, system randomness,
+and native directory/link operations. Unix retains hostile-name and exact-byte
+recovery goldens. Windows explicitly tests conservative final-symlink refusal and
+checks that targets, links, index and HEAD remain unchanged. The large bundle test
+retains every ordinary file and separately checks refusal of its symlinks before
+recovering ordinary files. Filter-provider and network-filesystem limitations above
+still require separate runtime evidence.
+
+No changeset is required for the unreleased Rust crate.
 
 ## API references
 

@@ -36,6 +36,8 @@ pub(crate) fn sync_directory(file: &File) -> io::Result<()> {
     file.sync_all()
 }
 
+pub(crate) const MAX_PATHSPEC_ARGUMENT_BYTES: usize = usize::MAX;
+
 pub(crate) fn normalize_git_location(path: &Path) -> io::Result<PathBuf> {
     Ok(path.to_owned())
 }

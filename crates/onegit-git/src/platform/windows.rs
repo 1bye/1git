@@ -68,6 +68,10 @@ pub(crate) fn native_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEn
     Ok(PathBuf::from(windows_policy::native_git_path(text)?))
 }
 
+// Leave space for quoting, Git options and the executable below CreateProcess's
+// 32,767 UTF-16-unit command-line limit. UTF-8 byte lengths bound UTF-16 lengths.
+pub(crate) const MAX_PATHSPEC_ARGUMENT_BYTES: usize = 12 * 1024;
+
 pub(crate) fn normalize_git_location(path: &Path) -> io::Result<PathBuf> {
     let mut current = path;
     let mut missing = Vec::new();
@@ -1377,6 +1381,11 @@ mod tests {
             status, WAIT_TIMEOUT,
             "closing a normally completed job killed its daemon"
         );
+        // SAFETY: this test owns the live fixture process and its terminate/synchronize handle.
+        assert_ne!(unsafe { TerminateProcess(daemon.0.as_raw_handle(), 1) }, 0);
+        // SAFETY: the handle remains live until the cleanup guard is dropped.
+        let stopped = unsafe { WaitForSingleObject(daemon.0.as_raw_handle(), 10_000) };
+        assert_eq!(stopped, 0);
     }
     #[test]
     fn backslash_git_names_are_lossless_distinct_and_never_native_file_arguments() {

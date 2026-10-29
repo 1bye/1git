@@ -267,20 +267,21 @@ impl Repository {
                 }
             };
 
-            self.capture_discard_patch(
-                &mut backup.staged.file,
-                diff_args(Some(head), &backup.paths, false)?,
-                None,
-                &[],
-                cancellation,
-            )?;
-            self.capture_discard_patch(
-                &mut backup.working.file,
-                diff_args(None, &backup.paths, false)?,
-                None,
-                &[],
-                cancellation,
-            )?;
+            let batches = path_batches(&backup.paths, crate::platform::MAX_PATHSPEC_ARGUMENT_BYTES);
+            for paths in &batches {
+                for (file, base) in [
+                    (&mut backup.staged.file, Some(head)),
+                    (&mut backup.working.file, None),
+                ] {
+                    let mut args = diff_args(base, paths, false)?;
+                    if batches.len() > 1 {
+                        // Batches cannot detect cross-batch renames; independent add/delete
+                        // patches preserve every selected path without duplicate rename hunks.
+                        args.insert(1, "--no-renames".into());
+                    }
+                    self.capture_discard_patch(file, args, None, &[], cancellation)?;
+                }
+            }
             let untracked: Vec<_> = selected
                 .iter()
                 .filter(|file| file.record_type == RecordType::Untracked)
@@ -416,6 +417,23 @@ pub(super) fn validate_paths(paths: &[GitPath]) -> Result<(), RepositoryError> {
     }
 
     Ok(())
+}
+
+fn path_batches(paths: &[GitPath], limit: usize) -> Vec<&[GitPath]> {
+    let mut batches = Vec::new();
+    let mut start = 0;
+    let mut bytes = 0usize;
+    for (index, path) in paths.iter().enumerate() {
+        let next = path.as_bytes().len().saturating_add(3);
+        if index > start && bytes.saturating_add(next) > limit {
+            batches.push(&paths[start..index]);
+            start = index;
+            bytes = 0;
+        }
+        bytes = bytes.saturating_add(next);
+    }
+    batches.push(&paths[start..]);
+    batches
 }
 
 fn diff_args(
@@ -576,5 +594,26 @@ mod windows_tests {
         assert!(path.to_native().is_ok());
         assert!(validate_paths(&[GitPath::new("folder/.git/config").unwrap()]).is_err());
         assert!(GitPath::new("folder/../file").is_err());
+    }
+}
+
+#[cfg(test)]
+mod batching_tests {
+    use super::*;
+
+    #[test]
+    fn recovery_path_batches_preserve_every_literal_name_once_and_leave_unix_unbatched() {
+        let paths: Vec<_> = ["folder/é [1]", "second", "third", "last"]
+            .into_iter()
+            .map(|name| GitPath::new(name).unwrap())
+            .collect();
+        let batches = path_batches(&paths, 20);
+        assert!(batches.len() > 1);
+        assert!(batches.iter().all(|batch| !batch.is_empty()));
+        assert_eq!(
+            batches.into_iter().flatten().cloned().collect::<Vec<_>>(),
+            paths
+        );
+        assert_eq!(path_batches(&paths, usize::MAX), vec![paths.as_slice()]);
     }
 }

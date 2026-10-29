@@ -11,8 +11,10 @@ use super::{BranchKind, TagKind, parse_branches, parse_stashes, parse_tags, pars
 fn matches_all_frozen_legacy_reference_parsers() {
     let reference: Value = serde_json::from_str(&if cfg!(windows) {
         include_str!("refs-reference.json")
-            .replace("/repo", "C:/repo")
-            .replace("/tmp", "C:/tmp")
+            .replace(r"\u0000/repo", r"\u0000C:/repo")
+            .replace(r#": "/repo"#, r#": "C:/repo"#)
+            .replace("worktree /tmp", "worktree C:/tmp")
+            .replace(r#": "/tmp"#, r#": "C:/tmp"#)
     } else {
         include_str!("refs-reference.json").to_owned()
     })

@@ -278,7 +278,7 @@ fn selected_and_amended_commits_have_valid_signatures_from_an_ephemeral_fixture_
     fixture.commit("base");
     fixture.git(&["config", "commit.gpgsign", "true"]);
     fixture.git(&["config", "gpg.format", "ssh"]);
-    fixture.git(&["config", "gpg.ssh.program", "/usr/bin/ssh-keygen"]);
+    fixture.git(&["config", "gpg.ssh.program", "ssh-keygen"]);
     fixture.git_os([
         "config".into(),
         "user.signingkey".into(),

@@ -400,16 +400,13 @@ fn pins_process_cwd_and_rejects_a_replaced_repository_before_writing() {
     command.directory = Some(&directory);
     let output = fixture.process().run(command).unwrap().stdout;
 
+    let returned = std::str::from_utf8(&output)
+        .unwrap()
+        .strip_suffix('\n')
+        .unwrap();
     assert_eq!(
-        output,
-        [
-            fs::canonicalize(moved)
-                .unwrap()
-                .as_os_str()
-                .as_encoded_bytes(),
-            b"\n"
-        ]
-        .concat()
+        fs::canonicalize(returned).unwrap(),
+        fs::canonicalize(moved).unwrap()
     );
     assert_eq!(files_under(&fixture.root), before);
 }
