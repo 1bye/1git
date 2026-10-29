@@ -19,6 +19,7 @@
 
 ### Patch Changes
 
+- d772ded: Restore static Linux SSH-helper builds while preserving exclusive folder installation.
 - e4b4eba: Prevent conflict resolution from following replaced symlinks and reuse SSH connections during concurrent reconnects. Support dotted Codex MCP names and filenames containing tabs when generating AI commit messages.
 - 53d6a39: Fix Graph tag creation and cherry-picking for commits from other branches, remote refs, and tags while preserving repository and destination checks.
 - 8d3468c: Darken dialog and branch-menu backdrops to make foreground controls stand out more clearly.
