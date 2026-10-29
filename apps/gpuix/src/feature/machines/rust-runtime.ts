@@ -166,6 +166,9 @@ export class RustRuntime implements GitExecutionRuntime {
 			case "rename":
 				input.destination = second;
 				break;
+			case "installDirectory":
+				Object.assign(input, { destination: second, identity: third });
+				break;
 			case "opendir":
 				input.method = "readdir";
 				input.limit = 10_001;

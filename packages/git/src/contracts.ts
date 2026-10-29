@@ -382,12 +382,16 @@ export interface OpenRepositoryInput extends GitCallOptions {
 }
 
 export interface InitializeRepositoryInput extends GitCallOptions {
+	/** Keep setup relative to a pre-created parent; never recreate it if its pathname disappears. */
+	readonly requireExistingParent?: boolean;
 	readonly initialBranch?: string;
 	readonly path: string;
 	readonly runtime?: GitRuntimeOptions;
 }
 
 export interface CloneRepositoryInput extends GitCallOptions {
+	/** Keep setup relative to a pre-created parent; never recreate it if its pathname disappears. */
+	readonly requireExistingParent?: boolean;
 	readonly branch?: string;
 	readonly depth?: number;
 	readonly path: string;

@@ -27,7 +27,7 @@ import { ChoiceTile } from "../../fixture/choice-tile";
 import { AccountStore, type SavedAccount } from "../accounts/lib/account-store";
 import { accountProviderIcons } from "../accounts/account-provider-icons";
 import type { CommitIdentity } from "@1git/hosting/contracts";
-import type { RemoteAccounts } from "../accounts/lib/remote-accounts";
+import { RemoteAccounts } from "../accounts/lib/remote-accounts";
 import { RemoteAccount, RemoteProviderIcon } from "./remote-account";
 import {
 	GitSettingsModel,
@@ -208,7 +208,7 @@ export function GitSettings({
 							: []),
 					]
 		),
-	].filter((url) => url.startsWith("https://"));
+	].filter(RemoteAccounts.isHttps);
 
 	const apply = useCallback(
 		(next: GitSettingsData): void => {
@@ -665,7 +665,7 @@ export function GitSettings({
 																		...remote.pushUrls,
 																	]),
 																]
-																	.filter((url) => url.startsWith("https://"))
+																	.filter(RemoteAccounts.isHttps)
 																	.map((url) => (
 																		<RemoteAccount
 																			key={`${commonDirectory}:${remote.name}:${url}:${accountRevision}`}

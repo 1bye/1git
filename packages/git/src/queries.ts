@@ -257,6 +257,7 @@ export const loadHistory = async (
 	}
 
 	const args = [
+		"--literal-pathspecs",
 		"-c",
 		"log.showSignature=false",
 		"log",

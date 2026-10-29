@@ -66,6 +66,25 @@ export const homedir = (): string => GitExecution.current?.home ?? localHome();
 export const tmpdir = (): string =>
 	GitExecution.current?.temporary ?? localTemporary();
 
+/** Installs prepared repository entries relative to a checked directory descriptor, never through a symlink. */
+export async function installDirectory(
+	source: string,
+	destination: string,
+	identity: { dev: number; ino: number }
+): Promise<void> {
+	const runtime = GitExecution.current;
+
+	if (runtime) {
+		await runtime.files("installDirectory", [source, destination, identity]);
+
+		return;
+	}
+
+	const { DirectoryInstall } = await import("./directory-install.js");
+
+	await DirectoryInstall.run(source, destination, identity);
+}
+
 /** Async existence check usable on both local and remote Git metadata. */
 export const exists = async (path: string): Promise<boolean> => {
 	if (!GitExecution.current) return existsSync(path);

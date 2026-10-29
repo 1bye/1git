@@ -105,6 +105,34 @@ it("automatically uses one matching account, not the repository owner or commit 
 	expect(f.reads()).toBe(1);
 });
 
+it.each(["HTTPS", "Https"])(
+	"uses connected accounts for a valid %s remote",
+	async (scheme) => {
+		const f = fixture();
+		const url = remote.replace("https:", `${scheme}:`);
+
+		expect(f.bindings.matching(url)).toEqual(f.saved);
+		const auth = await f.bindings.authentication(
+			"repo/.git",
+			"origin",
+			url,
+			signal()
+		);
+
+		expect(auth).toEqual({
+			url,
+			username: "x-access-token",
+			password: "fixture-token-7",
+		});
+		expect(f.reads()).toBe(1);
+		f.bindings.select("repo/.git", "origin", url, "system");
+		expect(
+			await f.bindings.authentication("repo/.git", "origin", url, signal())
+		).toBeUndefined();
+		expect(f.reads()).toBe(1);
+	}
+);
+
 it("asks once, persists only a public account key, and shares the choice across linked worktrees", async () => {
 	const f = fixture(2);
 	let prompts = 0;

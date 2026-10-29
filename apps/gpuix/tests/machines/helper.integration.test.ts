@@ -25,6 +25,8 @@ import {
 	readFile,
 	rm,
 	realpath,
+	rename,
+	readdir,
 	symlink,
 	unlink,
 } from "node:fs/promises";
@@ -195,6 +197,61 @@ afterEach(async () => {
 	child?.kill();
 	await rm(directory, { recursive: true, force: true });
 });
+
+it.each(["create", "clone"] as const)(
+	"rejects a replaced remote %s destination without writing into its symlink target",
+	async (kind) => {
+		const root = await realpath(
+			await mkdtemp(join(tmpdir(), "1git-helper-setup-"))
+		);
+
+		const target = join(root, "selected");
+		const moved = join(root, "original");
+		const outside = join(root, "outside");
+		const remote = MachineLocation.parse(location);
+
+		if (!remote) throw new Error("Expected test machine");
+
+		await mkdir(target);
+		await mkdir(outside);
+		const original = RustRuntime.prototype.git;
+		let swapped = false;
+
+		const git = spyOn(RustRuntime.prototype, "git").mockImplementation(
+			async function (this: RustRuntime, input, limit) {
+				if (
+					!swapped &&
+					input.args[0] === (kind === "create" ? "init" : "clone")
+				) {
+					swapped = true;
+					await rename(target, moved);
+					await symlink(outside, target);
+				}
+
+				return await original.call(this, input, limit);
+			}
+		);
+
+		try {
+			const path = MachineLocation.encode(remote.machineId, target);
+
+			const result = await RepositorySetup.write(
+				kind === "create"
+					? { kind, path, branch: "main" }
+					: { kind, path, remoteUrl: directory },
+				new AbortController().signal
+			);
+
+			expect(result.ok).toBe(false);
+			expect(swapped).toBe(true);
+			expect(await readdir(outside)).toEqual([]);
+			expect(await Bun.file(join(moved, ".git/HEAD")).exists()).toBe(false);
+		} finally {
+			git.mockRestore();
+			await rm(root, { recursive: true, force: true });
+		}
+	}
+);
 
 it("deletes only the reviewed remote stash through the helper, including the final entry", async () => {
 	const git = async (...args: string[]) =>

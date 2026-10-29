@@ -31,6 +31,11 @@ export interface RemoteAccountAccess {
 
 /** App-only account bindings, shared by linked worktrees and invalidated by remote URL changes. No tokens. */
 export class RemoteAccounts {
+	/** URL schemes are case-insensitive; transport checks must preserve that rule. */
+	static isHttps(url: string): boolean {
+		return URL.canParse(url) && new URL(url).protocol === "https:";
+	}
+
 	constructor(
 		readonly accounts: Accounts,
 		readonly path = join(
@@ -40,7 +45,7 @@ export class RemoteAccounts {
 	) {}
 
 	matching(url: string): SavedAccount[] {
-		if (!url.startsWith("https://")) return [];
+		if (!RemoteAccounts.isHttps(url)) return [];
 
 		return this.accounts.load().filter((account) => {
 			const provider =
@@ -139,7 +144,7 @@ export class RemoteAccounts {
 		signal.throwIfAborted();
 
 		// SSH, local paths and unsupported transports never read the account vault or preferences.
-		if (!url.startsWith("https://")) return undefined;
+		if (!RemoteAccounts.isHttps(url)) return undefined;
 
 		let choice = this.choice(directory, remote, url);
 

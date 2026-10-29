@@ -230,6 +230,41 @@ it("clones with transient credentials without persisting auth or inheriting a ma
 	}
 });
 
+it.each(["HTTPS", "Https"])(
+	"clones an authenticated %s URL without changing the saved URL or persisting credentials",
+	async (scheme) => {
+		const f = await serverFixture();
+		const remoteUrl = f.remoteUrl.replace("https:", `${scheme}:`);
+		const path = f.fixture.path("mixed-case-clone");
+
+		try {
+			const result = await GitRepository.clone({
+				path,
+				remoteUrl,
+				runtime: f.runtime,
+				httpAuthentication: { username: "oauth2", password: f.password },
+			});
+
+			if (!result.ok) throw new Error(result.error.message);
+
+			expect(await readFile(join(path, "README.md"), "utf8")).toBe(
+				"# Test repository\n"
+			);
+			expect(f.requests.length).toBeGreaterThan(2);
+			expect(
+				f.requests.every((request) => request.authorization === f.basic)
+			).toBe(true);
+			const config = await readFile(join(path, ".git/config"), "utf8");
+
+			expect(config).toContain(remoteUrl);
+			expect(config).not.toContain(f.password);
+			expect(config).not.toContain("extraheader");
+		} finally {
+			await f.server.stop(true);
+		}
+	}
+);
+
 it("refuses redirects and never returns reflected credentials in errors", async () => {
 	const f = await serverFixture();
 	let leakedRequests = 0;

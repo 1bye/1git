@@ -14,7 +14,7 @@ import {
 	lstat,
 	writeFile,
 } from "./runtime.js";
-import { dirname, resolve, join } from "node:path";
+import { basename, dirname, resolve, join } from "node:path";
 
 import type {
 	AddRemoteInput,
@@ -390,7 +390,9 @@ export class GitRepository {
 			requireText(input.path, "Repository path", "initialize-repository");
 			const targetPath = resolve(input.path);
 
-			await mkdir(dirname(targetPath), { recursive: true });
+			if (!input.requireExistingParent)
+				await mkdir(dirname(targetPath), { recursive: true });
+
 			const process = new GitProcess(processOptions(input));
 			const args = ["init"];
 
@@ -403,7 +405,7 @@ export class GitRepository {
 				args.push(`--initial-branch=${input.initialBranch}`);
 			}
 
-			args.push("--", targetPath);
+			args.push("--", basename(targetPath) || ".");
 			await process.run({
 				args,
 				cwd: dirname(targetPath),
@@ -463,7 +465,9 @@ export class GitRepository {
 
 			const targetPath = resolve(input.path);
 
-			await mkdir(dirname(targetPath), { recursive: true });
+			if (!input.requireExistingParent)
+				await mkdir(dirname(targetPath), { recursive: true });
+
 			const process = new GitProcess(processOptions(input));
 			const args = ["clone"];
 
@@ -487,7 +491,7 @@ export class GitRepository {
 				args.push("--recurse-submodules");
 			}
 
-			args.push("--", input.remoteUrl, targetPath);
+			args.push("--", input.remoteUrl, basename(targetPath) || ".");
 			await process.run({
 				args,
 				cwd: dirname(targetPath),
