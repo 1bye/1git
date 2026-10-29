@@ -1,9 +1,9 @@
 //! Native component workbench. All actions update sample state; no Git calls are made.
 use onegit_ui::{
     Appearance, Button, ButtonTone, ButtonVariant, CheckState, Checkbox, ControlSize, ControlState,
-    Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent, InputState,
-    InputValidation, ListRow, Pane, RowSelection, SearchField, Text, TextArea, TextInput, TextRole,
-    TextTone, Theme,
+    DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent, InputState,
+    InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, RowSelection, SearchField,
+    Text, TextArea, TextInput, TextRole, TextTone, Theme, Tooltip,
 };
 use rake::gpui::{self, Context, FocusHandle, ScrollHandle, Window, prelude::*, px};
 
@@ -17,6 +17,7 @@ enum Section {
     Selection,
     Typography,
     Inputs,
+    Overlays,
 }
 
 struct Gallery {
@@ -36,6 +37,8 @@ struct Gallery {
     readonly: gpui::Entity<InputState>,
     disabled_input: gpui::Entity<InputState>,
     submissions: usize,
+    current_branch: usize,
+    last_file_action: String,
     _input_subscriptions: Vec<gpui::Subscription>,
 }
 
@@ -76,6 +79,8 @@ impl Gallery {
             readonly,
             disabled_input,
             submissions: 0,
+            current_branch: 0,
+            last_file_action: "No file action selected".into(),
             _input_subscriptions: subscriptions,
             appearance: Appearance::Dark,
             section: Section::Overview,
@@ -86,6 +91,95 @@ impl Gallery {
             activations: 0,
             busy: false,
             expanded: false,
+        }
+    }
+
+    fn menus(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        const BRANCHES: [&str; 4] = [
+            "main",
+            "feature/native-ui",
+            "fix/selection",
+            "release/locked",
+        ];
+        let branches = BRANCHES
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| {
+                MenuItem {
+                    icon: Some(IconName::Branch),
+                    selected: Some(self.current_branch == index),
+                    disabled: index == 3,
+                    ..MenuItem::new(("branch", index), name)
+                }
+                .into()
+            })
+            .collect();
+        let files = vec![
+            MenuItem {
+                icon: Some(IconName::Plus),
+                ..MenuItem::new("stage", "Stage file")
+            }
+            .into(),
+            MenuItem {
+                icon: Some(IconName::File),
+                ..MenuItem::new("copy", "Copy relative path")
+            }
+            .into(),
+            MenuEntry::Separator,
+            MenuItem {
+                disabled: true,
+                ..MenuItem::new("unstage", "Unstage file")
+            }
+            .into(),
+            MenuItem {
+                tone: ButtonTone::Danger,
+                icon: Some(IconName::Close),
+                ..MenuItem::new("discard", "Discard changes…")
+            }
+            .into(),
+        ];
+        rake::view! {
+            <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Dropdown menus")}/>}.into_any_element())} {..Pane::new("menus")}>
+                <Text tone={TextTone::Muted} {..Text::new("intro","Compact actions with keyboard navigation and clear selection.")}/>
+                <div class="flex flex-row items-center gap-2">
+                    <DropdownMenu icon={Some(IconName::Branch)} entries={branches}
+                        on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,_,cx|{
+                            for index in 0..BRANCHES.len() {if *id==gpui::ElementId::from(("branch",index)) {this.current_branch=index;}}
+                            cx.notify();
+                        })))} {..DropdownMenu::new("branches",BRANCHES[self.current_branch])}/>
+                </div>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("branch-state",format!("Selected branch: {}",BRANCHES[self.current_branch]))}/>
+                <hr class="bg-line"/>
+                <div class="flex flex-row items-center justify-between gap-3">
+                    <Text role={TextRole::Code} {..Text::new("file","crates/onegit-ui/src/theme.rs")}/>
+                    <DropdownMenu icon={Some(IconName::File)} entries={files} alignment={MenuAlignment::End}
+                        on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,_,cx|{
+                            this.last_file_action=if *id==gpui::ElementId::from("stage") {"Stage requested"} else if *id==gpui::ElementId::from("copy") {
+                                cx.write_to_clipboard(gpui::ClipboardItem::new_string("crates/onegit-ui/src/theme.rs".into())); "Relative path copied"
+                            }else{"Discard requested (sample only)"}.into();cx.notify();
+                        })))} {..DropdownMenu::new("file-actions","File actions")}/>
+                </div>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("file-state",self.last_file_action.clone())}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help","↑ / ↓ navigate · Home / End jump · type to find · Enter selects · Escape closes. Actions use sample state.")}/>
+            </Pane>
+        }
+    }
+
+    fn tooltips(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        rake::view! {
+            <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Tooltips")}/>}.into_any_element())} {..Pane::new("tooltips")}>
+                <Text tone={TextTone::Muted} {..Text::new("intro","Hover briefly or Tab to a control. Escape dismisses the hint.")}/>
+                <div class="flex flex-row items-center gap-3">
+                    <Tooltip {..Tooltip::new("refresh-hint","Refresh the sample repository") }>
+                        <IconButton on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.activations+=1;cx.notify();})))} {..IconButton::new("refresh",IconName::Refresh,"Refresh sample repository")}/>
+                    </Tooltip>
+                    <Tooltip {..Tooltip::new("branch-hint","Create a branch from the current commit") }>
+                        <Button icon={Some(IconName::Plus)} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.activations+=1;cx.notify();})))} {..Button::new("new-branch","New branch")}/>
+                    </Tooltip>
+                </div>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("hint-actions",format!("{} sample action activations",self.activations))}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help","Hints keep the control’s accessible name, add context, and never take keyboard focus.")}/>
+            </Pane>
         }
     }
 
@@ -321,8 +415,8 @@ impl Render for Gallery {
             2
         };
         let item_count: u16 = match self.section {
-            Section::Overview => 6,
-            Section::Actions | Section::Inputs => 2,
+            Section::Overview => 8,
+            Section::Actions | Section::Inputs | Section::Overlays => 2,
             Section::Selection | Section::Typography => 1,
         };
         let rows = item_count.div_ceil(columns);
@@ -343,7 +437,7 @@ impl Render for Gallery {
                     </div>
                 </header>
                 <nav class="flex flex-row flex-wrap gap-1 px-6 py-3">
-                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs")].into_iter().enumerate() {
+                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints")].into_iter().enumerate() {
                         <Button id={("section",index).into()}
                             variant={if self.section==section {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{
@@ -357,6 +451,7 @@ impl Render for Gallery {
                         if matches!(self.section,Section::Overview|Section::Selection) { {self.selection(cx)} }
                         if matches!(self.section,Section::Overview|Section::Typography) { {self.typography()} }
                         if matches!(self.section,Section::Overview|Section::Inputs) { {self.inputs(cx)} {self.input_states(cx)} }
+                        if matches!(self.section,Section::Overview|Section::Overlays) { {self.menus(cx)} {self.tooltips(cx)} }
                     </div>
                 </div>
                 <footer class="px-6 py-2 border-t-1 border-line">

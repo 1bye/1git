@@ -66,6 +66,8 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `TextInput` | Single-line editing, label, placeholder, description, validation, sizes |
 | `SearchField` | Single-line search, search glyph, undoable clear action, Escape to clear |
 | `TextArea` | Soft-wrapped multiline editing, visible rows and vertical scrolling |
+| `Tooltip` | Delayed hover or immediate focus hint, optional shortcut caption, Escape dismissal |
+| `DropdownMenu` | Branch choices and actions, icons, shortcut captions, separators, disabled/danger states |
 
 `ControlState::{Enabled, Disabled, Busy}` prevents contradictory availability flags.
 Busy actions retain their label and show a work glyph; no percentage or completion
@@ -136,6 +138,66 @@ are immediate, independent of decorative animation settings.
 The **Inputs** gallery section includes live filtering, a commit message, submit
 counts, validation, read-only and disabled examples, and a reset action. These are
 local sample values. Inputs are designed for short form text and commit messages.
+
+## Tooltips and dropdown menus
+
+Wrap a single control in `Tooltip`. The hint opens after 350 ms of hover or
+immediately on keyboard focus, stays open while the pointer enters its surface,
+and closes on Escape, activation, outside clicks or blur. It never takes focus.
+`text` adds a description; the wrapped control still needs a meaningful accessible
+name. `shortcut` is an optional display caption, not a key binding.
+
+```no_run
+use onegit_ui::{DropdownMenu, IconButton, IconName, MenuEntry, MenuItem, Tooltip};
+use rake::gpui::IntoElement;
+
+fn refresh() -> impl IntoElement {
+    rake::view! {
+        <Tooltip {..Tooltip::new("refresh-hint", "Refresh repository status")}>
+            <IconButton {..IconButton::new("refresh", IconName::Refresh, "Refresh repository")}/>
+        </Tooltip>
+    }
+}
+
+fn branches() -> impl IntoElement {
+    let entries = vec![
+        MenuItem { selected: Some(true), ..MenuItem::new("main", "main") }.into(),
+        MenuItem { selected: Some(false), ..MenuItem::new("feature", "feature/native-ui") }.into(),
+        MenuEntry::Separator,
+        MenuItem::new("create", "Create branch…").into(),
+    ];
+    rake::view! {
+        <DropdownMenu entries={entries} icon={Some(IconName::Branch)}
+            {..DropdownMenu::new("branches", "main")}/>
+    }
+}
+```
+
+`DropdownMenu` owns transient UI state under its stable `id`; no retained state
+must be created by the host. Item IDs must be unique within a menu. `on_select`
+receives the enabled item's `ElementId` once, after dismissal and focus restoration.
+The application updates `MenuItem::selected` and the trigger label for controlled
+branch choices. `None` means a plain action; `Some(false/true)` means an unchecked /
+checked mutually exclusive choice. `tone`, `disabled`, `icon` and `shortcut` describe
+individual entries. Shortcut captions do not install bindings.
+
+Enter/Space opens the menu. Down opens at the checked item (or first enabled item),
+Up opens at the last. Within the menu, Up/Down wrap through enabled items, Home/End
+jump, typing finds a label, and Enter/Space activates. Repeated initial letters
+cycle matches; the search prefix resets after 700 ms. Escape restores trigger focus;
+Tab dismisses and continues to the previous/next control. Outside clicks dismiss and
+are consumed. Switching focus elsewhere preserves that new focus. Disabled/busy
+triggers cannot open and skip Tab.
+
+Popups use the installed palette, small corners, compact rows and a subtle shadow.
+`MenuAlignment::End` aligns file actions to their trigger's trailing edge. Width and
+height are capped to the window, long menus scroll, and keyboard navigation reveals
+the active row. Deferred native rendering avoids scroll-container clipping. Ordinary
+rerenders/theme switches preserve open state and navigation; unmounting releases it.
+There is no continuous overlay timer or transition loop. Trigger resizing reuses the
+same 120 ms measured animation as buttons; focus, selection and dismissal are immediate.
+The **Menus & hints** gallery demonstrates branch choices and file actions on local
+sample state. It performs no repository mutations.
 
 ## Motion
 

@@ -22,5 +22,9 @@ required-features = ["test-support"]
 name = "inputs"
 required-features = ["test-support"]
 
+[[test]]
+name = "overlays"
+required-features = ["test-support"]
+
 [lints]
 workspace = true
