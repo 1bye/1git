@@ -16,6 +16,8 @@ use std::path::Path;
 fn large_file(path: &Path) -> [u8; 32] {
     #[cfg(unix)]
     let mut random = File::open("/dev/urandom").unwrap();
+    let started = std::time::Instant::now();
+    eprintln!("CI timing: generate 54 MiB fixture");
     let mut file = File::create(path).unwrap();
     let mut buffer = [0; 65536];
     let mut hash = Sha256::new();
@@ -29,6 +31,7 @@ fn large_file(path: &Path) -> [u8; 32] {
         hash.update(buffer);
     }
 
+    eprintln!("CI timing: fixture generated after {:?}", started.elapsed());
     hash.finalize().into()
 }
 
