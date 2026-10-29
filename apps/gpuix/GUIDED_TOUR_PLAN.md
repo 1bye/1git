@@ -5,6 +5,7 @@
 > cancel. The current branch appears in the rail tooltip and branch panel.
 > Worktrees remain available in the branch panel but are no longer an introductory lesson. Saved
 > completion of the former worktree lesson migrates to the branch-creation lesson.
+> Guided tips and first-run setup can be replayed from **Settings → Help**.
 > The original worktree-first proposal below is retained as design history.
 
 ## Problem

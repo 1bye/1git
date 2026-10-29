@@ -18,10 +18,10 @@ welcome in [GitHub Issues](https://github.com/1bye/1git/issues).
 - Customizable noise patterns for the app's appearance
 - Larger AI selections for CLI providers (beyond 64 KiB)
 - Resizable left columns for repository navigation and file lists
+- Settings redesign, onboarding improvements, and broader UX polish
 
 ## 🚧 Next
 
-- Best-in-class UX: polish every flow, starting with the Settings redesign, onboarding etc.
 - Issues and pull requests: browse, create, and review them in the app
 - [ACP](https://agentclientprotocol.com) support for AI agents
 

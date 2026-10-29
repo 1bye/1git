@@ -118,6 +118,9 @@ test.each([
 			{ value: "test-model", label: "Test model" },
 		]);
 		const history = new IgnoredHistory(vault, join(directory, "history"));
+		const replayTips = mock(() => {});
+		const runSetup = mock(() => {});
+		const openLink = mock<(url: string) => Promise<void>>(async () => {});
 
 		const repository = {
 			root: "/test/repository",
@@ -135,8 +138,9 @@ test.each([
 						externalEditors={editors}
 						initialSection="spaces"
 						onBack={() => {}}
-						onReplayTips={() => {}}
-						onSetup={() => {}}
+						onReplayTips={replayTips}
+						onSetup={runSetup}
+						openLink={openLink}
 						repositorySettings={{
 							root: repository.root,
 							name: "Example",
@@ -211,6 +215,7 @@ test.each([
 			["git", "git-settings-page"],
 			["editor", "editor-settings-page"],
 			["ai", "ai-list-panel"],
+			["help", "help-settings"],
 			["repository-remotes", "git-settings-page"],
 			["repository-appearance", "repository-appearance"],
 			["repository-identity", "git-settings-page"],
@@ -233,6 +238,29 @@ test.each([
 
 			expect(bounds?.height).toBeGreaterThan(300);
 			capture(section);
+
+			if (section === "help") {
+				await press("settings-replay-tips");
+				expect(replayTips).toHaveBeenCalledTimes(1);
+				await press("settings-run-setup");
+				expect(runSetup).toHaveBeenCalledTimes(1);
+				await press("help-create-issue");
+				expect(openLink).toHaveBeenLastCalledWith(
+					"https://github.com/1bye/1git/issues/new"
+				);
+				openLink.mockRejectedValueOnce(new Error("Browser unavailable"));
+				await press("help-browse-issues");
+				expect(node("help-link-error")).toBeDefined();
+				await press("help-browse-issues");
+				expect(openLink).toHaveBeenLastCalledWith(
+					"https://github.com/1bye/1git/issues"
+				);
+				expect(root.renderer.findByTestId("help-link-error")).toBeUndefined();
+				await press("help-project");
+				expect(openLink).toHaveBeenLastCalledWith(
+					"https://github.com/1bye/1git"
+				);
+			}
 
 			if (section === "application") {
 				await press("application-install-user");
@@ -322,7 +350,12 @@ test.each([
 					-10000
 				);
 				await settle();
-				capture("appearance-help");
+				expect(
+					root.renderer.findByTestId("settings-replay-tips")
+				).toBeUndefined();
+				expect(
+					root.renderer.findByTestId("settings-run-setup")
+				).toBeUndefined();
 			}
 		}
 

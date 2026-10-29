@@ -96,6 +96,7 @@ it("keeps actions discoverable while disabling repository work on Home", () => {
 		"settings:application",
 		"settings:accounts",
 		"settings:ai",
+		"settings:help",
 	]) {
 		expect(actions.findIndex((item) => item.id === id)).toBeLessThan(
 			fetchIndex

@@ -239,6 +239,9 @@ it.each(["light", "dark"] as const)(
 		swipe();
 		await settle();
 		expect(node("tour-confirmation")).toBeDefined();
+		expect(root.renderer.getAllText()).toContain(
+			"Replay tips from Settings → Help."
+		);
 		expect(root.renderer.findByTestId("tour-step-space-swipe")).toBeUndefined();
 		advance(3100);
 		await settle();
@@ -283,7 +286,7 @@ it.each(["enter", "space"])(
 	}
 );
 
-it("pauses for Settings and replays from Appearance", async () => {
+it("pauses for Settings and replays from Help", async () => {
 	const props = await start();
 
 	root.renderer.simulateKeystrokes("cmd-,");
@@ -295,7 +298,7 @@ it("pauses for Settings and replays from Appearance", async () => {
 	await click("tour-skip");
 	root.renderer.simulateKeystrokes("cmd-,");
 	await settle();
-	await click("settings-appearance");
+	await click("settings-help");
 	root.renderer.scrollIntoView(node("settings-replay-tips").id);
 	root.renderer.advanceTime(1);
 	await settle();

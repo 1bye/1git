@@ -235,7 +235,7 @@ export function GuidedTourLayer({
 						anchor={railAnchor.current ? railAnchor : tabAnchor}
 						side="right"
 						title="You’re set."
-						body="Replay tips from Settings → Appearance."
+						body="Replay tips from Settings → Help."
 						step={null}
 						total={0}
 						onSkip={onSkip}

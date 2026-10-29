@@ -24,6 +24,7 @@ export class WorkspaceSettingsMenu {
 			page("Accounts…", "accounts"),
 			page("Spaces…", "spaces"),
 			page("AI…", "ai"),
+			page("Help…", "help"),
 			{ separator: true },
 			{
 				label: "Customize appearance…",

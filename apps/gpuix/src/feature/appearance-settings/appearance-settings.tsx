@@ -17,15 +17,7 @@ import { repositoryDiffTheme } from "../repository-workspace/lib/repository-diff
 import { defaultTypography } from "./app-typography";
 
 /** Immediate appearance settings with a repository-free, live workspace preview. */
-export function AppearanceSettings({
-	onReplayTips,
-	onSetup,
-	busy = false,
-}: {
-	onReplayTips?: () => void;
-	onSetup?: () => void;
-	busy?: boolean;
-}) {
+export function AppearanceSettings() {
 	const theme = useAppTheme();
 
 	const {
@@ -102,44 +94,6 @@ export function AppearanceSettings({
 							}
 						/>
 					</SettingsGroup>
-					{onReplayTips || onSetup ? (
-						<SettingsGroup title="Help">
-							{onReplayTips ? (
-								<SettingsGroupRow
-									label="Guided tips"
-									description="Rediscover shortcuts and workspace features."
-									trailing={
-										<Button
-											testId="settings-replay-tips"
-											tokens={tokens}
-											variant="secondary"
-											size="sm"
-											onPress={onReplayTips}
-										>
-											Show again
-										</Button>
-									}
-								/>
-							) : null}
-							{onSetup ? (
-								<SettingsGroupRow
-									label="First-run setup"
-									trailing={
-										<Button
-											testId="settings-run-setup"
-											tokens={tokens}
-											variant="secondary"
-											size="sm"
-											disabled={busy}
-											onPress={onSetup}
-										>
-											Run setup again
-										</Button>
-									}
-								/>
-							) : null}
-						</SettingsGroup>
-					) : null}
 				</SettingsPage>
 			}
 			panel={<AppearancePreview />}

@@ -5,6 +5,7 @@ export type SettingsSection =
 	| "application"
 	| "spaces"
 	| "appearance"
+	| "help"
 	| "keybinds"
 	| "accounts"
 	| "privacy"
@@ -56,6 +57,7 @@ export const settingsPagesMetadata = [
 		group: "application",
 	},
 	{ section: "ai", icon: "sparkle", label: "AI", group: "application" },
+	{ section: "help", icon: "help", label: "Help", group: "application" },
 	{
 		section: "repository-remotes",
 		icon: "network",
