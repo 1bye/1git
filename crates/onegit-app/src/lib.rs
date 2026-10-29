@@ -2,6 +2,8 @@
 
 mod routes;
 
+rake::theme!(onegit_ui::Theme);
+
 use rake::prelude::*;
 
 pub use routes::Destination;

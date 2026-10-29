@@ -1,91 +1,283 @@
-use gpui::prelude::*;
-use gpui::{App, ClickEvent, ColorExt, ElementId, SharedString, Window, div};
+use crate::{Icon, IconName, IconSize, Theme, focusable};
+use rake::gpui::{self, ClickEvent, ElementId, Hsla, SharedString, prelude::*, px};
 
-use crate::Theme;
+/// Native activation callback; invoked for mouse and keyboard activation.
+pub type PressHandler = Box<dyn Fn(&ClickEvent, &mut gpui::Window, &mut gpui::App)>;
 
-type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-
-/// Visual weight of a [`Button`].
+/// Visual prominence, independent of the action's semantic meaning.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ButtonVariant {
-    /// Neutral surface button.
+    /// Filled accent action.
+    Primary,
+    /// Neutral raised action.
     #[default]
     Secondary,
-    /// Accent-filled button for the main action.
-    Primary,
+    /// Low-emphasis transparent action.
+    Ghost,
 }
 
-/// A clickable text button.
+/// Ordinary or explicitly destructive action appearance.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ButtonTone {
+    /// Ordinary action.
+    #[default]
+    Normal,
+    /// Destructive action.
+    Danger,
+}
+
+/// Shared action geometry in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ControlSize {
+    /// Compact 24-pixel control.
+    Small,
+    /// Standard 28-pixel control.
+    #[default]
+    Medium,
+    /// Prominent 34-pixel control.
+    Large,
+}
+impl ControlSize {
+    /// Control height; icon buttons use the same width.
+    #[must_use]
+    pub const fn height(self) -> f32 {
+        match self {
+            Self::Small => 24.,
+            Self::Medium => 28.,
+            Self::Large => 34.,
+        }
+    }
+    fn padding(self) -> f32 {
+        match self {
+            Self::Small => 8.,
+            Self::Medium => 10.,
+            Self::Large => 14.,
+        }
+    }
+}
+
+/// Mutually exclusive activation states; busy controls cannot activate again.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ControlState {
+    /// Available for pointer and keyboard activation.
+    #[default]
+    Enabled,
+    /// Unavailable and omitted from sequential keyboard navigation.
+    Disabled,
+    /// Work is already in progress; retains its label and shows a work indicator.
+    Busy,
+}
+impl ControlState {
+    /// Whether this control can accept another activation.
+    #[must_use]
+    pub const fn is_interactive(self) -> bool {
+        matches!(self, Self::Enabled)
+    }
+}
+
+/// Themed action, with explicit identity and markup-friendly typed properties.
 #[derive(IntoElement)]
 pub struct Button {
-    id: ElementId,
-    label: SharedString,
-    variant: ButtonVariant,
-    theme: Theme,
-    on_click: Option<ClickHandler>,
+    /// Stable identity forwarded to the native button.
+    pub id: ElementId,
+    /// Visible label; an icon-only action should use [`IconButton`].
+    pub label: SharedString,
+    /// Visual emphasis.
+    pub variant: ButtonVariant,
+    /// Action meaning.
+    pub tone: ButtonTone,
+    /// Control geometry.
+    pub size: ControlSize,
+    /// Availability and work state.
+    pub state: ControlState,
+    /// Optional decorative leading glyph.
+    pub icon: Option<IconName>,
+    /// Optional accessible name overriding the visible label.
+    pub accessibility_label: Option<SharedString>,
+    /// Optional activation callback; availability is enforced before dispatch.
+    pub on_press: Option<PressHandler>,
 }
 
 impl Button {
-    /// Creates a secondary button with a stable element ID.
+    /// Create an enabled, medium secondary action with a required stable ID.
+    #[must_use]
     pub fn new(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Self {
         Self {
             id: id.into(),
             label: label.into(),
-            variant: ButtonVariant::default(),
-            theme: Theme::default(),
-            on_click: None,
+            variant: ButtonVariant::Secondary,
+            tone: ButtonTone::Normal,
+            size: ControlSize::Medium,
+            state: ControlState::Enabled,
+            icon: None,
+            accessibility_label: None,
+            on_press: None,
         }
     }
 
-    /// Sets the visual weight.
+    /// Choose the visual prominence; usable alongside markup properties.
+    #[must_use]
     pub fn variant(mut self, variant: ButtonVariant) -> Self {
         self.variant = variant;
-
         self
     }
 
-    /// Uses colors from `theme` instead of the default palette.
-    pub fn theme(mut self, theme: Theme) -> Self {
-        self.theme = theme;
-
-        self
-    }
-
-    /// Runs `handler` when the button is clicked.
+    /// Install a native pointer/keyboard activation callback.
+    #[must_use]
     pub fn on_click(
         mut self,
-        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&ClickEvent, &mut gpui::Window, &mut gpui::App) + 'static,
     ) -> Self {
-        self.on_click = Some(Box::new(handler));
-
+        self.on_press = Some(Box::new(handler));
         self
     }
 }
 
+impl std::fmt::Debug for Button {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Button")
+            .field("id", &self.id)
+            .field("label", &self.label)
+            .field("variant", &self.variant)
+            .field("tone", &self.tone)
+            .field("size", &self.size)
+            .field("state", &self.state)
+            .finish_non_exhaustive()
+    }
+}
+
 impl RenderOnce for Button {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let theme = self.theme;
-
-        let (background, hover, foreground) = match self.variant {
-            ButtonVariant::Primary => (
-                theme.accent,
-                theme.accent.opacity(0.85),
-                theme.accent_foreground,
-            ),
-            ButtonVariant::Secondary => (theme.surface, theme.surface_hover, theme.foreground),
+    fn render(self, _: &mut gpui::Window, _: &mut gpui::App) -> impl IntoElement {
+        let theme = Theme::current();
+        let enabled = self.state.is_interactive();
+        let busy = self.state == ControlState::Busy;
+        let icon_only = self.label.is_empty();
+        let (background, hover, pressed, foreground): (Hsla, Hsla, Hsla, Hsla) =
+            match (self.variant, self.tone) {
+                (ButtonVariant::Primary, ButtonTone::Normal) => (
+                    theme.primary,
+                    theme.primary_hover,
+                    theme.primary_pressed,
+                    theme.on_primary,
+                ),
+                (ButtonVariant::Primary, ButtonTone::Danger) => (
+                    theme.danger_fill,
+                    theme.danger_hover,
+                    theme.danger_pressed,
+                    theme.on_danger,
+                ),
+                (ButtonVariant::Secondary, tone) => (
+                    theme.surface_raised,
+                    theme.hover,
+                    theme.pressed,
+                    if tone == ButtonTone::Danger {
+                        theme.danger
+                    } else {
+                        theme.ink
+                    },
+                ),
+                (ButtonVariant::Ghost, tone) => (
+                    Theme::transparent(),
+                    theme.hover,
+                    theme.pressed,
+                    if tone == ButtonTone::Danger {
+                        theme.danger
+                    } else {
+                        theme.ink
+                    },
+                ),
+            };
+        let line = if self.variant == ButtonVariant::Secondary {
+            theme.line
+        } else {
+            Theme::transparent()
         };
+        let label = self
+            .accessibility_label
+            .unwrap_or_else(|| self.label.clone());
+        let glyph = if busy {
+            Some(IconName::Working)
+        } else {
+            self.icon
+        };
+        rake::view! {
+            <button id={self.id} disabled={!enabled} aria-label={label}
+                aria-description={if busy { "In progress" } else { "" }}
+                class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 max-w-[100%] font-medium"
+                style={|s| focusable(s).h(px(self.size.height()))
+                    .px(px(if icon_only {0.} else {self.size.padding()}))
+                    .when(icon_only, |s| s.w(px(self.size.height())))
+                    .bg(background).text_color(foreground).border_color(line)
+                    .when(enabled, |s| s.hover(move |s| s.bg(hover)).active(move |s| s.bg(pressed)))
+                    .when(!enabled, |s| s.opacity(0.5))}
+                on:click={move |event, window, cx| {
+                    cx.stop_propagation();
+                    if let Some(handler)=&self.on_press { handler(event,window,cx); }
+                }}>
+                if let Some(name)=glyph {
+                    <Icon name={name} size={if self.size==ControlSize::Small {IconSize::Small} else {IconSize::Medium}}
+                        {..Icon::new("glyph", name)}/>
+                }
+                if !icon_only {
+                    <p class="text-body min-w-0 font-medium" wrap={false} ellipsis={true}>{self.label}</p>
+                }
+            </button>
+        }
+    }
+}
 
-        div()
-            .id(self.id)
-            .px_3()
-            .py_1p5()
-            .rounded_md()
-            .text_sm()
-            .bg(background)
-            .text_color(foreground)
-            .cursor_pointer()
-            .hover(move |style| style.bg(hover))
-            .child(self.label)
-            .when_some(self.on_click, |button, handler| button.on_click(handler))
+/// A square action with a required accessible name and the same variants as [`Button`].
+#[derive(IntoElement)]
+pub struct IconButton {
+    /// Stable native control identity.
+    pub id: ElementId,
+    /// Accessible action name, independent of the decorative glyph.
+    pub label: SharedString,
+    /// Visible glyph.
+    pub icon: IconName,
+    /// Visual emphasis.
+    pub variant: ButtonVariant,
+    /// Action meaning.
+    pub tone: ButtonTone,
+    /// Square control size.
+    pub size: ControlSize,
+    /// Activation state.
+    pub state: ControlState,
+    /// Native activation callback.
+    pub on_press: Option<PressHandler>,
+}
+impl IconButton {
+    /// Create an enabled medium ghost action. Supply a meaningful accessible label.
+    #[must_use]
+    pub fn new(id: impl Into<ElementId>, icon: IconName, label: impl Into<SharedString>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            icon,
+            variant: ButtonVariant::Ghost,
+            tone: ButtonTone::Normal,
+            size: ControlSize::Medium,
+            state: ControlState::Enabled,
+            on_press: None,
+        }
+    }
+}
+impl std::fmt::Debug for IconButton {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IconButton")
+            .field("id", &self.id)
+            .field("label", &self.label)
+            .field("icon", &self.icon)
+            .field("state", &self.state)
+            .finish_non_exhaustive()
+    }
+}
+impl RenderOnce for IconButton {
+    fn render(self, _: &mut gpui::Window, _: &mut gpui::App) -> impl IntoElement {
+        rake::view! {
+            <Button id={self.id} icon={Some(self.icon)} accessibility_label={Some(self.label)}
+                variant={self.variant} tone={self.tone} size={self.size} state={self.state}
+                on_press={self.on_press} {..Button::new("icon", "")}/>
+        }
     }
 }

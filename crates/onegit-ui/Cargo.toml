@@ -4,10 +4,17 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-description = "1git components built on plain GPUI, independent of the Rake runtime"
+description = "Reusable 1git components and themes on Rake and GPUI"
 
 [dependencies]
-gpui.workspace = true
+rake = { workspace = true, features = ["experimental-view"] }
+
+[features]
+test-support = ["rake/view-test-support"]
+
+[[test]]
+name = "interaction"
+required-features = ["test-support"]
 
 [lints]
 workspace = true
