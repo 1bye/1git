@@ -36,6 +36,10 @@ pub(crate) fn sync_directory(file: &File) -> io::Result<()> {
     file.sync_all()
 }
 
+pub(crate) fn git_native_path(path: &Path) -> io::Result<OsString> {
+    Ok(path.as_os_str().to_owned())
+}
+
 pub(crate) fn git_argument(bytes: &[u8]) -> Result<OsString, super::PathEncodingError> {
     Ok(OsString::from_vec(bytes.to_vec()))
 }

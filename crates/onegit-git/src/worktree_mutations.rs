@@ -96,7 +96,7 @@ fn absolute(path: &Path) -> Result<OsString, RepositoryError> {
         }
     }
 
-    Ok(normalized.into_os_string())
+    Ok(crate::platform::git_native_path(&normalized)?)
 }
 
 impl Repository {

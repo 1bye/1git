@@ -68,6 +68,14 @@ pub(crate) fn native_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEn
     Ok(PathBuf::from(windows_policy::native_git_path(text)?))
 }
 
+pub(crate) fn git_native_path(path: &Path) -> io::Result<OsString> {
+    validate_filesystem_path(path)?;
+    let bytes = path_to_git_bytes(path.as_os_str()).map_err(|_| path_error())?;
+    Ok(OsString::from(
+        std::str::from_utf8(&bytes).map_err(|_| path_error())?,
+    ))
+}
+
 pub(crate) fn git_argument(bytes: &[u8]) -> Result<OsString, PathEncodingError> {
     Ok(OsString::from(
         std::str::from_utf8(bytes).map_err(|_| PathEncodingError::UNREPRESENTABLE)?,
@@ -314,6 +322,28 @@ pub(crate) fn open_directory_no_follow(path: &Path) -> io::Result<File> {
 // created private entry receives it atomically, before any private bytes are written.
 // Windows: an elevated token can make Administrators the default owner; OW then
 // authorizes that privileged group, comparable to privileged root access on Unix.
+#[derive(Debug)]
+struct SecurityOperationError {
+    operation: &'static str,
+    cause: io::Error,
+}
+
+impl std::fmt::Display for SecurityOperationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.operation, self.cause)
+    }
+}
+
+impl std::error::Error for SecurityOperationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.cause)
+    }
+}
+
+fn security_error(operation: &'static str, cause: io::Error) -> io::Error {
+    io::Error::new(cause.kind(), SecurityOperationError { operation, cause })
+}
+
 struct PrivateSecurity(PSECURITY_DESCRIPTOR);
 
 impl PrivateSecurity {
@@ -526,7 +556,8 @@ pub(crate) fn make_private_directory(directory: &File) -> io::Result<()> {
             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             FILE_FLAG_BACKUP_SEMANTICS,
         )
-    })?;
+    })
+    .map_err(|error| security_error("Reopen recovery directory for DACL access", error))?;
     // SAFETY: the reopened handle has WRITE_DAC; dacl belongs to the live descriptor.
     let result = unsafe {
         SetSecurityInfo(
@@ -541,7 +572,10 @@ pub(crate) fn make_private_directory(directory: &File) -> io::Result<()> {
     };
 
     if result != 0 {
-        return Err(io::Error::from_raw_os_error(result as i32));
+        return Err(security_error(
+            "Set private recovery DACL",
+            io::Error::from_raw_os_error(result as i32),
+        ));
     }
 
     make_private_file(directory)
@@ -567,7 +601,10 @@ pub(crate) fn is_private_directory(directory: &File) -> io::Result<bool> {
     };
 
     if result != 0 {
-        return Err(io::Error::from_raw_os_error(result as i32));
+        return Err(security_error(
+            "Inspect private recovery DACL",
+            io::Error::from_raw_os_error(result as i32),
+        ));
     }
 
     let actual = PrivateSecurity(descriptor);
@@ -1082,6 +1119,41 @@ mod tests {
     }
 
     #[test]
+    fn fixture_child_process() {
+        match std::env::var("ONEGIT_CHILD_MODE").as_deref() {
+            Ok("sleep") => thread::sleep(Duration::from_secs(60)),
+            Ok("launcher") => {
+                #[expect(
+                    clippy::zombie_processes,
+                    reason = "The parent job test owns and terminates this fixture daemon after its launcher exits"
+                )]
+                let _child = Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "platform::windows::tests::fixture_child_process"])
+                    .env("ONEGIT_CHILD_MODE", "sleep")
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn()
+                    .unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn git_native_paths_strip_verbatim_prefixes_for_argv_and_index_environment() {
+        for (native, git) in [
+            (r"\\?\C:\repo\file", "C:/repo/file"),
+            (r"\\?\UNC\server\share\file", "//server/share/file"),
+        ] {
+            assert_eq!(
+                git_native_path(Path::new(native)).unwrap(),
+                OsString::from(git)
+            );
+        }
+    }
+
+    #[test]
     fn deadline_joins_backpressured_pipe_workers_and_terminates_the_job() {
         let temporary = tempfile::tempdir().unwrap();
         let input = vec![b'x'; 1024 * 1024];
@@ -1202,9 +1274,10 @@ mod tests {
         }
 
         let temporary = tempfile::tempdir().unwrap();
-        let mut command = Command::new("cmd.exe");
+        let mut command = Command::new(std::env::current_exe().unwrap());
         command
-            .args(["/D", "/C", "start \"\" /B ping -n 60 127.0.0.1 >NUL"])
+            .args(["--exact", "platform::windows::tests::fixture_child_process"])
+            .env("ONEGIT_CHILD_MODE", "launcher")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());

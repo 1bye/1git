@@ -297,7 +297,7 @@ impl GitProcess {
             .stderr(Stdio::piped());
 
         if let Some(index) = input.index_file {
-            command.env("GIT_INDEX_FILE", index);
+            command.env("GIT_INDEX_FILE", platform::git_native_path(index)?);
         }
 
         let mut owned = platform::spawn(&mut command, input.cwd, input.directory).map_err(
@@ -367,6 +367,9 @@ impl GitProcess {
             }
 
             if stopped.is_some() {
+                if !platform::GRACEFUL_TERMINATION {
+                    owned.signal(platform::Signal::Kill);
+                }
                 stdin.take();
                 stdout.take();
                 stderr.take();

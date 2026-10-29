@@ -64,7 +64,7 @@ impl Repository {
         let parent = destination.parent().ok_or(RepositoryError::InvalidPath)?;
 
         fs::create_dir_all(parent)?;
-        args.extend(["--".into(), destination.as_os_str().to_owned()]);
+        args.extend(["--".into(), crate::platform::git_native_path(&destination)?]);
 
         let mut command = GitCommand::new(parent, args);
 
@@ -113,7 +113,7 @@ impl Repository {
         args.extend([
             "--".into(),
             options.remote.into(),
-            destination.as_os_str().to_owned(),
+            crate::platform::git_native_path(&destination)?,
         ]);
 
         let mut command = GitCommand::new(parent, args);

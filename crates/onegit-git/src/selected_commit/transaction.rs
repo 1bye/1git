@@ -353,7 +353,10 @@ impl Repository {
                 if !selected.is_empty() {
                     let mut option = OsString::from("--pathspec-from-file=");
 
-                    option.push(&path_file);
+                    option.push(
+                        crate::platform::git_native_path(&path_file)
+                            .map_err(|error| before(error.into()))?,
+                    );
                     args.extend([option, "--pathspec-file-nul".into()]);
                 }
             }
@@ -385,7 +388,7 @@ impl Repository {
                     if !input.partial_files.is_empty() {
                         let mut option = OsString::from("--pathspec-from-file=");
 
-                        option.push(&path_file);
+                        option.push(crate::platform::git_native_path(&path_file)?);
                         self.commit_run(
                             [
                                 OsString::from("--literal-pathspecs"),
