@@ -76,6 +76,11 @@ pub fn select_hunk_patch(patch: &str, index: usize) -> Result<String, Repository
 impl Repository {
     /// Stage, unstage or explicitly discard a reviewed path-scoped text hunk.
     /// Discard uses the same private held-file recovery and one-use undo as file discard.
+    ///
+    /// # Errors
+    /// Rejects stale/missing hunks, redirected patch destinations, unsafe paths and
+    /// unconfirmed discard. Process/recovery/refresh failures retain their write phase;
+    /// an error after mutation begins must not trigger an automatic retry.
     pub fn change_hunk(
         &self,
         request: ChangeHunk<'_>,
@@ -115,26 +120,8 @@ impl Repository {
             )));
         }
         let patch = select_hunk_patch(&diff.patch, request.hunk_index).map_err(before)?;
-        // Ask Git to decode the same header/strip rules as the eventual apply.
-        // Configured prefixes or rename metadata must never redirect this request.
-        let mut preview =
-            crate::GitCommand::new(&self.info.root, ["apply", "--numstat", "-z", "--recount"]);
-        preview.directory = Some(&self.root_directory);
-        preview.stdin = patch.as_bytes();
-        preview.cancellation = cancellation;
-        let parsed = self
-            .process
-            .run(preview)
-            .map_err(|error| before(error.into()))?
-            .stdout;
-        let destination = parsed
-            .strip_suffix(b"\0")
-            .and_then(|line| line.splitn(3, |byte| *byte == b'\t').nth(2));
-        if destination != Some(request.path.as_bytes()) {
-            return Err(before(RepositoryError::InvalidInput(
-                "The hunk header does not identify only the selected path. Review diff prefixes or stage the complete file.",
-            )));
-        }
+        self.check_patch_destination(patch.as_bytes(), request.path, cancellation)
+            .map_err(before)?;
 
         if request.action != HunkAction::Discard {
             let mut args = vec!["apply", "--recount", "--whitespace=nowarn", "--cached"];

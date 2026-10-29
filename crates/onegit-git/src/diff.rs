@@ -32,6 +32,7 @@ pub enum DiffTarget {
 }
 
 /// Patch options; path inputs are literal filenames and validated before execution.
+#[derive(Clone, Debug)]
 pub struct DiffOptions<'a> {
     /// Requested source.
     pub target: DiffTarget,
@@ -45,6 +46,7 @@ pub struct DiffOptions<'a> {
 
 impl DiffOptions<'_> {
     /// Construct the legacy three-context-line, whitespace-sensitive preview.
+    #[must_use]
     pub fn new(target: DiffTarget) -> Self {
         Self {
             target,
@@ -92,6 +94,11 @@ pub struct FileDiff {
 impl Repository {
     /// Read a patch and stats without external diff/text converters, optional index writes,
     /// object creation, staging or ref updates. Changes uses a private disposable index.
+    ///
+    /// # Errors
+    /// Rejects invalid revisions, paths or context counts, malformed Git output, and
+    /// filesystem/process failures, including cancellation. Oversized patch output
+    /// returns [`PatchOmission::TooLarge`] with available statistics instead of an error.
     pub fn diff(
         &self,
         options: DiffOptions<'_>,
@@ -200,6 +207,31 @@ impl Repository {
         directory.close()?;
 
         result
+    }
+
+    /// Check Git's decoded apply destination rather than trusting display-oriented diff headers.
+    pub(super) fn check_patch_destination(
+        &self,
+        patch: &[u8],
+        expected: &GitPath,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<(), RepositoryError> {
+        let mut command =
+            GitCommand::new(&self.info.root, ["apply", "--numstat", "-z", "--recount"]);
+        command.directory = Some(&self.root_directory);
+        command.stdin = patch;
+        command.cancellation = cancellation;
+        let output = self.process.run(command)?;
+        let destination = output
+            .stdout
+            .strip_suffix(b"\0")
+            .and_then(|line| line.splitn(3, |byte| *byte == b'\t').nth(2));
+        if destination != Some(expected.as_bytes()) {
+            return Err(RepositoryError::InvalidInput(
+                "The patch header does not identify only the selected path. Review diff prefixes or select the complete file.",
+            ));
+        }
+        Ok(())
     }
 
     fn diff_run(

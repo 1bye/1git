@@ -71,7 +71,7 @@ pub fn execute_tool(input: ToolCommand<'_>) -> Result<GitOutput, GitError> {
 }
 
 /// A cooperative stop request. Completion is acknowledged only after process cleanup.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Cancellation(Arc<AtomicBool>);
 
 impl Cancellation {
@@ -81,6 +81,7 @@ impl Cancellation {
     }
 
     /// Whether cancellation has been requested, independent of task completion.
+    #[must_use]
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::Acquire)
     }
@@ -241,6 +242,7 @@ impl GitProcess {
 
     /// Add child-only configuration shared by this runner's invocations.
     /// Per-command overrides take precedence; prompt/editor safeguards remain enforced.
+    #[must_use]
     pub fn with_environment(
         mut self,
         overrides: impl IntoIterator<Item = (OsString, OsString)>,

@@ -167,10 +167,10 @@ All remotes/credentials/working trees in these tests are disposable test data.
   locally known remote reachability; callers must fetch when that knowledge may be stale.
 - Ordinary lower-level reset/amend/push options retain explicit destructive or
   force-with-lease behavior. Reviewed UI flows use the conservative guarded variants.
-- Hunk actions verify Git's decoded apply destination equals the requested exact path.
-  The regression for `diff.noprefix` prevents writes to an unchecked neighbor; rename
-  metadata or custom prefixes that would select another path are refused explicitly.
-  This tightens the source hunk behavior at the write boundary.
+- Hunk actions and selected-line commits verify Git's decoded apply destination equals
+  the requested exact path. The regressions for `diff.noprefix` prevent writes or commits
+  to an unchecked neighbor; rename metadata or custom prefixes that select another path
+  are refused explicitly. This tightens source behavior at the write boundary.
 - Hunk discard uses the Rust core's held-file, private disk-backed recovery rather
   than the source's in-memory patch token. The existing one-use 15-second undo contract
   remains; backups are retained even after expiry or session shutdown.

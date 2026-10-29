@@ -7,7 +7,7 @@ use crate::{
     WritePhase,
 };
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{self, Seek, SeekFrom, Write};
@@ -168,7 +168,12 @@ impl Repository {
 
     /// Commit selected contents with incremental lifecycle/hook output on the owned worker.
     /// Observer panics cannot interrupt commit installation or process/index cleanup.
-    /// Late cancellation retains the existing transaction contract described by commit_selected_files.
+    /// Late cancellation retains the transaction contract of [`Self::commit_selected_files`].
+    ///
+    /// # Errors
+    /// Returns validation, stale-selection, patch-destination, lock, filesystem or Git
+    /// failures before a commit is confirmed. An acknowledged or uncertain write returns
+    /// [`CommitResult`] with its outcome and any recovery warning; never retry it automatically.
     pub fn commit_selected_files_with_progress(
         &self,
         input: &CommitFiles,
@@ -232,12 +237,13 @@ impl Repository {
             let partial_paths: HashSet<_> =
                 input.partial_files.iter().map(|file| &file.path).collect();
 
+            let requested: HashSet<_> = paths.iter().collect();
             let stage_paths: Vec<_> = snapshot
                 .status
                 .files
                 .iter()
                 .filter(|file| {
-                    paths.iter().any(|path| exact(path, &file.path))
+                    requested.contains(&file.path)
                         && !partial_paths.contains(&file.path)
                         && file.index_status != FileStatus::Deleted
                 })
@@ -317,6 +323,8 @@ impl Repository {
                             CommitError::invalid(ErrorCode::InvalidInput, &error.to_string())
                         })?;
 
+                    self.check_patch_destination(patch.as_bytes(), &file.path, None)
+                        .map_err(before)?;
                     self.commit_run(
                         ["apply", "--cached", "--whitespace=nowarn", "-"],
                         Some(&commit_index),
@@ -569,10 +577,6 @@ fn before(error: RepositoryError) -> CommitError {
     CommitError::repository(WritePhase::BeforeCommand, error)
 }
 
-fn exact(a: &GitPath, b: &GitPath) -> bool {
-    a == b
-}
-
 fn trim(value: &str) -> &str {
     value.trim_matches(|ch|matches!(ch,'\u{0009}'..='\u{000d}'|'\u{0020}'|'\u{00a0}'|'\u{1680}'|'\u{2000}'..='\u{200a}'|'\u{2028}'|'\u{2029}'|'\u{202f}'|'\u{205f}'|'\u{3000}'|'\u{feff}'))
 }
@@ -624,7 +628,7 @@ fn validate(input: &CommitFiles) -> Result<Vec<GitPath>, CommitError> {
         || input
             .partial_files
             .iter()
-            .any(|file| !paths.iter().any(|path| exact(path, &file.path)))
+            .any(|file| !seen.contains(&file.path))
         || (staged && !input.partial_files.is_empty())
     {
         return Err(CommitError::invalid(
@@ -703,15 +707,17 @@ fn selected_paths(
         return Ok(staged);
     }
 
-    let mut selected = Vec::new();
-    let mut seen = HashSet::new();
+    let mut changed = HashMap::with_capacity(snapshot.status.files.len());
+    for file in &snapshot.status.files {
+        changed.entry(&file.path).or_insert(file);
+    }
+    let mut selected = Vec::with_capacity(paths.len());
+    let mut seen = HashSet::with_capacity(paths.len());
 
     for path in paths {
-        let file = snapshot
-            .status
-            .files
-            .iter()
-            .find(|file| exact(&file.path, path))
+        let file = changed
+            .get(path)
+            .copied()
             .filter(|file| file.record_type != RecordType::Ignored)
             .ok_or_else(|| {
                 CommitError::invalid(
@@ -751,12 +757,7 @@ fn selected_paths(
         if let Some(original) = file.original_path.as_ref().filter(|_| {
             file.index_status == FileStatus::Renamed || file.worktree_status == FileStatus::Renamed
         }) {
-            if snapshot
-                .status
-                .files
-                .iter()
-                .any(|other| exact(&other.path, original))
-            {
+            if changed.contains_key(original) {
                 return Err(CommitError::invalid(
                     ErrorCode::InvalidInput,
                     &format!(
@@ -801,3 +802,7 @@ fn check_file_paths(root: &Path, paths: &[GitPath]) -> Result<(), CommitError> {
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "transaction_tests.rs"]
+mod tests;
