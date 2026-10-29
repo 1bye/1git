@@ -287,6 +287,8 @@ pub struct IconButton {
     pub size: ControlSize,
     /// Activation state.
     pub state: ControlState,
+    /// Optional retained focus target for keyboard interaction and restoration.
+    pub focus: Option<gpui::FocusHandle>,
     /// Native activation callback.
     pub on_press: Option<PressHandler>,
 }
@@ -302,6 +304,7 @@ impl IconButton {
             tone: ButtonTone::Normal,
             size: ControlSize::Medium,
             state: ControlState::Enabled,
+            focus: None,
             on_press: None,
         }
     }
@@ -321,7 +324,7 @@ impl RenderOnce for IconButton {
         rake::view! {
             <Button id={self.id} icon={Some(self.icon)} accessibility_label={Some(self.label)}
                 variant={self.variant} tone={self.tone} size={self.size} state={self.state}
-                on_press={self.on_press} {..Button::new("icon", "")}/>
+                focus={self.focus} on_press={self.on_press} {..Button::new("icon", "")}/>
         }
     }
 }

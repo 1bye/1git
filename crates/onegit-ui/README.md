@@ -69,6 +69,7 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `Tooltip` | Delayed hover or immediate focus hint, optional shortcut caption, Escape dismissal |
 | `DropdownMenu` | Branch choices and actions, icons, shortcut captions, separators, disabled/danger states |
 | `Dialog` | Standard/confirmation modal, title/description, body/footer, initial focus, busy and dismissal policies |
+| `Toast` / `ToastHost` | Success/error/progress feedback, action/dismissal, bounded stack, paused expiration and live regions |
 
 `ControlState::{Enabled, Disabled, Busy}` prevents contradictory availability flags.
 Busy actions retain their label and show a work glyph; no percentage or completion
@@ -279,6 +280,94 @@ The **Dialogs** gallery includes Create branch validation and a Discard changes
 confirmation for two sample files. **Simulate a slow operation** demonstrates busy
 states with a short local delay. These examples never modify a repository; their
 simple branch-name checks demonstrate UI validation rather than Git's full ref rules.
+
+## Toasts
+
+Retain one `Entity<ToastState>` per window, created outside render, and mount one
+`ToastHost` for it. Pass the normal application's mounted focus scope as the
+fallback. With dialogs, mount the host **after** the dialog components inside
+`DialogHost` and set `paused` while a modal is open. Notifications remain visible
+above the scrim, but their controls are hidden and expiration pauses so they do
+not compete with modal focus.
+
+```no_run
+use onegit_ui::{Toast, ToastHost, ToastKind, ToastState};
+use rake::gpui::{App, AppContext, Entity, FocusHandle, IntoElement, Window};
+
+fn retained(window: &mut Window, cx: &mut App) -> Entity<ToastState> {
+    cx.new(|cx| ToastState::new(window, cx))
+}
+
+fn show_progress(state: &Entity<ToastState>, window: &mut Window, cx: &mut App) {
+    let id = state.update(cx, |state, cx| {
+        state.show(Toast::new(ToastKind::Progress, "Fetching branches…"), window, cx)
+    });
+    // The application's operation publishes this update when it finishes.
+    state.update(cx, |state, cx| {
+        let _ = state.update(id, Toast::new(ToastKind::Success, "Branches fetched"), window, cx);
+    });
+}
+
+fn notifications(state: &Entity<ToastState>, application_focus: &FocusHandle) -> impl IntoElement {
+    rake::view! {
+        <ToastHost {..ToastHost::new("notifications", state, application_focus)}/>
+    }
+}
+```
+
+`Toast::new(kind, title)` supplies the default lifetime. Success expires after five
+seconds of active display; error and progress remain until dismissed, updated or
+displaced by a newer notification. `description`, `action` and `lifetime` are typed
+properties. `ToastLifetime::Timed(duration)` customizes expiration and `Persistent`
+disables it. Progress uses the native work glyph without a continuous animation
+or an inferred percentage.
+
+`show` returns a `ToastId`. Update that ID to resolve progress in place; an update
+restarts the lifetime while keeping the card and control focus handles stable.
+`get`, `len` and `is_empty` expose current content. `update` returns false for stale
+IDs and never resurrects dismissed/expired feedback. Dismissing progress never
+cancels its application operation. `clear` removes notifications without invoking
+their callbacks. One state belongs to its construction window and one mounted host.
+
+The bottom-right stack holds at most three cards. At capacity it displaces the
+oldest unfocused timed card, otherwise the oldest unfocused card. Focused and
+currently dragged cards are protected. This is transient feedback rather than notification history; important
+failures must also remain in application state. Width defaults to 340 logical
+pixels, capped to the window with 16-pixel margins; short windows can scroll the stack.
+Titles and descriptions are visually limited to two/three lines while accessibility
+retains their full contents.
+
+Expiration pauses across the whole stack during hover, dragging, keyboard focus,
+an inactive window, a modal (`paused`), or host unmount. Remounting resumes the remaining time.
+One deadline task services timed cards and retires brief exit presentations;
+settled persistent-only and idle stacks have no task or polling loop. Show and update do not move focus into a toast.
+If an update removes a currently focused action, focus moves to that card's dismiss
+button. Escape or dismissal of a focused card moves to the next card, then restores
+a still-mounted application target or the provided fallback when the stack is empty.
+Pointer dismissal of an unfocused card preserves the current application focus.
+
+`ToastAction::new(label, callback)` is optional. The card is removed and focused
+controls are restored **before** the callback runs, so recovery can publish another
+toast safely. It runs once on activation, never on timeout or ordinary dismissal.
+Success/progress use polite native status live regions; errors use assertive alerts.
+Announcements do not request keyboard focus. The host supplies no global Escape
+handler, so unrelated controls retain their own dismissal behavior.
+
+Drag the card body horizontally to dismiss it in either direction. Small pulls
+settle back with a brief overshoot; vertical gestures yield to stack scrolling.
+Recovery and dismiss buttons operate independently of dragging. Pointer capture
+keeps a pull attached outside the card; losing activation, opening a modal, or
+unmounting cancels it. Dismissal takes effect immediately for IDs, focus and actions;
+a noninteractive, accessibility-hidden presentation finishes its 120 ms exit.
+Entrance and snap-back take 160 ms, and stack positions follow in 140 ms. Native
+GPUI offsets move paint and hitboxes together without stretching text. Reduced
+motion snaps transitions, and settled cards stop requesting animation frames.
+
+The **Toasts** gallery has standalone states and progress resolution controls. Its
+adjacent Create branch / Discard changes dialogs publish progress and resolve the
+same notification after the sample operation. **Simulate a failed operation** creates
+an error with Retry; retry reruns the sample operation successfully. **Simulate a slow
+operation** makes its progress visible. No repository or network operation runs.
 
 ## Motion
 

@@ -11,6 +11,8 @@ pub enum IconName {
     Plus,
     /// Close or remove.
     Close,
+    /// Error or important warning.
+    Alert,
     /// Refresh/retry.
     Refresh,
     /// Search or filter.
@@ -109,6 +111,11 @@ fn paint_icon(name: IconName, bounds: gpui::Bounds<gpui::Pixels>, window: &mut g
         IconName::Close => {
             stroke(&mut path, &position, &[(6., 6.), (18., 18.)]);
             stroke(&mut path, &position, &[(18., 6.), (6., 18.)]);
+        }
+        IconName::Alert => {
+            circle(&mut path, &position, (12., 12.), 9.);
+            stroke(&mut path, &position, &[(12., 7.), (12., 13.)]);
+            stroke(&mut path, &position, &[(12., 16.), (12., 17.)]);
         }
         IconName::ChevronDown => stroke(&mut path, &position, &[(6., 9.), (12., 15.), (18., 9.)]),
         IconName::File => {

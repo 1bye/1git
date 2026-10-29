@@ -4,7 +4,8 @@ use onegit_ui::{
     Dialog, DialogAvailability, DialogDismissal, DialogHost, DialogHostState, DialogKind,
     DialogState, DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent,
     InputState, InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, RowSelection,
-    SearchField, Text, TextArea, TextInput, TextRole, TextTone, Theme, Tooltip,
+    SearchField, Text, TextArea, TextInput, TextRole, TextTone, Theme, Toast, ToastAction,
+    ToastHost, ToastId, ToastKind, ToastState, Tooltip,
 };
 use rake::gpui::{self, Context, FocusHandle, Focusable, ScrollHandle, Window, prelude::*, px};
 
@@ -20,6 +21,21 @@ enum Section {
     Inputs,
     Overlays,
     Dialogs,
+    Toasts,
+}
+
+#[derive(Clone, Debug)]
+enum DialogOperation {
+    Create(String),
+    Discard,
+}
+impl DialogOperation {
+    fn progress(&self) -> &'static str {
+        match self {
+            Self::Create(_) => "Creating branch…",
+            Self::Discard => "Discarding changes…",
+        }
+    }
 }
 
 struct Gallery {
@@ -51,6 +67,9 @@ struct Gallery {
     dialog_busy: bool,
     dialog_result: String,
     dialog_task: Option<gpui::Task<()>>,
+    toasts: gpui::Entity<ToastState>,
+    progress_toast: Option<ToastId>,
+    fail_dialogs: bool,
     _input_subscriptions: Vec<gpui::Subscription>,
 }
 
@@ -75,6 +94,7 @@ impl Gallery {
         let dialogs = DialogHostState::new(cx);
         let create_dialog = dialogs.dialog(cx);
         let discard_dialog = dialogs.dialog(cx);
+        let toasts = cx.new(|cx| ToastState::new(window, cx));
         let new_branch = cx.new(|cx| InputState::new("", window, cx));
         let mut subscriptions: Vec<_> = [&branch, &search, &message, &validation]
             .into_iter()
@@ -108,6 +128,9 @@ impl Gallery {
             dialog_busy: false,
             dialog_result: "No dialog action completed".into(),
             dialog_task: None,
+            toasts,
+            progress_toast: None,
+            fail_dialogs: false,
             branch,
             search,
             message,
@@ -160,62 +183,157 @@ impl Gallery {
             return;
         }
         let name = self.new_branch.read(cx).text().to_owned();
-        if self.slow_dialogs {
-            self.dialog_busy = true;
-            self.dialog_task = Some(cx.spawn_in(window, async move |this, cx| {
-                cx.background_executor()
-                    .timer(std::time::Duration::from_millis(900))
-                    .await;
-                let _ = this.update_in(cx, |this, window, cx| this.finish_create(name, window, cx));
-            }));
-        } else {
-            self.finish_create(name, window, cx);
-        }
-        cx.notify();
-    }
-    fn finish_create(&mut self, name: String, window: &mut Window, cx: &mut Context<Self>) {
-        self.dialog_busy = false;
-        self.dialog_result = format!("Created sample branch: {name}");
-        self.create_dialog.update(cx, |state, cx| {
-            state.close(window, cx);
-        });
-        cx.notify();
+        self.start_operation(DialogOperation::Create(name), window, cx);
     }
     fn discard_changes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.dialog_busy {
+            self.start_operation(DialogOperation::Discard, window, cx);
+        }
+    }
+    fn start_operation(
+        &mut self,
+        operation: DialogOperation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.dialog_busy {
             return;
         }
+        self.dialog_busy = true;
+        let toast = self.toasts.update(cx, |state, cx| {
+            state.show(
+                Toast::new(ToastKind::Progress, operation.progress()),
+                window,
+                cx,
+            )
+        });
+        let fail = self.fail_dialogs;
         if self.slow_dialogs {
-            self.dialog_busy = true;
             self.dialog_task = Some(cx.spawn_in(window, async move |this, cx| {
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(900))
                     .await;
-                let _ = this.update_in(cx, |this, window, cx| this.finish_discard(window, cx));
+                let _ = this.update_in(cx, |this, window, cx| {
+                    this.finish_operation(operation, toast, fail, window, cx)
+                });
             }));
         } else {
-            self.finish_discard(window, cx);
+            self.finish_operation(operation, toast, fail, window, cx);
         }
         cx.notify();
     }
-    fn finish_discard(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn finish_operation(
+        &mut self,
+        operation: DialogOperation,
+        id: ToastId,
+        fail: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.dialog_busy = false;
-        self.dialog_result = "Discarded changes in 2 sample files".into();
-        self.discard_dialog.update(cx, |state, cx| {
+        let (dialog, title, detail) = match &operation {
+            DialogOperation::Create(name) => (
+                &self.create_dialog,
+                if fail {
+                    "Couldn’t create branch"
+                } else {
+                    "Branch created"
+                },
+                if fail {
+                    format!(
+                        "The sample operation failed for {name}. Your form values are preserved."
+                    )
+                } else {
+                    format!("Created sample branch: {name}")
+                },
+            ),
+            DialogOperation::Discard => (
+                &self.discard_dialog,
+                if fail {
+                    "Couldn’t discard changes"
+                } else {
+                    "Changes discarded"
+                },
+                if fail {
+                    "The sample operation failed. File changes remain intact.".into()
+                } else {
+                    "Discarded changes in 2 sample files".into()
+                },
+            ),
+        };
+        dialog.update(cx, |state, cx| {
             state.close(window, cx);
         });
+        self.dialog_result = detail.clone();
+        let action = if fail {
+            let weak = cx.weak_entity();
+            Some(ToastAction::new("Retry", move |window, cx| {
+                let _ = weak.update(cx, |this, cx| {
+                    this.fail_dialogs = false;
+                    this.start_operation(operation.clone(), window, cx);
+                });
+            }))
+        } else {
+            None
+        };
+        let toast = Toast {
+            description: Some(detail.into()),
+            action,
+            ..Toast::new(
+                if fail {
+                    ToastKind::Error
+                } else {
+                    ToastKind::Success
+                },
+                title,
+            )
+        };
+        self.toasts.update(cx, |state, cx| {
+            let _ = state.update(id, toast, window, cx);
+        });
         cx.notify();
+    }
+    fn toast_examples(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let progress = self.progress_toast.is_some_and(|id| {
+            self.toasts
+                .read(cx)
+                .get(id)
+                .is_some_and(|toast| toast.kind == ToastKind::Progress)
+        });
+        rake::view! {
+            <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Toasts")}/>}.into_any_element())} {..Pane::new("toasts")}>
+                <Text tone={TextTone::Muted} {..Text::new("intro","Compact feedback without taking keyboard focus. Drag a card sideways to dismiss; short pulls snap back.")}/>
+                <div class="flex flex-row flex-wrap gap-2">
+                    <Button on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.toasts.update(cx,|state,cx|{state.show(Toast {description:Some("Your sample changes are ready.".into()),..Toast::new(ToastKind::Success,"Changes saved")},window,cx);});})))} {..Button::new("success","Show success")}/>
+                    <Button on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.toasts.update(cx,|state,cx|{state.show(Toast {description:Some("The sample remote is unavailable. Your changes are safe.".into()),..Toast::new(ToastKind::Error,"Couldn’t fetch")},window,cx);});})))} {..Button::new("error","Show error")}/>
+                </div>
+                <div class="flex flex-row flex-wrap gap-2">
+                    <Button state={if progress{ControlState::Disabled}else{ControlState::Enabled}} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{
+                        this.progress_toast=Some(this.toasts.update(cx,|state,cx|state.show(Toast {description:Some("Waiting for the sample operation to finish.".into()),..Toast::new(ToastKind::Progress,"Fetching branches…")},window,cx)));cx.notify();
+                    })))} {..Button::new("start","Start progress")}/>
+                    for (index,(kind,label)) in [(ToastKind::Success,"Complete"),(ToastKind::Error,"Fail")].into_iter().enumerate(){
+                        <Button id={("resolve",index).into()} state={if progress{ControlState::Enabled}else{ControlState::Disabled}}
+                            on_press={Some(Box::new(cx.listener(move |this,_,window,cx|{if let Some(id)=this.progress_toast.take(){this.toasts.update(cx,|state,cx|{let _=state.update(id,Toast::new(kind,if kind==ToastKind::Success{"Branches fetched"}else{"Couldn’t fetch branches"}),window,cx);});cx.notify();}})))} {..Button::new("resolve",label)}/>
+                    }
+                    <Button variant={ButtonVariant::Ghost} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.toasts.update(cx,|state,cx|state.clear(window,cx));this.progress_toast=None;cx.notify();})))} {..Button::new("clear","Clear toasts")}/>
+                </div>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help","Success expires after 5 seconds. Errors and progress stay until dismissed or updated. The stack holds up to 3 notifications.")}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("connected","Try the adjacent dialogs: slow operations show progress; simulated failures offer Retry. Hover or focus pauses expiration.")}/>
+            </Pane>
+        }
     }
     fn dialog_examples(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         rake::view! {
             <Pane header={Some(rake::view!{<Text role={TextRole::Title} {..Text::new("title","Dialogs")}/>}.into_any_element())} {..Pane::new("dialogs")}>
                 <Text tone={TextTone::Muted} {..Text::new("intro","Focused forms and clear confirmations. These examples use sample values only.")}/>
                 <div class="flex flex-row flex-wrap gap-2">
-                    <Button icon={Some(IconName::Plus)} on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.open_create(window,cx))))} {..Button::new("create","Create branch")}/>
-                    <Button tone={ButtonTone::Danger} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.discard_dialog.update(cx,|state,cx|{state.open(window,cx);});})))} {..Button::new("discard","Discard changes…")}/>
+                    <Button state={if self.dialog_busy{ControlState::Disabled}else{ControlState::Enabled}} icon={Some(IconName::Plus)} on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.open_create(window,cx))))} {..Button::new("create","Create branch")}/>
+                    <Button state={if self.dialog_busy{ControlState::Disabled}else{ControlState::Enabled}} tone={ButtonTone::Danger} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.discard_dialog.update(cx,|state,cx|{state.open(window,cx);});})))} {..Button::new("discard","Discard changes…")}/>
                 </div>
-                <Checkbox checked={if self.slow_dialogs{CheckState::Checked}else{CheckState::Unchecked}}
+                <Checkbox state={if self.dialog_busy{ControlState::Disabled}else{ControlState::Enabled}} checked={if self.slow_dialogs{CheckState::Checked}else{CheckState::Unchecked}}
                     on_change={Some(Box::new(cx.listener(|this,value:&CheckState,_,cx|{this.slow_dialogs=*value==CheckState::Checked;cx.notify();})))} {..Checkbox::new("slow-dialog","Simulate a slow operation")}/>
+                <Checkbox state={if self.dialog_busy{ControlState::Disabled}else{ControlState::Enabled}} checked={if self.fail_dialogs{CheckState::Checked}else{CheckState::Unchecked}}
+                    on_change={Some(Box::new(cx.listener(|this,value:&CheckState,_,cx|{this.fail_dialogs=*value==CheckState::Checked;cx.notify();})))} {..Checkbox::new("fail-dialog","Simulate a failed operation")}/>
                 <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("result",self.dialog_result.clone())}/>
                 <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help","Tab stays inside the dialog. Escape cancels, and closing returns focus to the opener.")}/>
             </Pane>
@@ -572,7 +690,7 @@ impl Gallery {
                     <Text tone={TextTone::Warning} {..Text::new("warning","Needs review")}/>
                 </div>
                 <div class="flex flex-row flex-wrap items-center gap-4">
-                    for (index,name) in [IconName::Branch,IconName::File,IconName::Folder,IconName::Refresh,IconName::Plus,IconName::Check,IconName::Working,IconName::Search,IconName::Minus,IconName::Close,IconName::ChevronDown,IconName::Sun].into_iter().enumerate() {
+                    for (index,name) in [IconName::Branch,IconName::File,IconName::Folder,IconName::Refresh,IconName::Plus,IconName::Check,IconName::Working,IconName::Alert,IconName::Search,IconName::Minus,IconName::Close,IconName::ChevronDown,IconName::Sun].into_iter().enumerate() {
                         <span id={("icon",index)}>
                             <Icon size={IconSize::Large} label={Some(format!("{name:?}").into())} {..Icon::new("glyph",name)}/>
                         </span>
@@ -591,8 +709,8 @@ impl Render for Gallery {
             2
         };
         let item_count: u16 = match self.section {
-            Section::Overview => 9,
-            Section::Actions | Section::Inputs | Section::Overlays => 2,
+            Section::Overview => 10,
+            Section::Actions | Section::Inputs | Section::Overlays | Section::Toasts => 2,
             Section::Selection | Section::Typography | Section::Dialogs => 1,
         };
         let rows = item_count.div_ceil(columns);
@@ -613,7 +731,7 @@ impl Render for Gallery {
                     </div>
                 </header>
                 <nav class="flex flex-row flex-wrap gap-1 px-6 py-3">
-                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs")].into_iter().enumerate() {
+                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs"),(Section::Toasts,"Toasts")].into_iter().enumerate() {
                         <Button id={("section",index).into()}
                             variant={if self.section==section {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{
@@ -628,7 +746,8 @@ impl Render for Gallery {
                         if matches!(self.section,Section::Overview|Section::Typography) { {self.typography()} }
                         if matches!(self.section,Section::Overview|Section::Inputs) { {self.inputs(cx)} {self.input_states(cx)} }
                         if matches!(self.section,Section::Overview|Section::Overlays) { {self.menus(cx)} {self.tooltips(cx)} }
-                        if matches!(self.section,Section::Overview|Section::Dialogs) {{self.dialog_examples(cx)}}
+                        if matches!(self.section,Section::Overview|Section::Dialogs|Section::Toasts) {{self.dialog_examples(cx)}}
+                        if matches!(self.section,Section::Overview|Section::Toasts) {{self.toast_examples(cx)}}
                     </div>
                 </div>
                 <footer class="px-6 py-2 border-t-1 border-line">
@@ -641,6 +760,7 @@ impl Render for Gallery {
             <DialogHost state={self.dialogs.clone()} body={body}>
                 {self.create_modal(cx)}
                 {self.discard_modal(cx)}
+                <ToastHost paused={self.dialogs.is_open(cx)} {..ToastHost::new("notifications",&self.toasts,&self.focus)}/>
             </DialogHost>
         }
     }

@@ -18,6 +18,7 @@ mod overlay;
 mod pane;
 mod text;
 mod theme;
+mod toast;
 mod tooltip;
 
 pub use button::{
@@ -37,6 +38,10 @@ pub use list_row::{ListRow, RowSelection};
 pub use pane::{Pane, PanePadding};
 pub use text::{Text, TextRole, TextTone};
 pub use theme::{Appearance, Theme};
+pub use toast::{
+    Toast, ToastAction, ToastActionHandler, ToastHost, ToastId, ToastKind, ToastLifetime,
+    ToastState,
+};
 pub use tooltip::Tooltip;
 
 rake::theme!(Theme);
