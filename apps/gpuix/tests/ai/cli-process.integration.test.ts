@@ -641,6 +641,58 @@ ${reply}`,
 	}
 );
 
+it("avoids enabled and disabled MCP names when adding the large-selection reader", async () => {
+	const preferences = await fixture(
+		`const readerArg = args.find(value => value.startsWith("mcp_servers.1git-selected-2.url="));
+if (!readerArg) throw new Error("Missing collision-free reader");
+const readerUrl = JSON.parse(readerArg.slice("mcp_servers.1git-selected-2.url=".length));
+const response = await fetch(readerUrl, {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name:"read_selected_changes",arguments:{offset:0}}})});
+const page = await response.json();
+if (!page.result.content[0].text.includes("diff --git")) throw new Error("Reader did not return selected changes");
+console.info(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"fix: avoid reader collisions"}}));
+console.info(JSON.stringify({type:"turn.completed"}));`,
+		"codex",
+		[],
+		[
+			{ name: "1git-selected", enabled: true, transport: { type: "stdio" } },
+			{ name: "1git-selected-1", enabled: false, transport: { type: "stdio" } },
+		]
+	);
+
+	const patch = `diff --git a/file b/file\n@@ -1 +1 @@\n+${"x".repeat(70 * 1024)}\n`;
+
+	const message = await new CliAgent().generate(
+		preferences,
+		patch,
+		new AbortController().signal
+	);
+
+	const captured = JSON.parse(await readFile(record, "utf8"));
+
+	const override = captured.args.find((value: string) =>
+		value.startsWith("mcp_servers=")
+	);
+
+	expect(message).toBe("fix: avoid reader collisions");
+	expect(Bun.TOML.parse(override)).toEqual({
+		mcp_servers: {
+			"1git-selected": { enabled: false, command: "/usr/bin/false" },
+		},
+	});
+	expect(captured.args).toContain("mcp_servers.1git-selected-2.enabled=true");
+	expect(captured.args).toContain("mcp_servers.1git-selected-2.required=true");
+	expect(
+		captured.args.some((value: string) =>
+			value.startsWith("mcp_servers.1git-selected.url=")
+		)
+	).toBe(false);
+	expect(
+		captured.args.some((value: string) =>
+			value.startsWith("mcp_servers.1git-selected-1.url=")
+		)
+	).toBe(false);
+});
+
 it("allows bounded Codex MCP tool output for large selections", async () => {
 	const preferences = await fixture(
 		`const page = JSON.stringify({offset:0,nextOffset:1,text:String.fromCharCode(34,92).repeat(48 * 1024)});

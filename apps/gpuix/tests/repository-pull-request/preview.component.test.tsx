@@ -307,6 +307,44 @@ it("refreshes the preview from the Back toolbar without uploading or opening the
 	expect(browser).not.toHaveBeenCalled();
 });
 
+it("uses the refreshed source branch after an external checkout", async () => {
+	await open();
+	snapshot = {
+		...snapshot,
+		head: {
+			...snapshot.head,
+			branch: "feature/new",
+			upstream: "origin/feature/new",
+		},
+	};
+	data = {
+		...data,
+		branch: "feature/new",
+		remoteRef: "refs/heads/feature/new",
+		comparison: {
+			...data.comparison,
+			incoming: "refs/heads/feature/new",
+			branches: [
+				data.comparison.branches[0]!,
+				{ value: "refs/heads/feature/new", label: "feature/new", oid: head },
+			],
+		},
+	};
+	click("refresh-pull-request");
+	await settle();
+
+	expect(
+		root.renderer.findByTestId("pull-request-source")?.customProps?.[
+			"aria-label"
+		]
+	).toBe("Source branch feature/new");
+	click("continue-pull-request");
+	await settle();
+	expect(browser).toHaveBeenCalledWith(
+		"https://github.com/team/app/compare/main...feature%2Fnew?expand=1"
+	);
+});
+
 it("keeps actionable notices without the default informational strip", async () => {
 	data = { ...data, notice: "Sign in to preview existing pull requests." };
 	await open();

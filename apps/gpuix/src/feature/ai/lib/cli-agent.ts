@@ -758,16 +758,9 @@ export class CliAgent {
 		];
 
 		const disabledServers: string[] = [];
+		const serverNames = new Set<string>();
 
 		for (const server of servers) {
-			if (
-				server &&
-				typeof server === "object" &&
-				"enabled" in server &&
-				server.enabled === false
-			)
-				continue;
-
 			if (
 				!server ||
 				typeof server !== "object" ||
@@ -779,6 +772,10 @@ export class CliAgent {
 				throw new Error(
 					"Codex returned invalid configuration. Update Codex CLI and try again."
 				);
+
+			serverNames.add(server.name);
+
+			if ("enabled" in server && server.enabled === false) continue;
 
 			// Built-in entries may have no saved table; a disabled override still needs a valid transport.
 			if (
@@ -813,10 +810,16 @@ export class CliAgent {
 			if (!readerUrl)
 				throw new Error("Could not start the selected changes reader.");
 
+			let readerName = "1git-selected";
+			let suffix = 0;
+
+			while (serverNames.has(readerName))
+				readerName = `1git-selected-${++suffix}`;
+
 			overrides.push(
-				"mcp_servers.1git-selected.enabled=true",
-				"mcp_servers.1git-selected.required=true",
-				`mcp_servers.1git-selected.url=${JSON.stringify(readerUrl)}`
+				`mcp_servers.${readerName}.enabled=true`,
+				`mcp_servers.${readerName}.required=true`,
+				`mcp_servers.${readerName}.url=${JSON.stringify(readerUrl)}`
 			);
 		}
 

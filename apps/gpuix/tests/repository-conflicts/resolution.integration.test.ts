@@ -84,6 +84,53 @@ const resolve = async (hash: string, expectedHead = head) =>
 		expectedContentHash: hash,
 	});
 
+it("resolves a bracketed filename without staging a matching unrelated conflict", async () => {
+	await git("merge", "--abort");
+
+	for (const path of ["[id].txt", "i.txt"])
+		await writeFile(join(root, path), "base\n");
+
+	await git("add", ".");
+	await git("commit", "-m", "Route files");
+	await git("checkout", "-b", "routes");
+
+	for (const path of ["[id].txt", "i.txt"])
+		await writeFile(join(root, path), "incoming\n");
+
+	await git("commit", "-am", "Incoming routes");
+	await git("checkout", "main");
+
+	for (const path of ["[id].txt", "i.txt"])
+		await writeFile(join(root, path), "current\n");
+
+	await git("commit", "-am", "Current routes");
+	await expect(git("merge", "routes")).rejects.toThrow();
+	const otherStages = await git("ls-files", "--unmerged", "--", "i.txt");
+
+	const value = await RepositoryConflicts.read(
+		root,
+		"[id].txt",
+		new AbortController().signal
+	);
+
+	if (!value.ok || !value.value) throw new Error("Expected text conflict");
+
+	const result = await RepositoryConflicts.write(root, {
+		path: "[id].txt",
+		side: "ours",
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+		expectedContentHash: value.value.hash,
+	});
+
+	expect(result.ok).toBe(true);
+	expect(await git("ls-files", "--unmerged", "--", "i.txt")).toBe(otherStages);
+	expect(
+		await git("--literal-pathspecs", "ls-files", "--unmerged", "--", "[id].txt")
+	).toBe("");
+	expect(await readFile(join(root, "i.txt"), "utf8")).toContain("<<<<<<<");
+});
+
 it("never overwrites an outside target when the conflict file becomes a symlink after review", async () => {
 	const outsideDirectory = await mkdtemp(
 		join(tmpdir(), "1git-conflict-outside-")

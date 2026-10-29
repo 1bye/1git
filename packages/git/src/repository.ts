@@ -113,6 +113,7 @@ import type {
 import { selectHunkPatch } from "./hunk-patch.js";
 import { SelectedCommit } from "./selected-commit.js";
 import { BranchIntegration } from "./branch-integration.js";
+import { StashDeletion } from "./stash-deletion.js";
 import { TagOperations } from "./tag-operations.js";
 import { CommitRecovery } from "./commit-recovery.js";
 import { HistoryRewrite } from "./history-rewrite.js";
@@ -986,7 +987,7 @@ export class GitRepository {
 					"Conflict markers remain. Edit and save the file, then refresh before marking resolved."
 				);
 
-			await this.run(["add", "--", path], input.signal);
+			await this.run(["--literal-pathspecs", "add", "--", path], input.signal);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
@@ -997,7 +998,10 @@ export class GitRepository {
 		return await this.mutate("stage", input.signal, async () => {
 			const paths = requireRepositoryPaths(input.paths, "stage");
 
-			await this.run(["add", "--", ...paths], input.signal);
+			await this.run(
+				["--literal-pathspecs", "add", "--", ...paths],
+				input.signal
+			);
 
 			return await loadSnapshot(this.context, false, input.signal);
 		});
@@ -1464,11 +1468,21 @@ export class GitRepository {
 
 			if (snapshot.head.unborn) {
 				await this.run(
-					["rm", "--cached", "--ignore-unmatch", "--", ...paths],
+					[
+						"--literal-pathspecs",
+						"rm",
+						"--cached",
+						"--ignore-unmatch",
+						"--",
+						...paths,
+					],
 					input.signal
 				);
 			} else {
-				await this.run(["restore", "--staged", "--", ...paths], input.signal);
+				await this.run(
+					["--literal-pathspecs", "restore", "--staged", "--", ...paths],
+					input.signal
+				);
 			}
 
 			return await loadSnapshot(this.context, false, input.signal);
@@ -1508,7 +1522,7 @@ export class GitRepository {
 				);
 			}
 
-			const args = ["restore"];
+			const args = ["--literal-pathspecs", "restore"];
 
 			if (input.source) {
 				args.push(
@@ -2555,7 +2569,12 @@ export class GitRepository {
 			}
 
 			if (input.paths) {
-				args.push("--", ...requireRepositoryPaths(input.paths, "stash"));
+				args.push(
+					"--",
+					...requireRepositoryPaths(input.paths, "stash").map(
+						(path) => `:(literal)${path}`
+					)
+				);
 			}
 
 			await this.run(args, input.signal);
@@ -2589,7 +2608,9 @@ export class GitRepository {
 				"drop-stash"
 			);
 
-			await this.run(["stash", "drop", reference], input.signal);
+			if (input.expectedOid !== undefined)
+				await StashDeletion.run(this.context, input.expectedOid);
+			else await this.run(["stash", "drop", reference], input.signal);
 
 			return await loadStashes(this.context, input.signal);
 		});

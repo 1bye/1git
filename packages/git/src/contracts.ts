@@ -844,6 +844,8 @@ export interface StashReferenceInput extends GitCallOptions {
 
 export interface DropStashInput extends GitCallOptions {
 	readonly reference: string;
+	/** Immutable selection checked under Git's stash lock; unsupported reference backends fail safely. */
+	readonly expectedOid?: string;
 }
 
 export interface CreateWorktreeInput extends GitCallOptions {

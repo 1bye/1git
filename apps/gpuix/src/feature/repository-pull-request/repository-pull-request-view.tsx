@@ -292,6 +292,11 @@ export function RepositoryPullRequestView({
 
 	return (
 		<RepositoryComparison
+			key={JSON.stringify([
+				preview.comparison.root,
+				preview.comparison.incoming,
+				preview.comparison.baseName,
+			])}
 			request={preview.comparison}
 			onClose={onClose}
 			{...comparisonProps}

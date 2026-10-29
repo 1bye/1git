@@ -12,6 +12,12 @@ import type {
 } from "../repository-discovery/repository-discovery";
 import type { MachineDirectory } from "./machine-folders";
 
+type MachineActivity = {
+	changing: boolean;
+	requests: number;
+	generation: number;
+};
+
 /** App-owned machine registry. Metadata, credentials and live SSH processes have separate lifetimes. */
 export class Machines {
 	private static instance?: Machines;
@@ -22,6 +28,7 @@ export class Machines {
 	private saved?: SavedMachine[];
 	private loadError?: Error;
 	private readonly connections = new Map<string, SshConnection>();
+	private readonly activity = new Map<string, MachineActivity>();
 	private readonly states = new Map<
 		string,
 		{ status: MachineStatus; error?: string }
@@ -87,105 +94,166 @@ export class Machines {
 		}
 	}
 
-	async save(machine: SavedMachine, password?: string): Promise<void> {
-		MachineStore.parse([machine]);
-		const previous = this.list();
-		const existing = previous.find((item) => item.id === machine.id);
+	private activityFor(id: string): MachineActivity {
+		let activity = this.activity.get(id);
 
-		const next = MachineStore.parse(
-			existing
-				? previous.map((item) => (item.id === machine.id ? machine : item))
-				: [...previous, machine]
-		);
-
-		if (
-			existing &&
-			(password ||
-				existing.host !== machine.host ||
-				existing.username !== machine.username ||
-				existing.port !== machine.port ||
-				existing.identityFile !== machine.identityFile)
-		)
-			await this.disconnect(machine.id);
-
-		const vault = this.vault;
-		const key = MachineStore.credentialKey(machine.id);
-		const oldSecret = password && vault ? await vault.read(key) : null;
-
-		if (password) {
-			if (!vault) throw new Error("Secure credential storage is unavailable.");
-
-			await vault.write(key, password);
+		if (!activity) {
+			activity = { changing: false, requests: 0, generation: 0 };
+			this.activity.set(id, activity);
 		}
 
-		try {
-			this.store.save(next);
-		} catch (cause) {
-			if (password && vault) {
-				if (oldSecret === null) await vault.delete(key);
-				else await vault.write(key, oldSecret);
-			}
-
-			throw cause;
-		}
-
-		this.saved = next;
-		this.emit();
+		return activity;
 	}
 
-	async remove(id: string): Promise<void> {
-		const next = this.list().filter((machine) => machine.id !== id);
+	private beginChange(id: string, action: string): MachineActivity {
+		const activity = this.activityFor(id);
 
-		if (this.connections.get(id)?.busy)
+		if (activity.changing)
+			throw new Error("This SSH machine is changing. Wait for it to finish.");
+
+		if (activity.requests || this.connections.get(id)?.busy)
 			throw new Error(
-				"Wait for remote operations to finish before removing this machine."
+				`Wait for remote operations to finish before ${action} this machine.`
 			);
 
-		const vault = this.vault;
-		const key = MachineStore.credentialKey(id);
-		const oldSecret = vault ? await vault.read(key) : null;
+		activity.changing = true;
+		activity.generation++;
 
-		await vault?.delete(key);
-
-		try {
-			this.store.save(next);
-		} catch (cause) {
-			if (oldSecret !== null && vault) await vault.write(key, oldSecret);
-
-			throw cause;
-		}
-
-		this.saved = next;
-		await this.disconnect(id);
-		this.emit();
+		return activity;
 	}
 
-	async disconnect(id: string): Promise<void> {
+	private async closeConnection(id: string): Promise<void> {
 		const connection = this.connections.get(id);
 
-		if (connection?.busy)
-			throw new Error(
-				"Wait for remote operations to finish before disconnecting."
-			);
-
-		this.connections.delete(id);
 		await connection?.dispose();
+		this.connections.delete(id);
 		this.states.set(id, { status: "Disconnected" });
 		this.emit();
 	}
 
+	async save(machine: SavedMachine, password?: string): Promise<void> {
+		MachineStore.parse([machine]);
+		const existing = this.list().find((item) => item.id === machine.id);
+
+		const changesConnection =
+			!!password ||
+			(!!existing &&
+				(existing.host !== machine.host ||
+					existing.username !== machine.username ||
+					existing.port !== machine.port ||
+					existing.identityFile !== machine.identityFile));
+
+		const activity = changesConnection
+			? this.beginChange(machine.id, "changing")
+			: undefined;
+
+		if (!activity && this.activityFor(machine.id).changing)
+			throw new Error("This SSH machine is changing. Wait for it to finish.");
+
+		try {
+			if (existing && changesConnection) await this.closeConnection(machine.id);
+
+			const vault = this.vault;
+			const key = MachineStore.credentialKey(machine.id);
+			const oldSecret = password && vault ? await vault.read(key) : null;
+
+			if (password) {
+				if (!vault)
+					throw new Error("Secure credential storage is unavailable.");
+
+				await vault.write(key, password);
+			}
+
+			// Other machines can finish saving while this machine awaits Keychain I/O.
+			const current = this.list();
+
+			const next = MachineStore.parse(
+				current.some((item) => item.id === machine.id)
+					? current.map((item) => (item.id === machine.id ? machine : item))
+					: [...current, machine]
+			);
+
+			try {
+				this.store.save(next);
+			} catch (cause) {
+				if (password && vault) {
+					if (oldSecret === null) await vault.delete(key);
+					else await vault.write(key, oldSecret);
+				}
+
+				throw cause;
+			}
+
+			this.saved = next;
+			this.emit();
+		} finally {
+			if (activity) activity.changing = false;
+		}
+	}
+
+	async remove(id: string): Promise<void> {
+		const activity = this.beginChange(id, "removing");
+
+		try {
+			await this.closeConnection(id);
+			const vault = this.vault;
+			const key = MachineStore.credentialKey(id);
+			const oldSecret = vault ? await vault.read(key) : null;
+
+			await vault?.delete(key);
+			const next = this.list().filter((machine) => machine.id !== id);
+
+			try {
+				this.store.save(next);
+			} catch (cause) {
+				if (oldSecret !== null && vault) await vault.write(key, oldSecret);
+
+				throw cause;
+			}
+
+			this.saved = next;
+			this.emit();
+		} finally {
+			activity.changing = false;
+		}
+	}
+
+	async disconnect(id: string): Promise<void> {
+		const activity = this.beginChange(id, "disconnecting");
+
+		try {
+			await this.closeConnection(id);
+		} finally {
+			activity.changing = false;
+		}
+	}
+
 	async connect(id: string): Promise<SshConnection> {
+		const activity = this.activityFor(id);
+
+		if (activity.changing)
+			throw new Error("This SSH machine is changing. Wait for it to finish.");
+
+		const generation = activity.generation;
+
+		const check = () => {
+			if (activity.generation !== generation)
+				throw new Error("The SSH machine changed while connecting. Try again.");
+		};
+
 		let current = this.connections.get(id);
 
 		if (current && this.state(id).status === "Disconnected") {
 			this.connections.delete(id);
 			await current.dispose();
+			check();
 			// Another caller may have registered a replacement while disposal awaited.
 			current = this.connections.get(id);
 		}
 
 		if (current) {
 			await current.connect();
+			check();
 
 			return current;
 		}
@@ -211,8 +279,33 @@ export class Machines {
 
 		this.connections.set(id, connection);
 		await connection.connect();
+		check();
 
 		return connection;
+	}
+
+	private async withConnection<T>(
+		id: string,
+		signal: AbortSignal | undefined,
+		run: (connection: SshConnection) => Promise<T>
+	): Promise<T> {
+		signal?.throwIfAborted();
+		const activity = this.activityFor(id);
+
+		if (activity.changing)
+			throw new Error("This SSH machine is changing. Wait for it to finish.");
+
+		activity.requests++;
+
+		try {
+			const connection = await this.connect(id);
+
+			signal?.throwIfAborted();
+
+			return await run(connection);
+		} finally {
+			activity.requests--;
+		}
 	}
 
 	async request(
@@ -226,12 +319,15 @@ export class Machines {
 
 		if (!remote) throw new Error("Choose a remote repository.");
 
-		const connection = await this.connect(remote.machineId);
-
-		return await connection.request(
-			{ ...input, path: remote.path },
+		return await this.withConnection(
+			remote.machineId,
 			signal,
-			progress
+			async (connection) =>
+				await connection.request(
+					{ ...input, path: remote.path },
+					signal,
+					progress
+				)
 		);
 	}
 
@@ -315,7 +411,7 @@ export class Machines {
 		report: (progress: RepositoryDiscoveryProgress) => void,
 		options?: RepositoryDiscoveryScanOptions
 	): Promise<RepositoryDiscoveryProgress> {
-		const connection = await this.connect(id);
+		signal.throwIfAborted();
 
 		const roots = folders.map((folder) => {
 			const location = MachineLocation.parse(folder);
@@ -347,25 +443,27 @@ export class Machines {
 			};
 		};
 
-		return parse(
-			await connection.request(
-				{
-					operation: "scan",
-					folders: roots,
-					...(options?.shallow
-						? {
-								shallow: true,
-								query: options.query,
-								knownPaths: (options.knownPaths ?? []).flatMap((path) => {
-									const location = MachineLocation.parse(path);
+		return await this.withConnection(id, signal, async (connection) =>
+			parse(
+				await connection.request(
+					{
+						operation: "scan",
+						folders: roots,
+						...(options?.shallow
+							? {
+									shallow: true,
+									query: options.query,
+									knownPaths: (options.knownPaths ?? []).flatMap((path) => {
+										const location = MachineLocation.parse(path);
 
-									return location?.machineId === id ? [location.path] : [];
-								}),
-							}
-						: {}),
-				},
-				signal,
-				(value) => report(parse(value))
+										return location?.machineId === id ? [location.path] : [];
+									}),
+								}
+							: {}),
+					},
+					signal,
+					(value) => report(parse(value))
+				)
 			)
 		);
 	}
@@ -398,6 +496,8 @@ export class Machines {
 	}
 
 	async dispose(): Promise<void> {
+		for (const activity of this.activity.values()) activity.generation++;
+
 		const connections = [...this.connections.values()];
 
 		this.connections.clear();

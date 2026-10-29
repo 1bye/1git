@@ -45,6 +45,7 @@ import { RepositoryReader } from "../../src/feature/repository-workspace/lib/rep
 import { RepositoryCommit } from "../../src/feature/repository-workspace/lib/repository-commit";
 import { RepositoryDiff } from "../../src/feature/repository-workspace/lib/repository-diff";
 import { RepositoryConflicts } from "../../src/feature/repository-workspace/lib/repository-conflicts";
+import { RepositoryStashes } from "../../src/feature/repository-workspace/lib/repository-stashes";
 import { RepositorySetup } from "../../src/feature/repository-workspace/lib/repository-setup";
 import { RepositoryWorktrees } from "../../src/feature/workspace-tabs/lib/repository-worktrees";
 
@@ -193,6 +194,58 @@ afterEach(async () => {
 	child?.stdin.end();
 	child?.kill();
 	await rm(directory, { recursive: true, force: true });
+});
+
+it("deletes only the reviewed remote stash through the helper, including the final entry", async () => {
+	const git = async (...args: string[]) =>
+		(
+			await execute("git", ["-C", directory, ...args], {
+				env: {
+					...process.env,
+					GIT_CONFIG_GLOBAL: "/dev/null",
+					GIT_CONFIG_NOSYSTEM: "1",
+				},
+			})
+		).stdout.trimEnd();
+
+	const identity = {
+		expectedHead: await git("rev-parse", "HEAD"),
+		expectedBranch: "main",
+	};
+
+	await git("stash", "push", "-u", "-m", "First");
+	const first = await git("rev-parse", "refs/stash");
+
+	await writeFile(
+		join(directory, "file with spaces.txt"),
+		"Second saved version\n"
+	);
+	await git("stash", "push", "-m", "Second");
+	const second = await git("rev-parse", "refs/stash");
+
+	const removed = await RepositoryStashes.write(location, {
+		kind: "delete",
+		oid: first,
+		...identity,
+	});
+
+	if (!removed.ok) throw new Error(removed.error.message);
+
+	expect(await git("stash", "list", "--format=%H")).toBe(second);
+	expect(await git("stash", "show", "-p", "stash@{0}")).toContain(
+		"+Second saved version"
+	);
+	const last = await RepositoryStashes.write(location, {
+		kind: "delete",
+		oid: second,
+		...identity,
+	});
+
+	if (!last.ok) throw new Error(last.error.message);
+
+	expect(await git("stash", "list")).toBe("");
+	expect(await git("rev-parse", "HEAD")).toBe(identity.expectedHead);
+	expect(await git("status", "--porcelain")).toBe("");
 });
 
 it("resolves through the real helper without following a symlink swapped at the final write", async () => {
