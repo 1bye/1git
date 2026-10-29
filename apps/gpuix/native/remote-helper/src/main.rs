@@ -138,7 +138,9 @@ fn install_directory(v: &Value) -> Result<Value> {
             }
             #[cfg(target_os = "linux")]
             {
-                libc::renameat2(
+                // Rust's bundled musl may omit the libc wrapper; call the same kernel operation directly.
+                libc::syscall(
+                    libc::SYS_renameat2,
                     libc::AT_FDCWD,
                     from.as_ptr(),
                     destination.as_raw_fd(),
