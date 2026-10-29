@@ -100,7 +100,7 @@ impl Recovery {
                 let parent = crate::platform::open_directory_no_follow(
                     path.parent().ok_or(RepositoryError::InvalidPath)?,
                 )?;
-                let directory = crate::platform::open_directory_no_follow(&path)?;
+                let directory = crate::platform::open_private_directory(&path)?;
 
                 let _ = temporary.keep();
 

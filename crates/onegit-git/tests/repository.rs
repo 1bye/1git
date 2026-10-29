@@ -238,9 +238,7 @@ fn detects_shallow_history_using_only_a_local_file_remote() {
     fixture.commit("second");
 
     let shallow = fixture.temporary.path().join("shallow");
-    let mut file_url = OsString::from("file://");
-
-    file_url.push(fs::canonicalize(&fixture.root).unwrap().as_os_str());
+    let file_url = OsString::from(common::file_url(&fs::canonicalize(&fixture.root).unwrap()));
     fixture.git_os([
         "-c".into(),
         "protocol.file.allow=always".into(),

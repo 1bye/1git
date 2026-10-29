@@ -267,7 +267,13 @@ fn handles_all_and_selected_unstaging_on_unborn_and_committed_branches() {
 #[test]
 fn treats_magic_globs_options_unicode_and_control_characters_as_literal_paths() {
     let fixture = Fixture::new();
-    let names = ["*", "[abc]", ":(glob)other*", "-option", "é\t\nfile"];
+    let names = [
+        common::filename("*", "[literal]"),
+        "[abc]",
+        common::filename(":(glob)other*", "(glob)other[1]"),
+        "-option",
+        common::filename("é\t\nfile", "é [literal] file"),
+    ];
 
     for name in names {
         fixture.write(name, "literal\n");
@@ -276,10 +282,15 @@ fn treats_magic_globs_options_unicode_and_control_characters_as_literal_paths() 
     fixture.write("other-unselected", "keep unstaged\n");
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
 
-    repository.stage(&["*".try_into().unwrap()], None).unwrap();
+    repository
+        .stage(
+            &[common::filename("*", "[literal]").try_into().unwrap()],
+            None,
+        )
+        .unwrap();
     assert_eq!(
         staged(&repository),
-        BTreeSet::from(["*".try_into().unwrap()])
+        BTreeSet::from([common::filename("*", "[literal]").try_into().unwrap()])
     );
     let paths: Vec<_> = names.iter().map(common::git_path).collect();
 
@@ -371,7 +382,7 @@ fn pins_process_cwd_and_rejects_a_replaced_repository_before_writing() {
 
     fixture.write("original", "original\n");
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
-    let directory = fs::File::open(&fixture.root).unwrap();
+    let directory = common::open_directory(&fixture.root);
     let moved = fixture.temporary.path().join("moved");
 
     fs::rename(&fixture.root, &moved).unwrap();

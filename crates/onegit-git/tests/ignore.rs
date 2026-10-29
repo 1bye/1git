@@ -117,7 +117,7 @@ fn public_suggestions_and_patterns_match_all_actual_typescript_cases() {
 
         assert_eq!(
             actual.is_err(),
-            case["rejected"].as_bool().unwrap(),
+            case["rejected"].as_bool().unwrap() || cfg!(windows) && path.contains('\\'),
             "{case}"
         );
 
@@ -189,7 +189,7 @@ fn public_append_matches_frozen_source_bytes_and_keeps_mode_and_index() {
 #[test]
 fn literal_rule_ignores_only_the_exact_path_and_keeps_all_working_bytes() {
     let fixture = Fixture::new();
-    let path = "src/#file[1]*?!\\ .tsx ";
+    let path = common::filename("src/#file[1]*?!\\ .tsx ", "src/#file[1]! été.tsx");
 
     fs::create_dir(fixture.root.join("src")).unwrap();
     fixture.write(path, "keep\n");

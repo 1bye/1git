@@ -14,13 +14,17 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 fn large_file(path: &Path) -> [u8; 32] {
+    #[cfg(unix)]
     let mut random = File::open("/dev/urandom").unwrap();
     let mut file = File::create(path).unwrap();
     let mut buffer = [0; 65536];
     let mut hash = Sha256::new();
 
     for _ in 0..(54 * 1024 * 1024 / buffer.len()) {
+        #[cfg(unix)]
         random.read_exact(&mut buffer).unwrap();
+        #[cfg(windows)]
+        common::random_bytes(&mut buffer);
         file.write_all(&buffer).unwrap();
         hash.update(buffer);
     }
@@ -197,11 +201,39 @@ fn discards_and_recovers_all_1148_bundle_files_links_and_empty_files_without_ind
     let refs = common::files_under(&fixture.root.join(".git/refs"));
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
 
+    if cfg!(windows) {
+        let error = repository
+            .discard_files(&request(&fixture, &repository, paths.clone()), None)
+            .unwrap_err();
+        assert_eq!(error.phase, onegit_git::WritePhase::BeforeCommand);
+        assert!(error.recovery.is_none());
+        assert_eq!(
+            fs::read(fixture.root.join(&binary)).unwrap(),
+            [0, 1, 255, 18]
+        );
+        paths.retain(|path| {
+            path.as_bytes() != current.as_bytes() && path.as_bytes() != link.as_bytes()
+        });
+        assert_eq!(paths.len(), 1146);
+    }
+
     let result = repository
         .discard_files(&request(&fixture, &repository, paths), None)
         .unwrap();
 
-    assert!(result.snapshot.status.files.is_empty());
+    if cfg!(windows) {
+        assert!(
+            result
+                .snapshot
+                .status
+                .files
+                .iter()
+                .all(|change| change.path.as_bytes() == current.as_bytes()
+                    || change.path.as_bytes() == link.as_bytes())
+        );
+    } else {
+        assert!(result.snapshot.status.files.is_empty());
+    }
     assert_eq!(fs::read(fixture.root.join(".git/index")).unwrap(), index);
     fixture.git_os([
         "apply".into(),

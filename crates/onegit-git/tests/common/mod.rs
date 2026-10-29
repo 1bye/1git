@@ -72,14 +72,21 @@ impl Fixture {
 
     pub fn git(&self, args: &[&str]) -> Vec<u8> {
         self.process()
-            .run(GitCommand::new(&self.root, args.iter().copied()))
+            .run(GitCommand::new(
+                &self.root,
+                args.iter()
+                    .map(|arg| git_native_argument(OsString::from(arg))),
+            ))
             .unwrap()
             .stdout
     }
 
     pub fn git_os(&self, args: impl IntoIterator<Item = OsString>) {
         self.process()
-            .run(GitCommand::new(&self.root, args))
+            .run(GitCommand::new(
+                &self.root,
+                args.into_iter().map(git_native_argument),
+            ))
             .unwrap();
     }
 
@@ -132,4 +139,34 @@ pub use windows::*;
 /// Construct a validated Git name for fixtures, without native-path interpretation.
 pub fn git_path(value: impl AsRef<[u8]>) -> onegit_git::GitPath {
     onegit_git::GitPath::new(value).expect("fixture uses a valid Git path")
+}
+
+/// Keep Unix's hostile names; use literal bracket/Unicode names supported by Windows.
+pub fn filename<'a>(unix: &'a str, windows: &'a str) -> &'a str {
+    if cfg!(windows) { windows } else { unix }
+}
+
+pub fn file_url(path: &Path) -> String {
+    url::Url::from_directory_path(path)
+        .expect("absolute fixture directory URL")
+        .into()
+}
+
+#[cfg(unix)]
+pub fn open_directory(path: &Path) -> fs::File {
+    fs::File::open(path).unwrap()
+}
+
+fn git_native_argument(argument: OsString) -> OsString {
+    if cfg!(windows)
+        && let Some(text) = argument.to_str()
+    {
+        if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+            return format!("//{unc}").replace('\\', "/").into();
+        }
+        if let Some(dos) = text.strip_prefix(r"\\?\") {
+            return dos.replace('\\', "/").into();
+        }
+    }
+    argument
 }

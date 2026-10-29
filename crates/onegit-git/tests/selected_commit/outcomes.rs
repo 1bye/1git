@@ -259,7 +259,7 @@ fn selected_and_amended_commits_have_valid_signatures_from_an_ephemeral_fixture_
     let key = fixture.temporary.path().join("fixture-signing-key");
 
     execute_tool(ToolCommand::new(
-        std::path::Path::new("/usr/bin/ssh-keygen"),
+        std::path::Path::new("ssh-keygen"),
         fixture.temporary.path(),
         [
             "-q".into(),

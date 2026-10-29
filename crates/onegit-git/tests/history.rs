@@ -133,7 +133,7 @@ fn preserves_control_separators_in_messages_and_unsimplified_merge_parents() {
 #[test]
 fn follows_renames_across_pages_without_treating_path_contents_as_record_headers() {
     let fixture = Fixture::new();
-    let old = "old\nfile";
+    let old = common::filename("old\nfile", "old été file");
     let current = "a".repeat(40);
 
     fixture.write(old, "first\n");
@@ -188,13 +188,13 @@ fn follows_renames_across_pages_without_treating_path_contents_as_record_headers
 fn reads_root_and_renamed_file_identities_and_uses_literal_history_filters() {
     let fixture = Fixture::new();
 
-    fixture.write("literal*", "initial\n");
+    fixture.write(common::filename("literal*", "literal[1]"), "initial\n");
     fixture.commit("literal");
     fixture.write("literal-other", "other\n");
     fixture.commit("other");
 
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
-    let paths = [common::git_path("literal*")];
+    let paths = [common::git_path(common::filename("literal*", "literal[1]"))];
 
     let history = repository
         .history(
@@ -216,8 +216,8 @@ fn reads_root_and_renamed_file_identities_and_uses_literal_history_filters() {
     fixture.git_os([
         "mv".into(),
         "--".into(),
-        "literal*".into(),
-        "renamed\t\nfile".into(),
+        common::filename("literal*", "literal[1]").into(),
+        common::filename("renamed\t\nfile", "renamed [literal] file").into(),
     ]);
     fixture.commit("rename");
 
@@ -226,9 +226,18 @@ fn reads_root_and_renamed_file_identities_and_uses_literal_history_filters() {
     assert_eq!(files[0].status, FileStatus::Renamed);
     assert_eq!(
         files[0].original_path.as_ref(),
-        Some(&common::git_path("literal*"))
+        Some(&common::git_path(common::filename(
+            "literal*",
+            "literal[1]"
+        )))
     );
-    assert_eq!(files[0].path, common::git_path("renamed\t\nfile"));
+    assert_eq!(
+        files[0].path,
+        common::git_path(common::filename(
+            "renamed\t\nfile",
+            "renamed [literal] file"
+        ))
+    );
     assert_eq!(files[0].before_oid, files[0].after_oid);
 }
 

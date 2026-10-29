@@ -642,7 +642,10 @@ fn reviewed_integrations_preserve_ignored_destination_collisions() {
         IntegrationKind::SquashMerge,
         IntegrationKind::Rebase,
     ] {
-        for name in ["collision", "collision\nété [literal]"] {
+        for name in [
+            "collision",
+            common::filename("collision\nété [literal]", "collision été [literal]"),
+        ] {
             let (fixture, repository) = fixture();
 
             fixture.write(".gitignore", "collision*\n");

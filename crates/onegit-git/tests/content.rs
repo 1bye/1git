@@ -62,7 +62,7 @@ fn reads_exact_utf8_bom_binary_and_empty_working_files() {
 
     for (name, bytes, binary) in [
         ("bom", b"\xef\xbb\xbfhello\r\n".as_slice(), false),
-        ("nul", b"hello\0world", false),
+        ("nul-bytes", b"hello\0world", false),
         ("binary", b"\xff\0\xfe", true),
         ("empty", b"", false),
     ] {
@@ -83,8 +83,15 @@ fn reads_exact_utf8_bom_binary_and_empty_working_files() {
 fn revision_and_object_previews_resolve_immutable_blobs_with_exact_path_labels() {
     let fixture = Fixture::new();
 
-    fixture.write("file\t\n*", "committed\n");
-    fixture.git_os(["add".into(), "--".into(), "file\t\n*".into()]);
+    fixture.write(
+        common::filename("file\t\n*", "file [literal] été"),
+        "committed\n",
+    );
+    fixture.git_os([
+        "add".into(),
+        "--".into(),
+        common::filename("file\t\n*", "file [literal] été").into(),
+    ]);
     fixture.git(&["commit", "-m", "initial"]);
 
     let repository = Repository::open(&fixture.root, fixture.process(), None).unwrap();
@@ -93,13 +100,16 @@ fn revision_and_object_previews_resolve_immutable_blobs_with_exact_path_labels()
     let committed = repository
         .file_content(
             FileSource::Revision("HEAD"),
-            &common::git_path("file\t\n*"),
+            &common::git_path(common::filename("file\t\n*", "file [literal] été")),
             None,
         )
         .unwrap();
 
     assert_eq!(files_under(&fixture.root), before_committed);
-    fixture.write("file\t\n*", "working\n");
+    fixture.write(
+        common::filename("file\t\n*", "file [literal] été"),
+        "working\n",
+    );
 
     let before = files_under(&fixture.root);
 
@@ -112,7 +122,11 @@ fn revision_and_object_previews_resolve_immutable_blobs_with_exact_path_labels()
         .unwrap();
 
     let current = repository
-        .file_content(FileSource::Working, &common::git_path("file\t\n*"), None)
+        .file_content(
+            FileSource::Working,
+            &common::git_path(common::filename("file\t\n*", "file [literal] été")),
+            None,
+        )
         .unwrap();
 
     assert_eq!(object.content.as_bytes(), b"committed\n");

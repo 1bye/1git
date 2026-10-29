@@ -239,7 +239,13 @@ impl Repository {
             cancellation,
         )?;
 
-        parse_branches(&output.stdout)
+        let mut collection = parse_branches(&output.stdout)?;
+        for branch in &mut collection.branches {
+            if let Some(path) = &mut branch.worktree_path {
+                *path = crate::platform::normalize_git_location(path)?;
+            }
+        }
+        Ok(collection)
     }
 
     /// List local tags in creator-date order.
@@ -291,7 +297,11 @@ impl Repository {
     ) -> Result<Vec<Worktree>, RepositoryError> {
         let output = self.run(["worktree", "list", "--porcelain", "-z"], cancellation)?;
 
-        parse_worktrees(&output.stdout)
+        let mut worktrees = parse_worktrees(&output.stdout)?;
+        for worktree in &mut worktrees {
+            worktree.path = crate::platform::normalize_git_location(&worktree.path)?;
+        }
+        Ok(worktrees)
     }
 
     /// Read configured remotes/default branches/URLs without network traffic.

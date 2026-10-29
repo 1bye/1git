@@ -49,7 +49,7 @@ fn create(repository: &Repository, path: &Path, branch: &str) {
 fn creates_named_existing_detached_tracking_and_locked_worktrees_without_switching_source() {
     let (fixture, repository) = fixture();
     let index = fs::read(fixture.root.join(".git/index")).unwrap();
-    let named = path(&fixture, "named été\n");
+    let named = path(&fixture, common::filename("named été\n", "named été"));
 
     create(&repository, &named, "feature/named");
     fixture.git(&["branch", "existing"]);
@@ -107,7 +107,10 @@ fn creates_named_existing_detached_tracking_and_locked_worktrees_without_switchi
         .create_worktree(
             CreateWorktree {
                 new_branch: Some("locked"),
-                lock_reason: Some("external drive\nété"),
+                lock_reason: Some(common::filename(
+                    "external drive\nété",
+                    "external drive été",
+                )),
                 ..CreateWorktree::new(&locked)
             },
             None,
@@ -143,7 +146,13 @@ fn creates_named_existing_detached_tracking_and_locked_worktrees_without_switchi
     let lock = result.iter().find(|item| item.path == locked).unwrap();
 
     assert!(lock.locked);
-    assert_eq!(lock.lock_reason.as_deref(), Some("external drive\nété"));
+    assert_eq!(
+        lock.lock_reason.as_deref(),
+        Some(common::filename(
+            "external drive\nété",
+            "external drive été"
+        ))
+    );
     assert_eq!(
         fixture.git(&["rev-parse", "--abbrev-ref", "topic@{upstream}"]),
         b"origin/topic\n"
@@ -410,14 +419,16 @@ fn result_read_failure_keeps_the_created_worktree_without_automatic_replay_or_cl
 #[test]
 fn relative_literal_paths_resolve_from_process_directory_without_shell_interpretation() {
     let (fixture, repository) = fixture();
-    let target = path(&fixture, "relative; literal $(echo no)\n--");
-    let mut relative = PathBuf::new();
-
-    for _ in std::env::current_dir().unwrap().components().skip(1) {
-        relative.push("..");
-    }
-
-    relative.push(target.strip_prefix("/").unwrap());
+    let parent = tempfile::Builder::new()
+        .prefix("onegit-relative-")
+        .tempdir_in(std::env::current_dir().unwrap())
+        .unwrap();
+    let name = common::filename(
+        "relative; literal $(echo no)\n--",
+        "relative; literal $(echo no) --",
+    );
+    let target = fs::canonicalize(parent.path()).unwrap().join(name);
+    let relative = PathBuf::from(parent.path().file_name().unwrap()).join(name);
     let result = repository
         .create_worktree(
             CreateWorktree {

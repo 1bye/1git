@@ -36,6 +36,14 @@ pub(crate) fn sync_directory(file: &File) -> io::Result<()> {
     file.sync_all()
 }
 
+pub(crate) fn normalize_git_location(path: &Path) -> io::Result<PathBuf> {
+    Ok(path.to_owned())
+}
+
+pub(crate) fn open_private_directory(path: &Path) -> io::Result<File> {
+    open_directory_no_follow(path)
+}
+
 pub(crate) fn git_native_path(path: &Path) -> io::Result<OsString> {
     Ok(path.as_os_str().to_owned())
 }

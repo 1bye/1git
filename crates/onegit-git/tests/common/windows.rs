@@ -23,3 +23,32 @@ pub fn exit_status(code: i32) -> std::process::ExitStatus {
     use std::os::windows::process::ExitStatusExt;
     std::process::ExitStatus::from_raw(code as u32)
 }
+
+pub fn open_directory(path: &Path) -> std::fs::File {
+    use std::os::windows::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)
+        .unwrap()
+}
+
+pub fn remove_directory_link(path: &Path) {
+    std::fs::remove_dir(path).unwrap();
+}
+
+pub fn random_bytes(bytes: &mut [u8]) {
+    use windows_sys::Win32::Security::Cryptography::{
+        BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
+    };
+    // SAFETY: the system RNG writes the stated length into this live mutable slice.
+    let status = unsafe {
+        BCryptGenRandom(
+            std::ptr::null_mut(),
+            bytes.as_mut_ptr(),
+            bytes.len().try_into().unwrap(),
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        )
+    };
+    assert_eq!(status, 0);
+}

@@ -9,3 +9,7 @@ pub fn exit_status(code: i32) -> std::process::ExitStatus {
     use std::os::unix::process::ExitStatusExt;
     std::process::ExitStatus::from_raw(code << 8)
 }
+
+pub fn remove_directory_link(path: &std::path::Path) {
+    std::fs::remove_file(path).unwrap();
+}

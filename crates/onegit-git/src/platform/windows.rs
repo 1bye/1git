@@ -45,7 +45,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_GENERIC_WRITE, FILE_ID_INFO, FILE_INFO_BY_HANDLE_CLASS, FILE_READ_ATTRIBUTES,
     FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_STANDARD_INFO, FileAttributeTagInfo,
     FileBasicInfo, FileIdInfo, FileStandardInfo, GetFileInformationByHandleEx,
-    GetFinalPathNameByHandleW, READ_CONTROL, ReOpenFile, SYNCHRONIZE, VOLUME_NAME_NONE, WRITE_DAC,
+    GetFinalPathNameByHandleW, ReOpenFile, SYNCHRONIZE, VOLUME_NAME_NONE, WRITE_DAC,
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
@@ -66,6 +66,42 @@ use super::{Access, FileState, PathEncodingError, Signal, windows_policy};
 pub(crate) fn native_path_from_git_bytes(bytes: &[u8]) -> Result<PathBuf, PathEncodingError> {
     let text = std::str::from_utf8(bytes).map_err(|_| PathEncodingError::UNREPRESENTABLE)?;
     Ok(PathBuf::from(windows_policy::native_git_path(text)?))
+}
+
+pub(crate) fn normalize_git_location(path: &Path) -> io::Result<PathBuf> {
+    let mut current = path;
+    let mut missing = Vec::new();
+    loop {
+        match std::fs::canonicalize(current) {
+            Ok(mut normalized) => {
+                for component in missing.into_iter().rev() {
+                    normalized.push(component);
+                }
+                return Ok(normalized);
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let Some(name) = current.file_name() else {
+                    return Err(error);
+                };
+                missing.push(name.to_owned());
+                let Some(parent) = current.parent() else {
+                    return Err(error);
+                };
+                current = parent;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+pub(crate) fn open_private_directory(path: &Path) -> io::Result<File> {
+    validate_filesystem_path(path)?;
+    let rights = FILE_GENERIC_READ | FILE_GENERIC_WRITE | WRITE_DAC;
+    let file = OpenOptions::new()
+        .access_mode(rights)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)?;
+    prepare_file(file, rights, true)
 }
 
 pub(crate) fn git_native_path(path: &Path) -> io::Result<OsString> {
@@ -428,12 +464,15 @@ fn open_entry(parent: &File, name: &OsStr, access: Access, directory: bool) -> i
             .map_or(null_mut(), |security| security.0.cast()),
         SecurityQualityOfService: null_mut(),
     };
-    let rights = match access {
+    let mut rights = match access {
         Access::Read | Access::Directory => FILE_GENERIC_READ,
         Access::Inspect => FILE_READ_ATTRIBUTES,
         Access::ReadWrite | Access::CreatePrivate => FILE_GENERIC_READ | FILE_GENERIC_WRITE,
         Access::Append { .. } => FILE_GENERIC_READ | FILE_APPEND_DATA,
     };
+    if directory && matches!(access, Access::CreatePrivate) {
+        rights |= WRITE_DAC;
+    }
     let disposition = match access {
         Access::CreatePrivate | Access::Append { create: true } => FILE_CREATE,
         _ => FILE_OPEN,
@@ -548,20 +587,10 @@ pub(crate) fn make_private_directory(directory: &File) -> io::Result<()> {
     let security = PrivateSecurity::new()?;
     let dacl = security.dacl()?;
 
-    // SAFETY: directory is live; ReOpenFile preserves object identity while requesting DACL access.
-    let handle = owned_handle(unsafe {
-        ReOpenFile(
-            directory.as_raw_handle(),
-            READ_CONTROL | WRITE_DAC,
-            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-            FILE_FLAG_BACKUP_SEMANTICS,
-        )
-    })
-    .map_err(|error| security_error("Reopen recovery directory for DACL access", error))?;
-    // SAFETY: the reopened handle has WRITE_DAC; dacl belongs to the live descriptor.
+    // SAFETY: private directory handles explicitly request WRITE_DAC at their initial open.
     let result = unsafe {
         SetSecurityInfo(
-            handle.as_raw_handle(),
+            directory.as_raw_handle(),
             SE_FILE_OBJECT,
             DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
             null_mut(),
@@ -1113,6 +1142,7 @@ mod tests {
         let directory = create_private_directory(&parent, "private".as_ref()).unwrap();
         let file = open_component(&directory, "file".as_ref(), Access::CreatePrivate).unwrap();
 
+        make_private_directory(&directory).unwrap();
         assert!(is_private_directory(&directory).unwrap());
         assert!(is_private_directory(&file).unwrap());
         assert!(make_private_file(&file).is_ok());
@@ -1138,6 +1168,18 @@ mod tests {
             }
             _ => {}
         }
+    }
+
+    #[test]
+    fn registered_locations_match_native_identity_even_for_missing_worktrees() {
+        let temporary = tempfile::tempdir().unwrap();
+        let canonical = std::fs::canonicalize(temporary.path()).unwrap();
+        let git = git_native_path(&canonical).unwrap();
+        assert_eq!(normalize_git_location(Path::new(&git)).unwrap(), canonical);
+        assert_eq!(
+            normalize_git_location(&Path::new(&git).join("missing/child")).unwrap(),
+            canonical.join("missing/child")
+        );
     }
 
     #[test]

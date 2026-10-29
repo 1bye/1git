@@ -9,7 +9,14 @@ use super::{BranchKind, TagKind, parse_branches, parse_stashes, parse_tags, pars
 
 #[test]
 fn matches_all_frozen_legacy_reference_parsers() {
-    let reference: Value = serde_json::from_str(include_str!("refs-reference.json")).unwrap();
+    let reference: Value = serde_json::from_str(&if cfg!(windows) {
+        include_str!("refs-reference.json")
+            .replace("/repo", "C:/repo")
+            .replace("/tmp", "C:/tmp")
+    } else {
+        include_str!("refs-reference.json").to_owned()
+    })
+    .unwrap();
 
     for case in reference["cases"].as_array().unwrap() {
         let bytes = case["input"].as_str().unwrap().as_bytes();
@@ -60,7 +67,11 @@ fn preserves_newlines_inside_native_ref_fields_and_rejects_truncation() {
         "",
         "",
         "Subject",
-        "/repo\nwith newline",
+        if cfg!(windows) {
+            "C:/repo\nwith newline"
+        } else {
+            "/repo\nwith newline"
+        },
         "",
         "",
     ];
@@ -74,7 +85,11 @@ fn preserves_newlines_inside_native_ref_fields_and_rejects_truncation() {
             .as_ref()
             .unwrap()
             .to_str(),
-        Some("/repo\nwith newline")
+        Some(if cfg!(windows) {
+            "C:/repo\nwith newline"
+        } else {
+            "/repo\nwith newline"
+        })
     );
     assert!(parse_branches(b"refs/heads/main\0main\n").is_err());
     assert!(parse_tags(b"v1\0").is_err());

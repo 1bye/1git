@@ -5,15 +5,17 @@
 
 mod common;
 
+#[cfg(unix)]
 use base64::Engine;
+#[cfg(unix)]
 use base64::engine::general_purpose::STANDARD;
 use common::Fixture;
 
 use onegit_git::{
-    BranchIdentity, DiscardFiles, DiscardRecovery, GitCommand, GitError, Repository, WritePhase,
+    BranchIdentity, DiscardFiles, DiscardRecovery, GitCommand, Repository, WritePhase,
 };
 #[cfg(unix)]
-use onegit_git::{Cancellation, GitProcess, RepositoryCoordinator, RepositoryError};
+use onegit_git::{Cancellation, GitError, GitProcess, RepositoryCoordinator, RepositoryError};
 
 #[cfg(unix)]
 use common::PermissionsExt;
@@ -89,6 +91,7 @@ fn wait_file(path: &Path) {
     }
 }
 
+#[cfg(unix)]
 fn captured_paths(fixture: &Fixture, paths: &[String]) -> serde_json::Value {
     let values: Vec<_> = paths.iter().map(|path| {
         let absolute = fixture.root.join(path);
@@ -114,6 +117,7 @@ fn captured_paths(fixture: &Fixture, paths: &[String]) -> serde_json::Value {
     serde_json::json!(values)
 }
 
+#[cfg(unix)]
 #[test]
 fn exact_recovery_patches_instructions_and_transitions_match_the_actual_source() {
     let reference: serde_json::Value =
@@ -383,6 +387,7 @@ fn backups_survive_reopen_and_recover_manually_with_separate_staging() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn restores_tracked_and_untracked_links_themselves_without_reading_targets() {
     let (fixture, repository) = setup();
@@ -443,22 +448,25 @@ fn restores_tracked_and_untracked_links_themselves_without_reading_targets() {
 
 #[test]
 fn restores_deleted_links_when_parents_are_missing_and_handles_unborn_head() {
-    let (fixture, repository) = setup();
+    #[cfg(unix)]
+    {
+        let (fixture, repository) = setup();
 
-    fs::create_dir(fixture.root.join("nested")).unwrap();
-    symlink("../selected.txt", fixture.root.join("nested/link")).unwrap();
-    fixture.commit("Nested link");
-    fs::remove_dir_all(fixture.root.join("nested")).unwrap();
-    let result = repository
-        .discard_files(&review(&fixture, &repository, &["nested/link"]), None)
-        .unwrap();
+        fs::create_dir(fixture.root.join("nested")).unwrap();
+        symlink("../selected.txt", fixture.root.join("nested/link")).unwrap();
+        fixture.commit("Nested link");
+        fs::remove_dir_all(fixture.root.join("nested")).unwrap();
+        let result = repository
+            .discard_files(&review(&fixture, &repository, &["nested/link"]), None)
+            .unwrap();
 
-    assert_eq!(
-        fs::read_link(fixture.root.join("nested/link")).unwrap(),
-        Path::new("../selected.txt")
-    );
-    repository.undo_discard(&result.undo.token, None).unwrap();
-    assert!(fs::symlink_metadata(fixture.root.join("nested/link")).is_err());
+        assert_eq!(
+            fs::read_link(fixture.root.join("nested/link")).unwrap(),
+            Path::new("../selected.txt")
+        );
+        repository.undo_discard(&result.undo.token, None).unwrap();
+        assert!(fs::symlink_metadata(fixture.root.join("nested/link")).is_err());
+    }
     let unborn = Fixture::new();
 
     unborn.write("new.txt", "staged\n");
@@ -559,7 +567,7 @@ fn rejects_parent_links_and_non_regular_leaves_without_touching_outside_data() {
         fs::read(fixture.root.join("selected.txt")).unwrap(),
         b"keep\n"
     );
-    fs::remove_file(fixture.root.join("nested")).unwrap();
+    common::remove_directory_link(&fixture.root.join("nested"));
     fs::create_dir(fixture.root.join("selected.txt.directory")).unwrap();
     fs::rename(
         fixture.root.join("selected.txt"),
@@ -1191,6 +1199,17 @@ fn lower_requests_preserve_rename_and_type_change_undo_semantics() {
             recovery: None,
         };
 
+        if cfg!(windows) && kind == "type-change" {
+            let error = repository.discard_files(&request, None).unwrap_err();
+            assert_eq!(error.phase, WritePhase::BeforeCommand);
+            assert!(error.recovery.is_none());
+            assert_eq!(
+                fs::read_link(fixture.root.join("selected.txt")).unwrap(),
+                Path::new("missing-target")
+            );
+            continue;
+        }
+
         let result = repository.discard_files(&request, None).unwrap();
 
         assert_eq!(
@@ -1343,4 +1362,25 @@ fn discarding_a_hardlinked_working_file_never_changes_the_other_link() {
         b"working\n"
     );
     assert_eq!(fs::read(outside).unwrap(), b"working\n");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_discard_refuses_final_symlinks_without_reading_or_changing_targets() {
+    let (fixture, repository) = setup();
+    let outside = fixture.temporary.path().join("outside");
+    fs::write(&outside, b"private target bytes").unwrap();
+    symlink(&outside, fixture.root.join("external")).unwrap();
+    let before = common::files_under(&fixture.root);
+    let error = repository
+        .discard_files(&review(&fixture, &repository, &["external"]), None)
+        .unwrap_err();
+    assert_eq!(error.phase, WritePhase::BeforeCommand);
+    assert!(error.recovery.is_none());
+    assert_eq!(fs::read(&outside).unwrap(), b"private target bytes");
+    assert_eq!(
+        fs::read_link(fixture.root.join("external")).unwrap(),
+        outside
+    );
+    assert_eq!(common::files_under(&fixture.root), before);
 }

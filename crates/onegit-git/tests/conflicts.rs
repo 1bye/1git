@@ -219,11 +219,14 @@ fn whole_file_sides_preserve_unrelated_index_working_bytes_and_operation_identit
 
 #[test]
 fn manual_resolution_stages_one_literal_unicode_newline_pattern_path_without_continuing() {
-    let path = "conflict[1] été\n.txt";
+    let path = common::filename("conflict[1] été\n.txt", "conflict[1] été.txt");
     let (fixture, repository) = paused(path);
 
     fixture.write(path, "reviewed resolution\n");
-    fixture.write("conflict1 été\n.txt", "unrelated\n");
+    fixture.write(
+        common::filename("conflict1 été\n.txt", "conflict1 été.txt"),
+        "unrelated\n",
+    );
     let request = request(&repository, path, None);
 
     let result = repository.resolve_conflict(&request, None).unwrap();
@@ -237,12 +240,20 @@ fn manual_resolution_stages_one_literal_unicode_newline_pattern_path_without_con
             .process()
             .run(GitCommand::new(
                 &fixture.root,
-                ["show", ":conflict1 été\n.txt"]
+                [
+                    "show",
+                    common::filename(":conflict1 été\n.txt", ":conflict1 été.txt")
+                ]
             ))
             .is_err()
     );
     assert_eq!(
-        fs::read(fixture.root.join("conflict1 été\n.txt")).unwrap(),
+        fs::read(
+            fixture
+                .root
+                .join(common::filename("conflict1 été\n.txt", "conflict1 été.txt"))
+        )
+        .unwrap(),
         b"unrelated\n"
     );
     assert_eq!(result.operation, OperationState::Merge);

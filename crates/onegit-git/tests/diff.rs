@@ -21,7 +21,13 @@ use serde_json::{Value, json};
 
 #[test]
 fn matches_frozen_legacy_diff_service_results_without_modifying_repositories() {
-    let reference: Value = serde_json::from_str(include_str!("diff-reference.json")).unwrap();
+    let text = include_str!("diff-reference.json");
+    let text = if cfg!(windows) {
+        text.replace("literal*", "literal[1]")
+    } else {
+        text.to_owned()
+    };
+    let reference: Value = serde_json::from_str(&text).unwrap();
 
     for case in reference["cases"].as_array().unwrap() {
         let fixture = Fixture::new();
@@ -117,11 +123,22 @@ fn matches_frozen_legacy_diff_service_results_without_modifying_repositories() {
 fn preserves_binary_and_renamed_paths_and_never_runs_external_converters() {
     let fixture = Fixture::new();
 
-    fixture.write("old\t\nname", "one\ntwo\nthree\nfour\n");
+    fixture.write(
+        common::filename("old\t\nname", "old [literal] name"),
+        "one\ntwo\nthree\nfour\n",
+    );
     fs::write(fixture.root.join("binary"), [0, 255, 0]).unwrap();
     fixture.commit("initial");
-    fixture.git(&["mv", "--", "old\t\nname", "new\t\nname"]);
-    fixture.write("new\t\nname", "one\ntwo\nthree\nfour\nfive\n");
+    fixture.git(&[
+        "mv",
+        "--",
+        common::filename("old\t\nname", "old [literal] name"),
+        common::filename("new\t\nname", "new [literal] name"),
+    ]);
+    fixture.write(
+        common::filename("new\t\nname", "new [literal] name"),
+        "one\ntwo\nthree\nfour\nfive\n",
+    );
     fs::write(fixture.root.join("binary"), [0, 254, 0]).unwrap();
     fixture.write(".gitattributes", "* diff=forbidden\n");
     fixture.git(&[
@@ -145,7 +162,9 @@ fn preserves_binary_and_renamed_paths_and_never_runs_external_converters() {
     let renamed = diff
         .stats
         .iter()
-        .find(|stat| stat.path == common::git_path("new\t\nname"))
+        .find(|stat| {
+            stat.path == common::git_path(common::filename("new\t\nname", "new [literal] name"))
+        })
         .unwrap();
 
     let binary = diff
@@ -156,7 +175,10 @@ fn preserves_binary_and_renamed_paths_and_never_runs_external_converters() {
 
     assert_eq!(
         renamed.original_path.as_ref(),
-        Some(&common::git_path("old\t\nname"))
+        Some(&common::git_path(common::filename(
+            "old\t\nname",
+            "old [literal] name"
+        )))
     );
     assert_eq!(renamed.added_lines, Some(1));
     assert!(binary.added_lines.is_none());

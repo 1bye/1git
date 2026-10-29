@@ -116,7 +116,10 @@ fn commits_checked_files_and_keeps_excluded_staging_and_working_bytes() {
     fixture.git(&["rm", "deleted"]);
     fs::remove_file(fixture.root.join("working-deleted")).unwrap();
     fixture.git(&["mv", "rename", "renamed"]);
-    fixture.write("new [file]\t\n:name.txt", "new\n");
+    fixture.write(
+        common::filename("new [file]\t\n:name.txt", "new [file] été.txt"),
+        "new\n",
+    );
     let repository = open(&fixture);
     let assert_working = unchanged_working(&fixture);
 
@@ -129,7 +132,7 @@ fn commits_checked_files_and_keeps_excluded_staging_and_working_bytes() {
                     "deleted",
                     "working-deleted",
                     "renamed",
-                    "new [file]\t\n:name.txt",
+                    common::filename("new [file]\t\n:name.txt", "new [file] été.txt"),
                 ],
             ),
             None,
@@ -166,7 +169,10 @@ fn commits_checked_files_and_keeps_excluded_staging_and_working_bytes() {
         vec![common::git_path("excluded")]
     );
     assert_eq!(
-        fixture.git(&["show", "HEAD:new [file]\t\n:name.txt"]),
+        fixture.git(&[
+            "show",
+            common::filename("HEAD:new [file]\t\n:name.txt", "HEAD:new [file] été.txt")
+        ]),
         b"new\n"
     );
     assert!(!fixture.root.join(".git/index.lock").exists());

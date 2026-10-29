@@ -191,10 +191,15 @@ fn matches_real_git_for_mixed_staged_unstaged_renamed_untracked_and_ignored_file
     fixture.write("mixed", "staged\n");
     fixture.git(&["add", "--", "mixed"]);
     fixture.write("mixed", "worktree\n");
-    fixture.git(&["mv", "--", "rename source", "renamed\t\nfile"]);
+    fixture.git(&[
+        "mv",
+        "--",
+        "rename source",
+        common::filename("renamed\t\nfile", "renamed [literal] file"),
+    ]);
     fixture.write("ignored", "ignored\n");
 
-    let odd_name = OsString::from("untracked\t\nété");
+    let odd_name = OsString::from(common::filename("untracked\t\nété", "untracked été"));
 
     fs::write(fixture.0.path().join(&odd_name), "untracked").unwrap();
 
@@ -238,7 +243,13 @@ fn matches_real_git_for_mixed_staged_unstaged_renamed_untracked_and_ignored_file
         renamed.original_path.as_ref(),
         Some(&common::git_path("rename source"))
     );
-    assert_eq!(renamed.path, common::git_path("renamed\t\nfile"));
+    assert_eq!(
+        renamed.path,
+        common::git_path(common::filename(
+            "renamed\t\nfile",
+            "renamed [literal] file"
+        ))
+    );
     assert_eq!(renamed.rename_score, Some(100));
     assert!(status.files.iter().any(|file| file.path.as_bytes()
         == odd_name.to_str().unwrap().as_bytes()

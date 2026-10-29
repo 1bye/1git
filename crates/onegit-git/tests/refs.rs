@@ -158,7 +158,10 @@ fn lists_locked_and_detached_worktrees_without_losing_newlines_in_paths() {
     fixture.write("tracked", "initial\n");
     fixture.commit("initial");
 
-    let linked = fixture.temporary.path().join("linked\nété");
+    let linked = fixture
+        .temporary
+        .path()
+        .join(common::filename("linked\nété", "linked été"));
 
     fixture.git_os([
         "worktree".into(),
@@ -284,7 +287,7 @@ fn empty_queries_and_cancelled_queries_keep_distinct_results() {
     ));
     assert_eq!(
         repository.info().root.file_name(),
-        Path::new("repository été\n ").file_name()
+        Path::new(common::filename("repository été\n ", "repository été")).file_name()
     );
 }
 

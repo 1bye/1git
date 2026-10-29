@@ -52,10 +52,7 @@ fn clones_selected_branch_and_depth_from_a_local_file_remote() {
     fixture.commit("second");
     fixture.git_os(["branch".into(), "topic".into()]);
 
-    let source = format!(
-        "file://{}",
-        fs::canonicalize(&fixture.root).unwrap().display()
-    );
+    let source = common::file_url(&fs::canonicalize(&fixture.root).unwrap());
 
     let destination = fixture.temporary.path().join("clone");
     let mut options = CloneOptions::new(&source, &destination);
