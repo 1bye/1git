@@ -4,6 +4,51 @@ The root Cargo workspace contains `onegit-git`, `onegit-ui`, and `onegit-app`.
 Run these commands from the workspace root. Builds and tests keep using the stable
 compiler pinned in `rust-toolchain.toml`.
 
+## Run the repository app
+
+```sh
+cargo run -p onegit-app --locked
+```
+
+Git must be available on `PATH`. Choose **Open repository…** and select a local
+working folder. The app opens its canonical worktree, reads changed files, and
+loads a real patch when a file is selected. Staged and unstaged entries are shown
+separately, including both sides of partially staged files. Use **Unified** or
+**Split** to change the patch presentation and drag the divider to resize panes.
+The changed-file list supports Up/Down and Home/End navigation and virtualizes rows.
+
+**Refresh** reads a fresh snapshot and retains the selected path/side when it
+still exists. Removed selections fall back to the first remaining change; a clean
+worktree has an explicit empty state. Changes made outside the app require a
+manual refresh. Open/read failures have retry controls and are never presented as
+a clean repository.
+
+Git reads and patch parsing run on GPUI's background executor. Superseded reads
+are cancelled, stale results are ignored, and window closure requests process
+cleanup without retaining the workspace. The application keeps exact `GitPath`
+bytes for selection and command arguments; labels escape controls and invalid
+UTF-8 bytes for display. Binary patches, metadata-only changes, oversized patches
+and unresolved conflicts have explicit presentations.
+
+This slice browses local repositories. Staging, committing, network operations,
+repository history and persistence remain future app work. Loading status and
+previews does not stage, discard or commit files. The existing component gallery
+remains available with `cargo run -p onegit-ui --example gallery --locked`.
+
+Verify the app and its real-Git/native-event tests:
+
+```sh
+cargo test -j 2 -p onegit-app -p onegit-ui --all-features --locked
+cargo test -j 2 -p onegit-ui --example gallery --all-features --locked
+cargo clippy -j 2 -p onegit-app -p onegit-ui --all-targets --all-features --locked -- -D warnings
+```
+
+The fixtures create disposable repositories and check that reads preserve working
+files, index bytes, objects and refs. Native-event tests exercise folder-picker
+cancellation/opening, selection, refresh, errors and stale-result suppression.
+The filesystem-backed non-UTF-8-name test runs on Linux, since macOS filesystems
+reject those names; label escaping is checked on every platform.
+
 ## Logical spacing
 
 The workspace uses [`workflow_spacing`](https://github.com/1bye/workflow/tree/f62c7d7dcdf3ffd9b77de95a523544a0c688bb9b/rust/spacing),

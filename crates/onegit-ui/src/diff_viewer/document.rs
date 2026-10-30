@@ -258,7 +258,8 @@ fn split_rows(lines: &[DiffLine]) -> Vec<Row> {
 }
 
 impl DiffDocument {
-    /// Parse a single-file Git/unified patch. Line counts and zero-length ranges are validated.
+    /// Parse a single-file Git/unified patch, including repeated sections for file-type changes.
+    /// Line counts and zero-length ranges are validated.
     ///
     /// # Errors
     /// Rejects combined/multiple-file patches, malformed or incomplete hunks, orphan newline markers,
@@ -271,9 +272,10 @@ impl DiffDocument {
         let mut lines: Vec<DiffLine> = Vec::new();
         let mut cursor: Option<Cursor> = None;
         let mut previous = None;
-        let mut files = 0;
+        let mut file_header = None;
         let mut file_headers = 0;
         let mut binary = false;
+        let mut binary_payload = false;
         let mut patch_lines = 0;
 
         for (index, text) in patch.split_terminator('\n').enumerate() {
@@ -296,14 +298,19 @@ impl DiffDocument {
             }
 
             if text.starts_with("diff --git ") {
-                files += 1;
-
-                if files > 1 {
+                if file_header.is_some_and(|first| first != text)
+                    || (file_header.is_none() && !lines.is_empty())
+                {
                     return Err(error(number, "display one file at a time"));
                 }
+
+                file_header = Some(text);
+                // Type changes have deletion/addition sections with the same file header.
+                file_headers = 0;
+                binary_payload = false;
             }
 
-            if binary {
+            if binary_payload {
                 continue;
             }
 
@@ -425,7 +432,8 @@ impl DiffDocument {
                 }
             }
 
-            binary = text.starts_with("Binary files ") || text == "GIT binary patch";
+            binary_payload = text.starts_with("Binary files ") || text == "GIT binary patch";
+            binary |= binary_payload;
             lines.push(DiffLine {
                 kind: DiffLineKind::Metadata,
                 old_line: None,
@@ -647,6 +655,43 @@ mod tests {
             );
             assert_eq!(document.patch(), patch);
         }
+    }
+
+    #[test]
+    fn file_type_changes_keep_both_sections_and_binary_payload_boundaries() {
+        let patch = "diff --git a/changed b/changed\ndeleted file mode 120000\n--- a/changed\n+++ /dev/null\n@@ -1 +0,0 @@\n-target\n\\ No newline at end of file\ndiff --git a/changed b/changed\nnew file mode 100644\n--- /dev/null\n+++ b/changed\n@@ -0,0 +1 @@\n+regular file\n";
+        let document = DiffDocument::parse(patch).unwrap();
+
+        assert_eq!(document.patch(), patch);
+        assert_eq!((document.deleted_lines(), document.added_lines()), (1, 1));
+        assert!(
+            document
+                .lines()
+                .iter()
+                .any(|line| line.kind == DiffLineKind::Deleted
+                    && line.old_line == Some(1)
+                    && line.no_newline)
+        );
+        assert!(
+            document
+                .lines()
+                .iter()
+                .any(|line| line.kind == DiffLineKind::Added && line.new_line == Some(1))
+        );
+        let binary = "diff --git a/changed b/changed\ndeleted file mode 100644\nGIT binary patch\nliteral 3\nencoded payload\ndiff --git a/changed b/changed\nnew file mode 120000\n--- /dev/null\n+++ b/changed\n@@ -0,0 +1 @@\n+target\n\\ No newline at end of file\n";
+        let document = DiffDocument::parse(binary).unwrap();
+
+        assert!(document.is_binary());
+        assert_eq!(document.added_lines(), 1);
+        assert!(document.lines().last().unwrap().no_newline);
+        assert!(DiffDocument::parse("--- a/a\n+++ b/a\ndiff --git a/b b/b\n").is_err());
+        assert!(
+            DiffDocument::parse(&binary.replace(
+                "diff --git a/changed b/changed\nnew",
+                "diff --git a/other b/other\nnew"
+            ))
+            .is_err()
+        );
     }
 
     #[test]

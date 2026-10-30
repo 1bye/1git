@@ -557,6 +557,8 @@ actions. This is a read-only surface with no text selection, editing or staging.
 
 The parser validates hunk counts and ranges, supports additions/deletions, binary
 notices and metadata-only changes, and rejects combined or multiple-file patches.
+Repeated identical Git file headers are accepted for file-type changes, preserving
+both the deletion and addition sections.
 Budgets are 16 MiB per patch, 200,000 patch lines and 64 KiB per line. Binary payloads
 are retained in `patch()` but are not displayed as text. Pass files separately and
 show parse errors in the surrounding application UI.
@@ -649,5 +651,5 @@ exercise real component rendering and pointer/keyboard dispatch with a doubled
 window/text/GPU backend; they do not establish native screen-reader behavior.
 The gallery provides the native appearance and interaction check.
 
-Live repository screens and Git integration are subsequent slices. No changeset is needed for this unreleased Rust crate
+The native app now uses these controls for local repository status and diff browsing. Staging, committing and history loading are subsequent app slices. No changeset is needed for this unreleased Rust crate
 (`publish = false`).

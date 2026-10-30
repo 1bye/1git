@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-description = "The 1git desktop application shell on Rake"
+description = "Native 1git repository browsing on Rake"
 
 [[bin]]
 name = "1git"
@@ -14,6 +14,12 @@ path = "src/main.rs"
 onegit-git.workspace = true
 onegit-ui.workspace = true
 rake.workspace = true
+
+[features]
+test-support = ["onegit-ui/test-support", "rake/view-test-support"]
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
