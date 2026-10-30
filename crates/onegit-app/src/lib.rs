@@ -1,4 +1,4 @@
-//! Native 1git repository browsing on Rake, backed by cancellable background Git reads.
+//! Native 1git repository review, staging and commits on Rake with background Git operations.
 
 mod routes;
 mod workspace;

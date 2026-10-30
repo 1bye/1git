@@ -1,4 +1,7 @@
-//! Real Git fixtures verify read-only previews; native event tests cover async workspace state.
+//! Real Git fixtures verify repository operations; native events cover async workspace state.
+#[path = "write_tests.rs"]
+mod writes;
+
 use super::*;
 use onegit_git::{GitCommand, GitPath};
 
@@ -382,7 +385,7 @@ mod native {
         cx.update(|cx| Theme::dark().install(cx));
         let v = cx.open_window(gpui::size(px(1000.), px(640.)), |window, cx| {
             window.activate_window();
-            let mut v = RepositoryWorkspace::new(window, cx);
+            let mut v = RepositoryWorkspace::new(window, cx, None);
 
             v.process = f.process();
 
@@ -670,5 +673,198 @@ mod native {
             .unwrap();
         cx.run_until_parked();
         assert!(final_cancel.is_cancelled());
+    }
+
+    fn set_message(
+        cx: &mut gpui::TestAppContext,
+        v: gpui::WindowHandle<RepositoryWorkspace>,
+        summary: &str,
+        description: &str,
+    ) {
+        v.update(cx, |v, _, cx| {
+            v.summary
+                .update(cx, |input, cx| input.set_text(summary, cx));
+            v.description
+                .update(cx, |input, cx| input.set_text(description, cx));
+        })
+        .unwrap();
+        draw(cx, v);
+    }
+
+    #[test]
+    fn staging_refreshes_selection_and_keyboard_submit_commits_only_once() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "base\n");
+        f.commit();
+        f.write("a.txt", "changed\n");
+        let (mut cx, v) = setup(&f);
+
+        choose(&mut cx, v, Some(f.root.clone()));
+        set_message(&mut cx, v, "Commit from workspace", "A real description");
+        assert!(!v.read_with(&cx, |v, cx| v.can_commit(cx)).unwrap());
+        v.update(&mut cx, |v, window, cx| {
+            let RepositoryState::Ready(loaded) = &v.state else {
+                panic!("loaded repository");
+            };
+
+            let file = loaded.file(v.selected.as_ref().unwrap()).unwrap().clone();
+
+            v.start_write(write::Operation::File(file), window, cx);
+            assert!(v.write_job.is_some());
+            assert!(!v.can_write());
+            v.refresh(cx);
+            v.choose_repository(cx);
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(
+            v.read_with(&cx, |v, _| v.selected.clone()).unwrap(),
+            Some(key("a.txt", read::Side::Staged))
+        );
+        assert!(patch_text(&cx, v).contains("+changed"));
+        assert!(v.read_with(&cx, |v, cx| v.can_commit(cx)).unwrap());
+        v.update(&mut cx, |v, window, cx| {
+            window.focus(&v.description.read(cx).focus_handle(cx), cx);
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        cx.update_window(v.into(), |_, window, cx| {
+            let keystroke = gpui::Keystroke::parse(if cfg!(target_os = "macos") {
+                "cmd-enter"
+            } else {
+                "ctrl-enter"
+            })
+            .unwrap();
+
+            for _ in 0..2 {
+                window.dispatch_event(
+                    gpui::KeyDownEvent {
+                        keystroke: keystroke.clone(),
+                        is_held: false,
+                        prefer_character_input: false,
+                    }
+                    .to_platform_input(),
+                    cx,
+                );
+            }
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(f.git(&["rev-list", "--count", "HEAD"]), b"2\n");
+        v.read_with(&cx, |v, cx| {
+            assert!(matches!(&v.state, RepositoryState::Ready(loaded) if loaded.files.is_empty()));
+            assert!(v.summary.read(cx).text().is_empty());
+            assert!(v.description.read(cx).text().is_empty());
+            assert!(!v.can_commit(cx));
+            assert!(v.write_job.is_none());
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn failed_commit_preserves_draft_and_refresh_and_reopen_keep_the_right_draft() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "base\n");
+        f.commit();
+        f.write("a.txt", "changed\n");
+        f.git(&["add", "--all"]);
+        let (mut cx, v) = setup(&f);
+
+        choose(&mut cx, v, Some(f.root.clone()));
+        set_message(&mut cx, v, "   ", "Keep this body");
+        assert!(!v.read_with(&cx, |v, cx| v.can_commit(cx)).unwrap());
+        set_message(&mut cx, v, "Keep this summary", "Keep this body");
+        fs::write(f.root.join(".git/index.lock"), "other writer").unwrap();
+        v.update(&mut cx, |v, window, cx| v.commit(window, cx))
+            .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(f.git(&["rev-list", "--count", "HEAD"]), b"1\n");
+        v.read_with(&cx, |v, cx| {
+            assert_eq!(v.summary.read(cx).text(), "Keep this summary");
+            assert_eq!(v.description.read(cx).text(), "Keep this body");
+            assert!(v.can_commit(cx));
+            assert!(matches!(&v.state, RepositoryState::Ready(loaded) if write::staged_count(loaded) == 1));
+            assert!(!v.toasts.read(cx).is_empty());
+        }).unwrap();
+        fs::remove_file(f.root.join(".git/index.lock")).unwrap();
+        v.update(&mut cx, |v, _, cx| v.refresh(cx)).unwrap();
+        draw(&mut cx, v);
+        assert_eq!(
+            v.read_with(&cx, |v, cx| v.summary.read(cx).text().to_owned())
+                .unwrap(),
+            "Keep this summary"
+        );
+        let other = Fixture::new();
+
+        choose(&mut cx, v, Some(other.root.clone()));
+        assert!(
+            v.read_with(&cx, |v, cx| v.summary.read(cx).text().is_empty()
+                && v.description.read(cx).text().is_empty())
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn closing_the_window_does_not_cancel_an_accepted_commit() {
+        let f = Fixture::new();
+
+        f.write("first.txt", "first\n");
+        f.git(&["add", "--all"]);
+        let (mut cx, v) = setup(&f);
+
+        let router = rake::router::Router::<rake::router::NoRoute>::new(Default::default());
+        let driven = router.clone();
+
+        let _driver = cx.update(|cx| {
+            cx.foreground_executor().spawn(async move {
+                driven.run().await.unwrap();
+            })
+        });
+
+        v.update(&mut cx, |v, _, _| {
+            v.write_scope = Some(router.app().tasks())
+        })
+        .unwrap();
+        choose(&mut cx, v, Some(f.root.clone()));
+        set_message(&mut cx, v, "First commit", "");
+        v.update(&mut cx, |v, window, cx| {
+            v.commit(window, cx);
+            assert!(v.write_job.is_some());
+            window.remove_window();
+        })
+        .unwrap();
+        let _quit = router.quit(Default::default());
+
+        cx.run_until_parked();
+        assert_eq!(f.git(&["log", "-1", "--format=%s"]), b"First commit\n");
+        assert_eq!(f.git(&["rev-list", "--count", "HEAD"]), b"1\n");
+        assert_eq!(router.quit_status().phase, rake::quit::QuitPhase::Ready);
+    }
+
+    #[test]
+    fn a_disposed_application_scope_rejects_a_write_before_git_starts() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "untracked\n");
+        let (mut cx, v) = setup(&f);
+
+        let scope = {
+            let router = rake::router::Router::<rake::router::NoRoute>::new(Default::default());
+
+            router.app().tasks()
+        };
+
+        choose(&mut cx, v, Some(f.root.clone()));
+        v.update(&mut cx, |v, window, cx| {
+            v.write_scope = Some(scope);
+            v.start_write(write::Operation::StageAll, window, cx);
+            assert!(v.write_job.is_none());
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(write::staged_count(&f.load()), 0);
+        assert_eq!(fs::read(f.root.join("a.txt")).unwrap(), b"untracked\n");
     }
 }

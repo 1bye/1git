@@ -18,8 +18,8 @@ separately, including both sides of partially staged files. Use **Unified** or
 The changed-file list supports Up/Down and Home/End navigation and virtualizes rows.
 
 **Refresh** reads a fresh snapshot and retains the selected path/side when it
-still exists. Removed selections fall back to the first remaining change; a clean
-worktree has an explicit empty state. Changes made outside the app require a
+still exists. Removed selections fall back to the same path on its other side,
+then the first remaining change; a clean worktree has an explicit empty state. Changes made outside the app require a
 manual refresh. Open/read failures have retry controls and are never presented as
 a clean repository.
 
@@ -30,10 +30,33 @@ bytes for selection and command arguments; labels escape controls and invalid
 UTF-8 bytes for display. Binary patches, metadata-only changes, oversized patches
 and unresolved conflicts have explicit presentations.
 
-This slice browses local repositories. Staging, committing, network operations,
-repository history and persistence remain future app work. Loading status and
-previews does not stage, discard or commit files. The existing component gallery
-remains available with `cargo run -p onegit-ui --example gallery --locked`.
+Use **Stage file** or **Unstage file** above the selected patch to move the entire
+file between the working tree and index. **Stage all** and **Unstage all** apply
+to the repository. Unstaging preserves working files. Staging a partially staged
+file replaces its staged content with the complete current working version.
+
+The commit form shows the staged-file count and accepts a required summary and
+optional description. **Commit staged changes** commits only the existing index;
+unstaged and untracked content stays in the working tree. Enter in the summary
+moves to the description; Command+Enter on macOS or Ctrl+Enter elsewhere in the
+description submits. Git's configured hooks and signing settings are respected.
+
+One write runs at a time in the background. Controls are disabled until completion,
+then status and the selected patch refresh. Progress toasts become success/error
+notifications. Successful commits clear the form; failures retain the draft and
+refresh status to expose partial effects, without replaying the write. Changing
+repositories clears the draft; manual refresh retains it. A write accepted before
+window closure continues while the application is running. Writes are registered
+as application-owned Rake tasks, so normal application quit waits for them.
+Writes require a normal repository state without conflicts; finish merge/rebase
+operations externally for now. A changed branch or HEAD is rejected and refreshed
+before writing; changed rename metadata also requires renewed review. External Git
+can still change the repository concurrently.
+
+Hunk staging, discard, network operations, repository history and persistence remain
+future app work. Loading status and previews does not mutate repository contents.
+The component gallery remains available with
+`cargo run -p onegit-ui --example gallery --locked`.
 
 Verify the app and its real-Git/native-event tests:
 
@@ -46,6 +69,9 @@ cargo clippy -j 2 -p onegit-app -p onegit-ui --all-targets --all-features --lock
 The fixtures create disposable repositories and check that reads preserve working
 files, index bytes, objects and refs. Native-event tests exercise folder-picker
 cancellation/opening, selection, refresh, errors and stale-result suppression.
+Write tests cover literal paths, renames, copies, partially staged files, unborn
+branches, index locks, rejecting hooks, exact commit messages, draft retention,
+keyboard submission, duplicate prevention and window closure.
 The filesystem-backed non-UTF-8-name test runs on Linux, since macOS filesystems
 reject those names; label escaping is checked on every platform.
 

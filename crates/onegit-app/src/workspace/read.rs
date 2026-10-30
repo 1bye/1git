@@ -150,7 +150,7 @@ pub(super) fn status_name(status: FileStatus) -> &'static str {
     }
 }
 
-fn message(error: RepositoryError) -> String {
+pub(super) fn message(error: RepositoryError) -> String {
     if let RepositoryError::Git(GitError::CommandFailed { output, .. }) = &error {
         let detail = String::from_utf8_lossy(&output.stderr);
 
@@ -169,6 +169,11 @@ pub(super) fn load(
 ) -> Result<Arc<Loaded>, String> {
     let repository = Arc::new(Repository::open(path, process, Some(cancel)).map_err(message)?);
     let snapshot = repository.snapshot(false, Some(cancel)).map_err(message)?;
+
+    Ok(from_snapshot(repository, snapshot))
+}
+
+pub(super) fn from_snapshot(repository: Arc<Repository>, snapshot: Snapshot) -> Arc<Loaded> {
     let mut files = Vec::new();
 
     for side in [Side::Staged, Side::Working] {
@@ -201,12 +206,12 @@ pub(super) fn load(
         .map(|(index, file)| (file.key.clone(), index))
         .collect();
 
-    Ok(Arc::new(Loaded {
+    Arc::new(Loaded {
         repository,
         snapshot,
         files,
         positions,
-    }))
+    })
 }
 
 pub(super) fn process() -> GitProcess {

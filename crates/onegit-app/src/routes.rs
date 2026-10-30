@@ -21,7 +21,7 @@ impl RouteViews<Destination> for AppRoutes {
     fn mount(
         &self,
         destination: &Destination,
-        _page: PageContext<Destination>,
+        page: PageContext<Destination>,
         window: &mut Window,
         cx: &mut rake::gpui::App,
     ) -> Result<AnyView, MountError> {
@@ -30,7 +30,9 @@ impl RouteViews<Destination> for AppRoutes {
         }
 
         match destination {
-            Destination::Home => Ok(cx.new(|cx| RepositoryWorkspace::new(window, cx)).into()),
+            Destination::Home => Ok(cx
+                .new(|cx| RepositoryWorkspace::new(window, cx, Some(page.app().tasks())))
+                .into()),
         }
     }
 }

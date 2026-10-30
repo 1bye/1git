@@ -1,13 +1,15 @@
 use super::{
     PreviewState, RepositoryState, RepositoryWorkspace,
     read::{self, Loaded, Preview},
+    write,
 };
 
 use onegit_git::FileStatus;
 
 use onegit_ui::{
-    Button, ButtonVariant, ControlState, DiffView, DiffViewer, Icon, IconName, IconSize,
-    ResizableSplit, Text, TextRole, TextTone, Theme,
+    Button, ButtonVariant, ControlSize, ControlState, DiffView, DiffViewer, Icon, IconName,
+    IconSize, InputAvailability, ResizableSplit, Text, TextArea, TextInput, TextRole, TextTone,
+    Theme, ToastHost,
 };
 
 use rake::gpui::{self, ColorExt, accesskit, prelude::*, px};
@@ -40,6 +42,9 @@ impl RepositoryWorkspace {
         cx: &mut gpui::Context<Self>,
     ) -> gpui::AnyElement {
         let count = loaded.files.len();
+        let staged = write::staged_count(&loaded);
+        let writable = self.can_write();
+        let allowed = write::available(&loaded);
         let selected = self.selected.clone();
         let focused = self.files_focus.is_focused(window);
         let focus = self.files_focus.clone().tab_stop(count > 0);
@@ -81,18 +86,51 @@ impl RepositoryWorkspace {
 
         rake::view! {
             <div class="size-full flex flex-col bg-surface min-w-0 min-h-0">
-                <div class="px-3 py-3 border-b-1 border-line shrink-0"><Text role={TextRole::Title} {..Text::new("title",format!("Changes · {count}"))}/></div>
+                <div class="p-3 border-b-1 border-line shrink-0 flex flex-col gap-2">
+                    <Text role={TextRole::Title} {..Text::new("title",format!("Changes · {count}"))}/>
+                    <div class="flex flex-row items-center gap-1">
+                        <Button size={ControlSize::Small} state={if writable && count > staged {ControlState::Enabled} else {ControlState::Disabled}}
+                            on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.start_write(write::Operation::StageAll,window,cx))))} {..Button::new("stage-all","Stage all")}/>
+                        <Button size={ControlSize::Small} state={if writable && staged > 0 {ControlState::Enabled} else {ControlState::Disabled}}
+                            on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.start_write(write::Operation::UnstageAll,window,cx))))} {..Button::new("unstage-all","Unstage all")}/>
+                    </div>
+                </div>
                 <div id="file-list" role={accesskit::Role::ListBox} aria-label="Changed files"
                     class="flex-1 min-h-0 min-w-0 overflow-hidden border-1 border-line"
                     style={|s|s.track_focus(&focus).focus_visible(|s|s.border_color(Theme::current().focus_ring)).debug_selector(||"workspace-files".into())
                         .on_key_down(cx.listener(|this,event,window,cx|this.navigate_files(event,window,cx)))}>
                     {list}
                 </div>
+                <div class="p-3 shrink-0 border-t-1 border-line flex flex-col gap-2">
+                    <Text role={TextRole::Title} {..Text::new("commit-heading",format!("Commit · {staged} staged"))}/>
+                    if !allowed {<Text role={TextRole::Caption} tone={TextTone::Danger} {..Text::new("operation-blocked","Finish the current Git operation and resolve conflicts in your editor first.")}/>}
+                    <TextInput placeholder={"Summary of your changes".into()} availability={if writable {InputAvailability::Enabled} else {InputAvailability::Disabled}} {..TextInput::new("commit-summary",&self.summary,"Summary")}/>
+                    <TextArea rows={2} placeholder={"Optional description".into()} availability={if writable {InputAvailability::Enabled} else {InputAvailability::Disabled}} {..TextArea::new("commit-description",&self.description,"Description")}/>
+                    <Button variant={ButtonVariant::Primary} state={if self.write_job.is_some() {ControlState::Busy} else if self.can_commit(cx) {ControlState::Enabled} else {ControlState::Disabled}}
+                        on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.commit(window,cx))))} {..Button::new("commit","Commit staged changes")}/>
+                </div>
             </div>
         }.into_any_element()
     }
 
     fn preview_view(&self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
+        let selected_file = match (&self.state, &self.selected) {
+            (RepositoryState::Ready(loaded), Some(key)) => loaded.file(key).cloned(),
+            _ => None,
+        };
+
+        let selected_file = selected_file.map(|file| {
+            let label = if file.key.side == read::Side::Staged {
+                "Unstage file"
+            } else {
+                "Stage file"
+            };
+
+            (file, label)
+        });
+
+        let writable = self.can_write();
+
         let content = match &self.preview {
             PreviewState::Empty => notice(
                 "no-selection",
@@ -127,6 +165,12 @@ impl RepositoryWorkspace {
                     for (index,(view,label)) in [(DiffView::Unified,"Unified"),(DiffView::Split,"Split")].into_iter().enumerate() {
                         <Button id={("mode",index).into()} variant={if self.view==view {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{this.view=view;cx.notify();})))} {..Button::new("mode",label)}/>
+                    }
+                    <div class="flex-1"/>
+                    if let Some((file,label))=selected_file {
+                        <Button state={if writable {ControlState::Enabled} else {ControlState::Disabled}}
+                            on_press={Some(Box::new(cx.listener(move |this,_,window,cx|this.start_write(write::Operation::File(file.clone()),window,cx))))}
+                            {..Button::new("stage-file",label)}/>
                     }
                     if matches!(self.preview,PreviewState::Failed(_)) {<Button variant={ButtonVariant::Ghost} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{if let Some(key)=this.selected.clone() {this.select(key,cx);}})))} {..Button::new("retry-patch","Retry")}/>}
                 </div>
@@ -188,14 +232,18 @@ impl Render for RepositoryWorkspace {
                 "Could not open this repository",
                 error.clone(),
             ),
-            RepositoryState::Ready(loaded) if loaded.files.is_empty() => notice(
-                "clean",
-                "Working tree is clean",
-                "There are no staged or unstaged changes to display.",
-            ),
             RepositoryState::Ready(loaded) => {
                 let files = self.files(loaded.clone(), window, cx);
-                let preview = self.preview_view(cx);
+
+                let preview = if loaded.files.is_empty() {
+                    notice(
+                        "clean",
+                        "Working tree is clean",
+                        "There are no staged or unstaged changes to display.",
+                    )
+                } else {
+                    self.preview_view(cx)
+                };
 
                 rake::view! {<ResizableSplit min_first={px(220.)} min_second={px(240.)} first={files} second={preview} {..ResizableSplit::new("workspace-split",&self.split,"Changed files width")}/>}.into_any_element()
             }
@@ -208,13 +256,14 @@ impl Render for RepositoryWorkspace {
                         <Text max_lines={Some(1)} role={TextRole::Title} {..Text::new("repository",title)}/>
                         <Text max_lines={Some(1)} role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("branch",subtitle)}/>
                     </div>
-                    <Button variant={ButtonVariant::Primary} icon={Some(IconName::Folder)} state={if self.picker.is_some() {ControlState::Busy} else {ControlState::Enabled}}
+                    <Button variant={ButtonVariant::Primary} icon={Some(IconName::Folder)} state={if self.write_job.is_some() {ControlState::Disabled} else if self.picker.is_some() {ControlState::Busy} else {ControlState::Enabled}}
                         on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose_repository(cx))))} {..Button::new("open","Open repository…")}/>
-                    <Button variant={ButtonVariant::Secondary} icon={Some(IconName::Refresh)} state={match self.state {RepositoryState::Loading(_)=>ControlState::Busy,RepositoryState::Ready(_)|RepositoryState::Failed {..}=>ControlState::Enabled,_=>ControlState::Disabled}}
+                    <Button variant={ButtonVariant::Secondary} icon={Some(IconName::Refresh)} state={if self.write_job.is_some() || self.picker.is_some() {ControlState::Disabled} else {match self.state {RepositoryState::Loading(_)=>ControlState::Busy,RepositoryState::Ready(_)|RepositoryState::Failed {..}=>ControlState::Enabled,_=>ControlState::Disabled}}}
                         on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.refresh(cx))))} {..Button::new("refresh","Refresh")}/>
                 </header>
                 if let Some(error)=&self.picker_error {<div class="px-4 py-2"><Text tone={TextTone::Danger} {..Text::new("picker-error",error.clone())}/></div>}
                 <div class="flex-1 min-h-0 min-w-0">{body}</div>
+                <ToastHost {..ToastHost::new("notifications",&self.toasts,&self.focus)}/>
             </main>
         }
     }
