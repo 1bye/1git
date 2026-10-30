@@ -1,14 +1,16 @@
 //! Native component workbench. All actions update sample state; no Git calls are made.
 mod gallery_diffs;
+mod gallery_history;
 
 use onegit_ui::{
-    Appearance, Button, ButtonTone, ButtonVariant, CheckState, Checkbox, ControlSize, ControlState,
-    Dialog, DialogAvailability, DialogDismissal, DialogHost, DialogHostState, DialogKind,
-    DialogState, DiffDocument, DiffView, DiffViewer, DropdownMenu, Icon, IconButton, IconName,
-    IconSize, InputAvailability, InputEvent, InputState, InputValidation, ListRow, MenuAlignment,
-    MenuEntry, MenuItem, Pane, ResizableSplit, RowSelection, SearchField, SplitAxis, SplitState,
-    TabItem, TabVariant, Tabs, Text, TextArea, TextInput, TextRole, TextTone, Theme, Toast,
-    ToastAction, ToastHost, ToastId, ToastKind, ToastState, Tooltip,
+    Appearance, Button, ButtonTone, ButtonVariant, CheckState, Checkbox, CommitList,
+    CommitListData, CommitListDensity, ControlSize, ControlState, Dialog, DialogAvailability,
+    DialogDismissal, DialogHost, DialogHostState, DialogKind, DialogState, DiffDocument, DiffView,
+    DiffViewer, DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent,
+    InputState, InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, ResizableSplit,
+    RowSelection, SearchField, SplitAxis, SplitState, TabItem, TabVariant, Tabs, Text, TextArea,
+    TextInput, TextRole, TextTone, Theme, Toast, ToastAction, ToastHost, ToastId, ToastKind,
+    ToastState, Tooltip,
 };
 
 use rake::gpui::{self, Context, FocusHandle, Focusable, ScrollHandle, Window, prelude::*, px};
@@ -28,6 +30,7 @@ enum Section {
     Toasts,
     Layout,
     Diffs,
+    History,
 }
 
 #[derive(Clone, Debug)]
@@ -88,6 +91,12 @@ struct Gallery {
     diff_sample: usize,
     diffs: Vec<DiffDocument>,
     repo_diffs: Vec<DiffDocument>,
+    history: CommitListData,
+    history_selected: Option<gpui::SharedString>,
+    history_preview: Option<DiffDocument>,
+    history_density: CommitListDensity,
+    history_split: gpui::Entity<SplitState>,
+    history_large: bool,
     _input_subscriptions: Vec<gpui::Subscription>,
 }
 
@@ -143,7 +152,17 @@ impl Gallery {
             },
         ));
 
+        let history = gallery_history::data(5);
+        let history_selected = history.items().first().map(|item| item.id.clone());
+        let history_preview = history.items().first().map(gallery_history::preview);
+
         Self {
+            history,
+            history_selected,
+            history_preview,
+            history_density: CommitListDensity::Compact,
+            history_split: cx.new(|cx| SplitState::new(px(340.), window, cx)),
+            history_large: false,
             dialogs,
             create_dialog,
             discard_dialog,
@@ -378,6 +397,74 @@ impl Gallery {
                 <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help","Success expires after 5 seconds. Errors and progress stay until dismissed or updated. The stack holds up to 3 notifications.")}/>
                 <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("connected","Try the adjacent dialogs: slow operations show progress; simulated failures offer Retry. Hover or focus pauses expiration.")}/>
             </Pane>
+        }
+    }
+
+    fn load_history(&mut self, count: usize, cx: &mut Context<Self>) {
+        self.history = gallery_history::data(count);
+        let selected = self
+            .history_selected
+            .as_ref()
+            .and_then(|id| self.history.find(id))
+            .or_else(|| self.history.items().first());
+
+        self.history_preview = selected.map(gallery_history::preview);
+        self.history_selected = selected.map(|item| item.id.clone());
+        cx.notify();
+    }
+
+    fn history_examples(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let list = rake::view! {
+            <div class="size-full flex flex-col min-w-0 min-h-0 bg-surface">
+                <div class="px-3 py-2 shrink-0"><Text role={TextRole::Caption} tone={TextTone::Muted}
+                    {..Text::new("count", format!("{} commits · sample history", self.history.items().len()))}/></div>
+                <div class="flex-1 min-h-0 min-w-0">
+                    <CommitList selected={self.history_selected.clone()} density={self.history_density}
+                        on_select={Some(Box::new(cx.listener(|this, id: &gpui::SharedString, _, cx| {
+                            this.history_preview = this.history.find(id).map(gallery_history::preview);
+                            this.history_selected = Some(id.clone());
+                            cx.notify();
+                        })))} {..CommitList::new("history", "Repository history", self.history.clone())}/>
+                </div>
+            </div>
+        }.into_any_element();
+
+        let preview = if let Some(document) = &self.history_preview {
+            let hash = self
+                .history_selected
+                .as_ref()
+                .and_then(|id| self.history.find(id))
+                .and_then(|item| item.hash.as_deref())
+                .unwrap_or("sample");
+
+            rake::view! {<DiffViewer view={self.diff_view} {..DiffViewer::new("commit-preview", format!("preview.rs · {hash}"), document.clone())}/>}.into_any_element()
+        } else {
+            rake::view! {<div class="size-full p-3 bg-surface-sunken"><Text tone={TextTone::Muted} {..Text::new("empty", "Select a commit to review its changes.")}/></div>}.into_any_element()
+        };
+
+        rake::view! {
+            <div class="flex flex-col gap-3">
+                <Text role={TextRole::Title} {..Text::new("title", "Commit history")}/>
+                <Text tone={TextTone::Muted} {..Text::new("intro", "Choose a commit to review its patch. Selection stays with its commit ID while the layout changes.")}/>
+                <div class="flex flex-row flex-wrap items-center gap-2">
+                    for (index, (density,label)) in [(CommitListDensity::Compact,"Compact"),(CommitListDensity::Comfortable,"Comfortable")].into_iter().enumerate() {
+                        <Button id={("density",index).into()} variant={if self.history_density==density {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
+                            on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{this.history_density=density;cx.notify();})))} {..Button::new("density",label)}/>
+                    }
+                    <Button variant={if self.history_large {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
+                        on_press={Some(Box::new(cx.listener(|this,_,_,cx| {this.history_large = !this.history_large;this.load_history(if this.history_large {10_000} else {5},cx);} )))}
+                        {..Button::new("large-history","10,000 commits")}/>
+                    <Button variant={ButtonVariant::Ghost} on_press={Some(Box::new(cx.listener(|this,_,_,cx| {
+                        this.load_history(if this.history.items().is_empty() {if this.history_large {10_000} else {5}} else {0},cx);
+                    })))} {..Button::new("empty-history",if self.history.items().is_empty() {"Restore history"} else {"Empty history"})}/>
+                    {self.diff_controls(cx)}
+                </div>
+                <div class="h-[440px] shrink-0 min-w-0 rounded-[8px] overflow-hidden">
+                    <ResizableSplit min_first={px(220.)} min_second={px(220.)} first={list} second={preview}
+                        {..ResizableSplit::new("history-layout", &self.history_split, "History width")}/>
+                </div>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help", "Tab enters the history once. ↑/↓, Home/End and Page Up/Down choose a commit. Dates and patches are sample data; no Git actions are performed.")}/>
+            </div>
         }
     }
 
@@ -939,7 +1026,7 @@ impl Render for Gallery {
             Section::Overview => 10,
             Section::Actions | Section::Inputs | Section::Overlays | Section::Toasts => 2,
             Section::Selection | Section::Typography | Section::Dialogs => 1,
-            Section::Layout | Section::Diffs => 0,
+            Section::Layout | Section::Diffs | Section::History => 0,
         };
 
         let rows = item_count.div_ceil(columns);
@@ -961,7 +1048,7 @@ impl Render for Gallery {
                     </div>
                 </header>
                 <nav class="flex flex-row flex-wrap gap-1 px-6 py-3">
-                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs"),(Section::Toasts,"Toasts"),(Section::Layout,"Layout"),(Section::Diffs,"Diffs")].into_iter().enumerate() {
+                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs"),(Section::Toasts,"Toasts"),(Section::Layout,"Layout"),(Section::Diffs,"Diffs"),(Section::History,"History")].into_iter().enumerate() {
                         <Button id={("section",index).into()}
                             variant={if self.section==section {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{
@@ -970,7 +1057,7 @@ impl Render for Gallery {
                     }
                 </nav>
                 <div class="flex-1 min-h-0 overflow-y-scroll px-6 pb-6" scroll={&self.scroll}>
-                    if !matches!(self.section, Section::Layout | Section::Diffs) {<div class="grid gap-4 shrink-0" style={|s|s.grid_cols(columns).grid_rows_max_content(rows)}>
+                    if !matches!(self.section, Section::Layout | Section::Diffs | Section::History) {<div class="grid gap-4 shrink-0" style={|s|s.grid_cols(columns).grid_rows_max_content(rows)}>
                         if matches!(self.section,Section::Overview|Section::Actions) { {self.actions(cx)} {self.states(cx)} }
                         if matches!(self.section,Section::Overview|Section::Selection) { {self.selection(cx)} }
                         if matches!(self.section,Section::Overview|Section::Typography) { {self.typography()} }
@@ -981,6 +1068,7 @@ impl Render for Gallery {
                     </div>}
                     if matches!(self.section, Section::Overview|Section::Layout) {{self.repository_layout(cx)}}
                     if self.section == Section::Diffs {{self.diff_examples(cx)}}
+                    if self.section == Section::History {{self.history_examples(cx)}}
                 </div>
                 <footer class="px-6 py-2 border-t-1 border-line">
                     <Text role={TextRole::Caption} tone={TextTone::Muted}
@@ -1190,6 +1278,73 @@ mod tests {
             gpui::VisualTestContext::from_window(view.into(), &cx)
                 .debug_bounds("diff-old-5000")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn history_selection_updates_the_patch_and_survives_layout_changes() {
+        let (mut cx, view) = setup();
+
+        view.update(&mut cx, |gallery, _, cx| {
+            gallery.section = Section::History;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, view);
+        let (id, old_patch) = view
+            .read_with(&cx, |gallery, _| {
+                (
+                    gallery.history.items()[1].id.clone(),
+                    gallery.history_preview.as_ref().unwrap().patch().to_owned(),
+                )
+            })
+            .unwrap();
+
+        let position = gpui::VisualTestContext::from_window(view.into(), &cx)
+            .debug_bounds("commit-row-c0ffee0200000000000000000000000000000000")
+            .unwrap()
+            .center();
+
+        pointer(&mut cx, view, position, "down");
+        pointer(&mut cx, view, position, "up");
+        assert!(
+            view.read_with(&cx, |gallery, _| gallery.history_selected.as_ref()
+                == Some(&id)
+                && gallery.history_preview.as_ref().unwrap().patch() != old_patch)
+                .unwrap()
+        );
+        view.update(&mut cx, |gallery, _, cx| {
+            gallery.history_density = CommitListDensity::Comfortable;
+            gallery.diff_view = DiffView::Split;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, view);
+        assert!(
+            gpui::VisualTestContext::from_window(view.into(), &cx)
+                .debug_bounds("diff-after")
+                .is_some()
+        );
+        assert_eq!(
+            view.read_with(&cx, |gallery, _| gallery.history_selected.clone())
+                .unwrap(),
+            Some(id)
+        );
+        view.update(&mut cx, |gallery, _, cx| gallery.load_history(0, cx))
+            .unwrap();
+        draw(&mut cx, view);
+        assert!(
+            view.read_with(&cx, |gallery, _| gallery.history_selected.is_none()
+                && gallery.history_preview.is_none())
+                .unwrap()
+        );
+        view.update(&mut cx, |gallery, _, cx| gallery.load_history(5, cx))
+            .unwrap();
+        draw(&mut cx, view);
+        assert!(
+            view.read_with(&cx, |gallery, _| gallery.history_selected.is_some()
+                && gallery.history_preview.is_some())
+                .unwrap()
         );
     }
 

@@ -70,6 +70,7 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `DropdownMenu` | Branch choices and actions, icons, shortcut captions, separators, disabled/danger states |
 | `Dialog` | Standard/confirmation modal, title/description, body/footer, initial focus, busy and dismissal policies |
 | `Tabs` | Underline/segmented variants, sizes, disabled and closable tabs, controlled selection and panel |
+| `CommitList` | Virtualized history, controlled selection, commit metadata, reference badges and row densities |
 | `DiffViewer` | Immutable patch document, old/new line numbers, unified/split modes and synchronized virtualized rows |
 | `ResizableSplit` | Horizontal/vertical panes, minimum sizes, retained dimensions and keyboard divider |
 | `Toast` / `ToastHost` | Success/error/progress feedback, action/dismissal, bounded stack, paused expiration and live regions |
@@ -564,6 +565,76 @@ The gallery's **Diffs** section covers unequal replacements, multiple hunks,
 Unicode/CR/newline markers, 5,000 replacements, binary changes and an empty state.
 The repository layout also uses the same viewer inside its retained file tabs.
 
+## Commit history
+
+Build a `CommitListData` snapshot outside render and retain it in the owner. Its
+clones share the immutable entries and ID index. IDs are opaque, nonempty and
+unique within the snapshot; use full object IDs when adapting Git history.
+`CommitListData::new` returns an error for invalid IDs, with `index()` identifying
+the entry and `into_items()` returning the original entries for correction.
+
+```no_run
+use onegit_ui::{CommitItem, CommitList, CommitListData, CommitListDataError,
+    CommitListDensity, CommitRef, CommitRefKind, CommitSelectionHandler};
+use rake::gpui::{IntoElement, SharedString};
+
+fn prepare_history() -> Result<CommitListData, CommitListDataError> {
+    CommitListData::new(vec![CommitItem {
+        author: Some("Yurii Hulyk".into()),
+        date: Some("2 min ago".into()),
+        hash: Some("5a57f8b1".into()),
+        references: vec![CommitRef::new(CommitRefKind::Branch, "main")],
+        ..CommitItem::new("5a57f8b1b22f327b17e2b12bb7142b7d231a7c6c", "Add the diff viewer")
+    }])
+}
+
+fn history(data: &CommitListData, selected: Option<SharedString>, choose: CommitSelectionHandler) -> impl IntoElement {
+    rake::view! {
+        <div class="h-[400px] min-w-0">
+            <CommitList selected={selected} density={CommitListDensity::Compact}
+                on_select={Some(choose)}
+                {..CommitList::new("history", "Repository history", data.clone())}/>
+        </div>
+    }
+}
+```
+
+The application formats author names, date labels, short hashes and references.
+Loading Git data and refreshing date labels belong to the application. Use
+`find(id)` to resolve a selection and load its patch through the application. Keep
+that parsed `DiffDocument` in state and pass a cheap clone to `DiffViewer`.
+
+Selection is controlled: `on_select` requests an ID, and the owner sets `selected`
+and calls `cx.notify()`. No entry is selected implicitly. Unknown or removed IDs
+show no selection and do not emit a replacement selection. Keyboard focus stays
+inside the list while its cursor follows navigation, including when the owner
+declines a request. Repeated activation of the selected entry emits no duplicate
+request. Changing the selected prop reveals its row without moving keyboard focus.
+
+Tab enters the list once, then leaves it for the next control. Up/Down, Page
+Up/Down and Home/End move the cursor and request selection; Enter/Space request
+the current cursor. The cursor starts on the selected entry or the first entry.
+Rows are virtualized, use stable IDs, and expose listbox options with complete
+subject/metadata/reference labels and position/count information. The active
+visible row is announced through GPUI's active-descendant focus support.
+
+Compact rows are 48 pixels high; comfortable rows are 60 pixels. Subject and
+metadata ellipsize independently, leaving room for a short hash. The first two
+reference badges are shown with an overflow count; accessibility retains all
+reference names and kinds. Hover and selection use the shared fast surface motion
+and respect reduced motion. Empty lists skip sequential Tab and show the
+configurable `empty_message`.
+
+Retain the same snapshot across rerenders. When replacing or reordering entries,
+selection/cursor identities are preserved where possible and the viewport anchors
+to the same top entry, clamped to the new bounds. Density changes retain that
+anchor too. Loading/pagination and fallback selection after filtering belong to
+the application.
+
+The gallery's **History** section connects selection to a distinct sample patch,
+with both densities, unified/split previews, 10,000 entries and empty/restore
+controls inside a resizable layout.
+
 ## Validation
 
 ```sh
@@ -578,5 +649,5 @@ exercise real component rendering and pointer/keyboard dispatch with a doubled
 window/text/GPU backend; they do not establish native screen-reader behavior.
 The gallery provides the native appearance and interaction check.
 
-Repository history and application integration are subsequent slices. No changeset is needed for this unreleased Rust crate
+Live repository screens and Git integration are subsequent slices. No changeset is needed for this unreleased Rust crate
 (`publish = false`).

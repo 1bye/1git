@@ -42,5 +42,9 @@ required-features = ["test-support"]
 name = "diffs"
 required-features = ["test-support"]
 
+[[test]]
+name = "history"
+required-features = ["test-support"]
+
 [lints]
 workspace = true

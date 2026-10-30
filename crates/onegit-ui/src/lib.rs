@@ -8,6 +8,7 @@
 
 mod button;
 mod checkbox;
+mod commit_list;
 mod dialog;
 mod diff_viewer;
 mod dropdown_menu;
@@ -33,6 +34,11 @@ pub use checkbox::{CheckHandler, CheckState, Checkbox};
 pub use dialog::{
     Dialog, DialogAvailability, DialogDismissal, DialogEvent, DialogHost, DialogHostState,
     DialogKind, DialogState,
+};
+
+pub use commit_list::{
+    CommitItem, CommitList, CommitListData, CommitListDataError, CommitListDensity, CommitRef,
+    CommitRefKind, CommitSelectionHandler,
 };
 
 pub use diff_viewer::{DiffDocument, DiffLine, DiffLineKind, DiffParseError, DiffView, DiffViewer};
