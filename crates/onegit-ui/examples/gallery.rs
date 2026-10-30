@@ -3,9 +3,10 @@ use onegit_ui::{
     Appearance, Button, ButtonTone, ButtonVariant, CheckState, Checkbox, ControlSize, ControlState,
     Dialog, DialogAvailability, DialogDismissal, DialogHost, DialogHostState, DialogKind,
     DialogState, DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent,
-    InputState, InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, RowSelection,
-    SearchField, Text, TextArea, TextInput, TextRole, TextTone, Theme, Toast, ToastAction,
-    ToastHost, ToastId, ToastKind, ToastState, Tooltip,
+    InputState, InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, ResizableSplit,
+    RowSelection, SearchField, SplitAxis, SplitState, TabItem, TabVariant, Tabs, Text, TextArea,
+    TextInput, TextRole, TextTone, Theme, Toast, ToastAction, ToastHost, ToastId, ToastKind,
+    ToastState, Tooltip,
 };
 
 use rake::gpui::{self, Context, FocusHandle, Focusable, ScrollHandle, Window, prelude::*, px};
@@ -23,6 +24,7 @@ enum Section {
     Overlays,
     Dialogs,
     Toasts,
+    Layout,
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +74,13 @@ struct Gallery {
     toasts: gpui::Entity<ToastState>,
     progress_toast: Option<ToastId>,
     fail_dialogs: bool,
+    sidebar_split: gpui::Entity<SplitState>,
+    files_split: gpui::Entity<SplitState>,
+    preview_split: gpui::Entity<SplitState>,
+    repo_message: gpui::Entity<InputState>,
+    repo_open: Vec<usize>,
+    repo_selected: Option<usize>,
+    repo_segmented: bool,
     _input_subscriptions: Vec<gpui::Subscription>,
 }
 
@@ -141,6 +150,13 @@ impl Gallery {
             toasts,
             progress_toast: None,
             fail_dialogs: false,
+            sidebar_split: cx.new(|cx| SplitState::new(px(180.), window, cx)),
+            files_split: cx.new(|cx| SplitState::new(px(210.), window, cx)),
+            preview_split: cx.new(|cx| SplitState::new(px(260.), window, cx)),
+            repo_message: cx.new(|cx| InputState::new("Refine repository layout", window, cx)),
+            repo_open: vec![0, 1],
+            repo_selected: Some(0),
+            repo_segmented: false,
             branch,
             search,
             message,
@@ -351,6 +367,138 @@ impl Gallery {
                 <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help","Success expires after 5 seconds. Errors and progress stay until dismissed or updated. The stack holds up to 3 notifications.")}/>
                 <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("connected","Try the adjacent dialogs: slow operations show progress; simulated failures offer Retry. Hover or focus pauses expiration.")}/>
             </Pane>
+        }
+    }
+
+    fn repository_layout(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let names = ["theme.rs", "button.rs", "README.md"];
+
+        let sidebar = rake::view! {
+            <div class="size-full flex flex-col gap-3 p-3 bg-surface-sunken">
+                <Text role={TextRole::Title} {..Text::new("repository", "1git")}/>
+                <Text tone={TextTone::Muted} role={TextRole::Caption} {..Text::new("branch", "main · sample repository")}/>
+                <Button variant={ButtonVariant::Secondary} icon={Some(IconName::Branch)} {..Button::new("main", "main")}/>
+                <Button variant={ButtonVariant::Ghost} {..Button::new("changes", "Changes · 3")}/>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("branches", "BRANCHES")}/>
+                <Text {..Text::new("feature", "feature/native-ui")}/>
+                <Text tone={TextTone::Muted} {..Text::new("remote", "origin/main")}/>
+            </div>
+        }.into_any_element();
+
+        let files = rake::view! {
+            <div class="size-full flex flex-col bg-surface">
+                <div class="p-3 border-b-1 border-line"><Text role={TextRole::Title} {..Text::new("title", "Changes")}/></div>
+                <div class="flex-1 min-h-0 overflow-y-scroll p-1">
+                    for (index, name) in names.into_iter().enumerate() {
+                        <ListRow id={("file", index).into()} selection={if self.repo_selected == Some(index) {RowSelection::Selected} else {RowSelection::Unselected}}
+                            leading={Some(rake::view! {<Checkbox checked={if self.included[index] {CheckState::Checked} else {CheckState::Unchecked}}
+                                show_label={false} on_change={Some(Box::new(cx.listener(move |this, value: &CheckState, _, cx| {this.included[index] = *value == CheckState::Checked; cx.notify();})))}
+                                {..Checkbox::new(("include", index), format!("Include {name}"))}/>}.into_any_element())}
+                            on_press={Some(Box::new(cx.listener(move |this, _, _, cx| {
+                                if !this.repo_open.contains(&index) {this.repo_open.push(index);}
+                                this.repo_selected = Some(index); cx.notify();
+                            })))} {..ListRow::new(("file", index), name)}/>
+                    }
+                </div>
+                <div class="p-3 border-t-1 border-line"><Text tone={TextTone::Muted} role={TextRole::Caption}
+                    {..Text::new("included", format!("{} of 3 included", self.included.iter().filter(|value| **value).count()))}/></div>
+            </div>
+        }.into_any_element();
+
+        let mut tabs: Vec<_> = self
+            .repo_open
+            .iter()
+            .map(|index| TabItem {
+                closable: true,
+                icon: Some(IconName::File),
+                ..TabItem::new(("repo-file", *index), names[*index])
+            })
+            .collect();
+
+        tabs.push(TabItem {
+            disabled: true,
+            ..TabItem::new("history-unavailable", "History")
+        });
+        let (title, removed, added) = match self.repo_selected {
+            Some(0) => (
+                "crates/onegit-ui/src/theme.rs",
+                "    surface: charcoal,",
+                "    surface: theme.surface,",
+            ),
+            Some(1) => (
+                "crates/onegit-ui/src/button.rs",
+                "    border: visible,",
+                "    border: none,",
+            ),
+            _ => (
+                "README.md",
+                "A component gallery.",
+                "A reusable repository workspace.",
+            ),
+        };
+
+        let preview = rake::view! {
+            <Tabs selected={self.repo_selected.map(|index| ("repo-file", index).into())}
+                variant={if self.repo_segmented {TabVariant::Segmented} else {TabVariant::Underline}}
+                empty={Some(rake::view! {<div class="p-3"><Text tone={TextTone::Muted} {..Text::new("empty", "Choose a file to open its preview.")}/></div>}.into_any_element())}
+                on_select={Some(Box::new(cx.listener(|this, id: &gpui::ElementId, _, cx| {
+                    this.repo_selected = this.repo_open.iter().copied().find(|index| gpui::ElementId::from(("repo-file", *index)) == *id); cx.notify();
+                })))}
+                on_close={Some(Box::new(cx.listener(|this, id: &gpui::ElementId, _, cx| {
+                    if let Some(position) = this.repo_open.iter().position(|index| gpui::ElementId::from(("repo-file", *index)) == *id) {
+                        let removed = this.repo_open.remove(position);
+                        if this.repo_selected == Some(removed) {this.repo_selected = this.repo_open.get(position.min(this.repo_open.len().saturating_sub(1))).copied();}
+                        cx.notify();
+                    }
+                })))} {..Tabs::new("previews", "File previews", tabs)}>
+                <div class="size-full flex flex-col gap-1 p-3 bg-surface-sunken overflow-y-scroll">
+                    <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("path", title)}/>
+                    <Text role={TextRole::Code} tone={TextTone::Muted} {..Text::new("hunk", "@@ -12,3 +12,3 @@")}/>
+                    <Text role={TextRole::Code} {..Text::new("context", " fn render() {")}/>
+                    <Text role={TextRole::Code} tone={TextTone::Danger} {..Text::new("removed", format!("- {removed}"))}/>
+                    <Text role={TextRole::Code} tone={TextTone::Success} {..Text::new("added", format!("+ {added}"))}/>
+                    <Text role={TextRole::Code} {..Text::new("end", " }")}/>
+                </div>
+            </Tabs>
+        }.into_any_element();
+
+        let message = rake::view! {
+            <div class="size-full flex flex-col gap-2 p-3 bg-surface overflow-y-scroll">
+                <TextArea rows={2} {..TextArea::new("message", &self.repo_message, "Commit message")}/>
+                <Text tone={TextTone::Muted} role={TextRole::Caption} {..Text::new("sample", "Sample state only · no repository changes")}/>
+            </div>
+        }.into_any_element();
+
+        let detail = rake::view! {
+            <ResizableSplit axis={SplitAxis::Vertical} min_first={px(100.)} min_second={px(100.)} first={preview} second={message}
+                {..ResizableSplit::new("preview-split", &self.preview_split, "Preview height")}/>
+        }.into_any_element();
+
+        let work = rake::view! {
+            <ResizableSplit min_first={px(140.)} min_second={px(200.)} first={files} second={detail}
+                {..ResizableSplit::new("files-split", &self.files_split, "Changed files width")}/>
+        }
+        .into_any_element();
+
+        rake::view! {
+            <div class="flex flex-col gap-3 mt-4 p-3 border-1 border-line rounded-[8px] bg-surface">
+                <Text role={TextRole::Title} {..Text::new("title", "Repository layout")}/>
+                <div class="flex flex-row flex-wrap items-center gap-2">
+                    <Button variant={if self.repo_segmented {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
+                        on_press={Some(Box::new(cx.listener(|this, _, _, cx| {this.repo_segmented = !this.repo_segmented; cx.notify();})))}
+                        {..Button::new("variant", "Segmented tabs")}/>
+                    <Button variant={ButtonVariant::Ghost} on_press={Some(Box::new(cx.listener(|this, _, window, cx| {
+                        this.sidebar_split.update(cx, |state, cx| state.resize(px(180.), window, cx));
+                        this.files_split.update(cx, |state, cx| state.resize(px(210.), window, cx));
+                        this.preview_split.update(cx, |state, cx| state.resize(px(260.), window, cx));
+                    })))} {..Button::new("reset", "Reset pane sizes")}/>
+                </div>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help", "Drag a divider or focus it and use arrows; Shift moves faster, Home/End reach limits. Tabs: ←/→, Home/End, Delete to close. Click a file to reopen it.")}/>
+                <div class="h-[480px] min-w-0 border-1 border-line rounded-control overflow-hidden">
+                    <ResizableSplit min_first={px(140.)} min_second={px(340.)} first={sidebar} second={work}
+                        {..ResizableSplit::new("sidebar-split", &self.sidebar_split, "Repository sidebar width")}/>
+                </div>
+            </div>
         }
     }
 
@@ -760,6 +908,7 @@ impl Render for Gallery {
             Section::Overview => 10,
             Section::Actions | Section::Inputs | Section::Overlays | Section::Toasts => 2,
             Section::Selection | Section::Typography | Section::Dialogs => 1,
+            Section::Layout => 0,
         };
 
         let rows = item_count.div_ceil(columns);
@@ -781,7 +930,7 @@ impl Render for Gallery {
                     </div>
                 </header>
                 <nav class="flex flex-row flex-wrap gap-1 px-6 py-3">
-                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs"),(Section::Toasts,"Toasts")].into_iter().enumerate() {
+                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs"),(Section::Toasts,"Toasts"),(Section::Layout,"Layout")].into_iter().enumerate() {
                         <Button id={("section",index).into()}
                             variant={if self.section==section {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{
@@ -790,7 +939,7 @@ impl Render for Gallery {
                     }
                 </nav>
                 <div class="flex-1 min-h-0 overflow-y-scroll px-6 pb-6" scroll={&self.scroll}>
-                    <div class="grid gap-4 shrink-0" style={|s|s.grid_cols(columns).grid_rows_max_content(rows)}>
+                    if self.section != Section::Layout {<div class="grid gap-4 shrink-0" style={|s|s.grid_cols(columns).grid_rows_max_content(rows)}>
                         if matches!(self.section,Section::Overview|Section::Actions) { {self.actions(cx)} {self.states(cx)} }
                         if matches!(self.section,Section::Overview|Section::Selection) { {self.selection(cx)} }
                         if matches!(self.section,Section::Overview|Section::Typography) { {self.typography()} }
@@ -798,7 +947,8 @@ impl Render for Gallery {
                         if matches!(self.section,Section::Overview|Section::Overlays) { {self.menus(cx)} {self.tooltips(cx)} }
                         if matches!(self.section,Section::Overview|Section::Dialogs|Section::Toasts) {{self.dialog_examples(cx)}}
                         if matches!(self.section,Section::Overview|Section::Toasts) {{self.toast_examples(cx)}}
-                    </div>
+                    </div>}
+                    if matches!(self.section, Section::Overview|Section::Layout) {{self.repository_layout(cx)}}
                 </div>
                 <footer class="px-6 py-2 border-t-1 border-line">
                     <Text role={TextRole::Caption} tone={TextTone::Muted}
@@ -834,4 +984,172 @@ fn main() -> Result<(), rake::AppError> {
         })
         .root(|_, window, cx| cx.new(|cx| Gallery::new(window, cx)).into())
         .run()
+}
+
+#[cfg(all(test, feature = "test-support"))]
+mod tests {
+    use super::*;
+    use gpui::InputEvent as _;
+
+    fn draw(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Gallery>) {
+        for _ in 0..2 {
+            cx.run_until_parked();
+            cx.update_window(view.into(), |_, window, cx| window.draw(cx).clear(cx))
+                .unwrap();
+        }
+    }
+
+    fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Gallery>) {
+        let mut cx = gpui::TestAppContext::single();
+
+        let view = cx.open_window(gpui::size(px(1080.), px(900.)), |window, cx| {
+            let mut gallery = Gallery::new(window, cx);
+
+            gallery.section = Section::Layout;
+
+            gallery
+        });
+
+        draw(&mut cx, view);
+
+        (cx, view)
+    }
+
+    fn position(
+        cx: &gpui::TestAppContext,
+        view: gpui::WindowHandle<Gallery>,
+        selector: &'static str,
+    ) -> gpui::Point<gpui::Pixels> {
+        gpui::VisualTestContext::from_window(view.into(), cx)
+            .debug_bounds(selector)
+            .expect("gallery control is mounted")
+            .center()
+    }
+
+    fn pointer(
+        cx: &mut gpui::TestAppContext,
+        view: gpui::WindowHandle<Gallery>,
+        position: gpui::Point<gpui::Pixels>,
+        phase: &str,
+    ) {
+        cx.update_window(view.into(), |_, window, cx| {
+            let event = match phase {
+                "down" => gpui::MouseDownEvent {
+                    button: gpui::MouseButton::Left,
+                    position,
+                    modifiers: Default::default(),
+                    click_count: 1,
+                    first_mouse: false,
+                }
+                .to_platform_input(),
+                "up" => gpui::MouseUpEvent {
+                    button: gpui::MouseButton::Left,
+                    position,
+                    modifiers: Default::default(),
+                    click_count: 1,
+                }
+                .to_platform_input(),
+                "move" => gpui::MouseMoveEvent {
+                    position,
+                    pressed_button: Some(gpui::MouseButton::Left),
+                    modifiers: Default::default(),
+                }
+                .to_platform_input(),
+                _ => unreachable!("test pointer phase"),
+            };
+
+            window.dispatch_event(event, cx);
+        })
+        .unwrap();
+        draw(cx, view);
+    }
+
+    #[test]
+    fn repository_tabs_close_without_resetting_layout_or_drafts() {
+        let (mut cx, view) = setup();
+
+        view.update(&mut cx, |gallery, _, cx| {
+            gallery
+                .repo_message
+                .update(cx, |state, cx| state.set_text("Keep this draft", cx));
+        })
+        .unwrap();
+        draw(&mut cx, view);
+        let tab = position(&cx, view, "tab-repo-file-1");
+
+        pointer(&mut cx, view, tab, "down");
+        pointer(&mut cx, view, tab, "up");
+        assert_eq!(
+            view.read_with(&cx, |gallery, _| gallery.repo_selected)
+                .unwrap(),
+            Some(1)
+        );
+        cx.update_window(view.into(), |_, window, cx| {
+            let keystroke = gpui::Keystroke::parse("delete").unwrap();
+
+            window.dispatch_event(
+                gpui::KeyDownEvent {
+                    keystroke,
+                    is_held: false,
+                    prefer_character_input: false,
+                }
+                .to_platform_input(),
+                cx,
+            );
+        })
+        .unwrap();
+        draw(&mut cx, view);
+        assert!(
+            view.read_with(&cx, |gallery, cx| gallery.repo_open == [0]
+                && gallery.repo_selected == Some(0)
+                && gallery.repo_message.read(cx).text() == "Keep this draft"
+                && gallery.sidebar_split.read(cx).size() == px(180.))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn nested_repository_dividers_resize_independently() {
+        let (mut cx, view) = setup();
+        let sidebar = position(&cx, view, "split-Repository sidebar width");
+
+        pointer(&mut cx, view, sidebar, "down");
+        pointer(
+            &mut cx,
+            view,
+            sidebar + gpui::point(px(30.), px(0.)),
+            "move",
+        );
+        pointer(&mut cx, view, sidebar + gpui::point(px(30.), px(0.)), "up");
+        assert_eq!(
+            view.read_with(&cx, |gallery, cx| gallery.sidebar_split.read(cx).size())
+                .unwrap(),
+            px(210.)
+        );
+        assert_eq!(
+            view.read_with(&cx, |gallery, cx| gallery.files_split.read(cx).size())
+                .unwrap(),
+            px(210.)
+        );
+        let preview = position(&cx, view, "split-Preview height");
+
+        pointer(&mut cx, view, preview, "down");
+        pointer(
+            &mut cx,
+            view,
+            preview + gpui::point(px(0.), px(-30.)),
+            "move",
+        );
+        pointer(&mut cx, view, preview + gpui::point(px(0.), px(-30.)), "up");
+        assert_eq!(
+            view.read_with(&cx, |gallery, cx| gallery.preview_split.read(cx).size())
+                .unwrap(),
+            px(230.)
+        );
+        assert_eq!(
+            view.read_with(&cx, |gallery, _| gallery.repo_selected)
+                .unwrap(),
+            Some(0)
+        );
+    }
 }

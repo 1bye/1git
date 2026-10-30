@@ -69,6 +69,8 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `Tooltip` | Delayed hover or immediate focus hint, optional shortcut caption, Escape dismissal |
 | `DropdownMenu` | Branch choices and actions, icons, shortcut captions, separators, disabled/danger states |
 | `Dialog` | Standard/confirmation modal, title/description, body/footer, initial focus, busy and dismissal policies |
+| `Tabs` | Underline/segmented variants, sizes, disabled and closable tabs, controlled selection and panel |
+| `ResizableSplit` | Horizontal/vertical panes, minimum sizes, retained dimensions and keyboard divider |
 | `Toast` / `ToastHost` | Success/error/progress feedback, action/dismissal, bounded stack, paused expiration and live regions |
 
 `ControlState::{Enabled, Disabled, Busy}` prevents contradictory availability flags.
@@ -280,6 +282,94 @@ The **Dialogs** gallery includes Create branch validation and a Discard changes
 confirmation for two sample files. **Simulate a slow operation** demonstrates busy
 states with a short local delay. These examples never modify a repository; their
 simple branch-name checks demonstrate UI validation rather than Git's full ref rules.
+
+## Tabs and resizable layouts
+
+`Tabs` owns transient focus and scroll state under its stable `id`. The application
+owns `items`, `selected`, and the active `children` panel. Both `Underline` and
+`Segmented` variants use the shared control sizes and palette. IDs must be unique.
+
+```no_run
+use onegit_ui::{TabHandler, TabItem, Tabs, Text};
+use rake::gpui::{ElementId, IntoElement};
+
+fn previews(selected: ElementId, choose: TabHandler, close: TabHandler) -> impl IntoElement {
+    let items = vec![
+        TabItem::new("changes", "Changes"),
+        TabItem { closable: true, ..TabItem::new("readme", "README.md") },
+    ];
+    rake::view! {
+        <Tabs selected={Some(selected)} on_select={Some(choose)} on_close={Some(close)}
+            {..Tabs::new("previews", "Repository previews", items)}>
+            <Text {..Text::new("content", "The owner supplies the selected preview.")}/>
+        </Tabs>
+    }
+}
+```
+
+Tab enters the selected enabled tab, or the first enabled tab if selection is
+missing. Left/Right wrap through enabled items; Home/End jump. Navigation focuses
+and requests selection immediately. Enter/Space on an already selected tab emits
+no duplicate callback. Delete requests closing a focused closable tab; its pointer
+close action is separate and never selects the tab. Closers are exposed to assistive
+technology; keyboard users use Delete. Disabled items cannot select or close.
+Tab leaves the strip for the active panel, whose content keeps normal keyboard input.
+
+Callbacks receive stable IDs and run outside retained-state borrows. `on_close`
+does not remove items: the owner chooses the new list and selection. Removing or
+disabling the focused tab moves focus to a nearby enabled item, or the list scope
+when none remain. Missing/disabled selections show the optional `empty` slot instead
+of an active tab panel. Changing the theme, variant or item order preserves identity.
+The strip scrolls horizontally and keyboard navigation reveals the focused item.
+Retain input entities in the owner when their inactive panels should keep edits.
+
+`ResizableSplit` fills a bounded parent and accepts arbitrary `first` / `second`
+slots. `SplitAxis::Horizontal` arranges panes side by side; `Vertical` stacks them.
+Create one retained `SplitState` per split, in its owning window:
+
+```no_run
+use onegit_ui::{ResizableSplit, SplitState, Text};
+use rake::gpui::{App, AppContext, Entity, IntoElement, Window, px};
+
+fn retained(window: &mut Window, cx: &mut App) -> Entity<SplitState> {
+    cx.new(|cx| SplitState::new(px(220.), window, cx))
+}
+
+fn workspace(state: &Entity<SplitState>) -> impl IntoElement {
+    let sidebar = rake::view! {<Text {..Text::new("sidebar", "Repository")}/>}.into_any_element();
+    let preview = rake::view! {<Text {..Text::new("preview", "Selected file")}/>}.into_any_element();
+    rake::view! {
+        <div class="w-full h-[400px]">
+            <ResizableSplit first={sidebar} second={preview} min_first={px(140.)} min_second={px(200.)}
+                {..ResizableSplit::new("workspace", state, "Repository sidebar width")}/>
+        </div>
+    }
+}
+```
+
+Drag the six-pixel divider, or focus it with Tab. Arrows along its resize axis move
+10 logical pixels; Shift moves 40, and Home/End reach the available limits. Escape
+cancels a drag and restores its original preference. Pointer capture follows the
+drag outside moving hitboxes; window deactivation, disabling, changing axis,
+unmounting, or shrinking below the combined minimums cancels it. `disabled` skips resizing and sequential keyboard navigation.
+The accessible divider exposes its orientation, size, bounds and adjustment actions.
+
+`min_first` and `min_second` constrain both panes. If the parent cannot fit both
+minimums, the panes share the available space proportionally without overflowing.
+Shrinking a window does not overwrite the preferred size; widening it restores that
+preference when possible. `size()` reads the effective size after layout, and
+`resize(...)` changes the preference within current limits. Nonfinite/negative inputs
+become zero before constraints apply. Subscribe to `SplitEvent::Resized` to save
+user/API size changes; viewport changes alone do not emit preference changes.
+Persistence belongs to the application. Mount each state in only one split.
+
+Resizing follows the pointer immediately, including nested splits. Only divider/tab
+hover feedback uses the shared 80 ms color motion; neither geometry nor text is
+stretched. Reduced motion is respected and settled layouts schedule no frames.
+The **Layout** gallery combines a repository sidebar, selectable/includable files,
+closable preview tabs, a disabled tab and an editable commit message. It demonstrates
+both split orientations, both tab variants, pane-size reset and reopening closed files.
+The example uses local sample values and makes no Git calls.
 
 ## Toasts
 

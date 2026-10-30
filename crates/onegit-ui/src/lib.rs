@@ -16,6 +16,8 @@ mod list_row;
 mod motion;
 mod overlay;
 mod pane;
+mod resizable_split;
+mod tabs;
 mod text;
 mod theme;
 mod toast;
@@ -41,6 +43,8 @@ pub use input::{
 
 pub use list_row::{ListRow, RowSelection};
 pub use pane::{Pane, PanePadding};
+pub use resizable_split::{ResizableSplit, SplitAxis, SplitEvent, SplitState};
+pub use tabs::{TabHandler, TabItem, TabVariant, Tabs};
 pub use text::{Text, TextRole, TextTone};
 pub use theme::{Appearance, Theme};
 

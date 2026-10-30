@@ -34,5 +34,9 @@ required-features = ["test-support"]
 name = "toasts"
 required-features = ["test-support"]
 
+[[test]]
+name = "layout"
+required-features = ["test-support"]
+
 [lints]
 workspace = true
