@@ -9,6 +9,7 @@
 mod button;
 mod checkbox;
 mod dialog;
+mod diff_viewer;
 mod dropdown_menu;
 mod icon;
 mod input;
@@ -33,6 +34,8 @@ pub use dialog::{
     Dialog, DialogAvailability, DialogDismissal, DialogEvent, DialogHost, DialogHostState,
     DialogKind, DialogState,
 };
+
+pub use diff_viewer::{DiffDocument, DiffLine, DiffLineKind, DiffParseError, DiffView, DiffViewer};
 
 pub use dropdown_menu::{DropdownMenu, MenuAlignment, MenuEntry, MenuHandler, MenuItem};
 pub use icon::{Icon, IconName, IconSize};

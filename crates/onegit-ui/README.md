@@ -70,6 +70,7 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `DropdownMenu` | Branch choices and actions, icons, shortcut captions, separators, disabled/danger states |
 | `Dialog` | Standard/confirmation modal, title/description, body/footer, initial focus, busy and dismissal policies |
 | `Tabs` | Underline/segmented variants, sizes, disabled and closable tabs, controlled selection and panel |
+| `DiffViewer` | Immutable patch document, old/new line numbers, unified/split modes and synchronized virtualized rows |
 | `ResizableSplit` | Horizontal/vertical panes, minimum sizes, retained dimensions and keyboard divider |
 | `Toast` / `ToastHost` | Success/error/progress feedback, action/dismissal, bounded stack, paused expiration and live regions |
 
@@ -512,6 +513,57 @@ GPUI also caps animation in an inactive window at about 30 FPS. Focus the galler
 when assessing motion smoothness. An idle event-driven window does not continually
 redraw, so idle frame counts do not measure animation performance.
 
+## Read-only diffs
+
+Parse a single-file unified patch once when data changes and retain the resulting
+`DiffDocument` in the owner. Cloning a document shares its immutable data. The
+viewer has no Git dependency; loading patches and handling parse errors belong to
+the application. Pass a stable viewer ID and a parent with bounded height.
+
+```no_run
+use onegit_ui::{DiffDocument, DiffParseError, DiffView, DiffViewer};
+use rake::gpui::IntoElement;
+
+fn load_patch(patch: &str) -> Result<DiffDocument, DiffParseError> {
+    DiffDocument::parse(patch)
+}
+
+fn preview(document: &DiffDocument, view: DiffView) -> impl IntoElement {
+    rake::view! {
+        <div class="h-[360px] min-w-0">
+            <DiffViewer view={view}
+                {..DiffViewer::new("preview", "theme.rs", document.clone())}/>
+        </div>
+    }
+}
+```
+
+Unified mode has separate old/new number gutters. Split mode pairs deleted and
+added lines in each contiguous change block, leaving blank cells for unequal
+counts. It does not attempt semantic or intra-line matching. Context, hunk headers
+and metadata appear on both sides. Both axes scroll together; only visible rows
+are rendered. The widest source row sets the horizontal extent, so long lines
+scroll without wrapping. Changing mode anchors near the same source line;
+replacing the document resets scroll. Retain the same document across ordinary
+rerenders and theme changes to preserve position.
+
+Tab or a pointer click focuses the viewer. Up/Down, Page Up/Down and Home/End
+navigate rows; scroll wheel/trackpad handles both axes. Accessible row descriptions
+include change kind, coordinates, raw source text and missing-final-newline state.
+Color is supplemented by +/− markers. Tabs and CR characters are shown as `→` and
+`␍`; `lines()` and `patch()` retain the exact source text for application-owned copy
+actions. This is a read-only surface with no text selection, editing or staging.
+
+The parser validates hunk counts and ranges, supports additions/deletions, binary
+notices and metadata-only changes, and rejects combined or multiple-file patches.
+Budgets are 16 MiB per patch, 200,000 patch lines and 64 KiB per line. Binary payloads
+are retained in `patch()` but are not displayed as text. Pass files separately and
+show parse errors in the surrounding application UI.
+
+The gallery's **Diffs** section covers unequal replacements, multiple hunks,
+Unicode/CR/newline markers, 5,000 replacements, binary changes and an empty state.
+The repository layout also uses the same viewer inside its retained file tabs.
+
 ## Validation
 
 ```sh
@@ -526,6 +578,5 @@ exercise real component rendering and pointer/keyboard dispatch with a doubled
 window/text/GPU backend; they do not establish native screen-reader behavior.
 The gallery provides the native appearance and interaction check.
 
-Menus, popovers, dialogs, split panes and virtualized diff/history views are
-subsequent slices. No changeset is needed for this unreleased Rust crate
+Repository history and application integration are subsequent slices. No changeset is needed for this unreleased Rust crate
 (`publish = false`).

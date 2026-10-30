@@ -1,12 +1,14 @@
 //! Native component workbench. All actions update sample state; no Git calls are made.
+mod gallery_diffs;
+
 use onegit_ui::{
     Appearance, Button, ButtonTone, ButtonVariant, CheckState, Checkbox, ControlSize, ControlState,
     Dialog, DialogAvailability, DialogDismissal, DialogHost, DialogHostState, DialogKind,
-    DialogState, DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent,
-    InputState, InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, ResizableSplit,
-    RowSelection, SearchField, SplitAxis, SplitState, TabItem, TabVariant, Tabs, Text, TextArea,
-    TextInput, TextRole, TextTone, Theme, Toast, ToastAction, ToastHost, ToastId, ToastKind,
-    ToastState, Tooltip,
+    DialogState, DiffDocument, DiffView, DiffViewer, DropdownMenu, Icon, IconButton, IconName,
+    IconSize, InputAvailability, InputEvent, InputState, InputValidation, ListRow, MenuAlignment,
+    MenuEntry, MenuItem, Pane, ResizableSplit, RowSelection, SearchField, SplitAxis, SplitState,
+    TabItem, TabVariant, Tabs, Text, TextArea, TextInput, TextRole, TextTone, Theme, Toast,
+    ToastAction, ToastHost, ToastId, ToastKind, ToastState, Tooltip,
 };
 
 use rake::gpui::{self, Context, FocusHandle, Focusable, ScrollHandle, Window, prelude::*, px};
@@ -25,6 +27,7 @@ enum Section {
     Dialogs,
     Toasts,
     Layout,
+    Diffs,
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +84,10 @@ struct Gallery {
     repo_open: Vec<usize>,
     repo_selected: Option<usize>,
     repo_segmented: bool,
+    diff_view: DiffView,
+    diff_sample: usize,
+    diffs: Vec<DiffDocument>,
+    repo_diffs: Vec<DiffDocument>,
     _input_subscriptions: Vec<gpui::Subscription>,
 }
 
@@ -157,6 +164,10 @@ impl Gallery {
             repo_open: vec![0, 1],
             repo_selected: Some(0),
             repo_segmented: false,
+            diff_view: DiffView::Unified,
+            diff_sample: 0,
+            diffs: gallery_diffs::samples(),
+            repo_diffs: gallery_diffs::repository(),
             branch,
             search,
             message,
@@ -370,6 +381,47 @@ impl Gallery {
         }
     }
 
+    fn diff_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        rake::view! {
+            <div class="flex flex-row items-center gap-1">
+                for (index, (view, label)) in [(DiffView::Unified, "Unified"), (DiffView::Split, "Split")].into_iter().enumerate() {
+                    <Button id={("diff-mode", index).into()} variant={if self.diff_view == view {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
+                        on_press={Some(Box::new(cx.listener(move |this, _, _, cx| {this.diff_view = view; cx.notify();})))}
+                        {..Button::new("mode", label)}/>
+                }
+            </div>
+        }
+    }
+
+    fn diff_examples(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let document = self.diffs[self.diff_sample].clone();
+        let copy = document.clone();
+
+        rake::view! {
+            <div class="flex flex-col gap-3">
+                <Text role={TextRole::Title} {..Text::new("title", "Diff viewer")}/>
+                <Text tone={TextTone::Muted} {..Text::new("intro", "Quiet gutters, clear changes. Both views share the same patch and keep your place when switching.")}/>
+                <div class="flex flex-row flex-wrap items-center gap-2">
+                    {self.diff_controls(cx)}
+                    <Button variant={ButtonVariant::Ghost} on_press={Some(Box::new(move |_, _, cx| {
+                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(copy.patch().to_owned()));
+                    }))} {..Button::new("copy-patch", "Copy patch")}/>
+                </div>
+                <div class="flex flex-row flex-wrap gap-1">
+                    for (index, label) in gallery_diffs::LABELS.into_iter().enumerate() {
+                        <Button id={("diff-sample", index).into()} variant={if self.diff_sample == index {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
+                            on_press={Some(Box::new(cx.listener(move |this, _, _, cx| {this.diff_sample = index; cx.notify();})))}
+                            {..Button::new("sample", label)}/>
+                    }
+                </div>
+                <div class="h-[380px] shrink-0 rounded-[8px] overflow-hidden">
+                    <DiffViewer view={self.diff_view} {..DiffViewer::new("sample-diff", gallery_diffs::LABELS[self.diff_sample], document)}/>
+                </div>
+                <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("help", "Scroll either column. Tab focuses the viewer; Up/Down, Page Up/Down and Home/End navigate. Tabs → and CR ␍ are visible; source patch bytes stay intact.")}/>
+            </div>
+        }
+    }
+
     fn repository_layout(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let names = ["theme.rs", "button.rs", "README.md"];
 
@@ -419,23 +471,8 @@ impl Gallery {
             disabled: true,
             ..TabItem::new("history-unavailable", "History")
         });
-        let (title, removed, added) = match self.repo_selected {
-            Some(0) => (
-                "crates/onegit-ui/src/theme.rs",
-                "    surface: charcoal,",
-                "    surface: theme.surface,",
-            ),
-            Some(1) => (
-                "crates/onegit-ui/src/button.rs",
-                "    border: visible,",
-                "    border: none,",
-            ),
-            _ => (
-                "README.md",
-                "A component gallery.",
-                "A reusable repository workspace.",
-            ),
-        };
+        let index = self.repo_selected.unwrap_or(0);
+        let title = names[index];
 
         let preview = rake::view! {
             <Tabs selected={self.repo_selected.map(|index| ("repo-file", index).into())}
@@ -451,14 +488,7 @@ impl Gallery {
                         cx.notify();
                     }
                 })))} {..Tabs::new("previews", "File previews", tabs)}>
-                <div class="size-full flex flex-col gap-1 p-3 bg-surface-sunken overflow-y-scroll">
-                    <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("path", title)}/>
-                    <Text role={TextRole::Code} tone={TextTone::Muted} {..Text::new("hunk", "@@ -12,3 +12,3 @@")}/>
-                    <Text role={TextRole::Code} {..Text::new("context", " fn render() {")}/>
-                    <Text role={TextRole::Code} tone={TextTone::Danger} {..Text::new("removed", format!("- {removed}"))}/>
-                    <Text role={TextRole::Code} tone={TextTone::Success} {..Text::new("added", format!("+ {added}"))}/>
-                    <Text role={TextRole::Code} {..Text::new("end", " }")}/>
-                </div>
+                <DiffViewer view={self.diff_view} {..DiffViewer::new("file-diff", title, self.repo_diffs[index].clone())}/>
             </Tabs>
         }.into_any_element();
 
@@ -483,6 +513,7 @@ impl Gallery {
         rake::view! {
             <div class="flex flex-col gap-3 mt-4 p-3 border-1 border-line rounded-[8px] bg-surface">
                 <Text role={TextRole::Title} {..Text::new("title", "Repository layout")}/>
+                {self.diff_controls(cx)}
                 <div class="flex flex-row flex-wrap items-center gap-2">
                     <Button variant={if self.repo_segmented {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                         on_press={Some(Box::new(cx.listener(|this, _, _, cx| {this.repo_segmented = !this.repo_segmented; cx.notify();})))}
@@ -908,7 +939,7 @@ impl Render for Gallery {
             Section::Overview => 10,
             Section::Actions | Section::Inputs | Section::Overlays | Section::Toasts => 2,
             Section::Selection | Section::Typography | Section::Dialogs => 1,
-            Section::Layout => 0,
+            Section::Layout | Section::Diffs => 0,
         };
 
         let rows = item_count.div_ceil(columns);
@@ -930,7 +961,7 @@ impl Render for Gallery {
                     </div>
                 </header>
                 <nav class="flex flex-row flex-wrap gap-1 px-6 py-3">
-                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs"),(Section::Toasts,"Toasts"),(Section::Layout,"Layout")].into_iter().enumerate() {
+                    for (index,(section,label)) in [(Section::Overview,"Overview"),(Section::Actions,"Actions"),(Section::Selection,"Selection"),(Section::Typography,"Typography"),(Section::Inputs,"Inputs"),(Section::Overlays,"Menus & hints"),(Section::Dialogs,"Dialogs"),(Section::Toasts,"Toasts"),(Section::Layout,"Layout"),(Section::Diffs,"Diffs")].into_iter().enumerate() {
                         <Button id={("section",index).into()}
                             variant={if self.section==section {ButtonVariant::Secondary} else {ButtonVariant::Ghost}}
                             on_press={Some(Box::new(cx.listener(move |this,_,_,cx|{
@@ -939,7 +970,7 @@ impl Render for Gallery {
                     }
                 </nav>
                 <div class="flex-1 min-h-0 overflow-y-scroll px-6 pb-6" scroll={&self.scroll}>
-                    if self.section != Section::Layout {<div class="grid gap-4 shrink-0" style={|s|s.grid_cols(columns).grid_rows_max_content(rows)}>
+                    if !matches!(self.section, Section::Layout | Section::Diffs) {<div class="grid gap-4 shrink-0" style={|s|s.grid_cols(columns).grid_rows_max_content(rows)}>
                         if matches!(self.section,Section::Overview|Section::Actions) { {self.actions(cx)} {self.states(cx)} }
                         if matches!(self.section,Section::Overview|Section::Selection) { {self.selection(cx)} }
                         if matches!(self.section,Section::Overview|Section::Typography) { {self.typography()} }
@@ -949,6 +980,7 @@ impl Render for Gallery {
                         if matches!(self.section,Section::Overview|Section::Toasts) {{self.toast_examples(cx)}}
                     </div>}
                     if matches!(self.section, Section::Overview|Section::Layout) {{self.repository_layout(cx)}}
+                    if self.section == Section::Diffs {{self.diff_examples(cx)}}
                 </div>
                 <footer class="px-6 py-2 border-t-1 border-line">
                     <Text role={TextRole::Caption} tone={TextTone::Muted}
@@ -1105,6 +1137,59 @@ mod tests {
                 && gallery.repo_message.read(cx).text() == "Keep this draft"
                 && gallery.sidebar_split.read(cx).size() == px(180.))
                 .unwrap()
+        );
+    }
+
+    #[test]
+    fn diff_modes_render_inside_tabs_and_in_the_dedicated_gallery() {
+        let (mut cx, view) = setup();
+
+        view.update(&mut cx, |gallery, _, cx| {
+            gallery
+                .repo_message
+                .update(cx, |state, cx| state.set_text("Keep this draft", cx));
+            gallery.diff_view = DiffView::Split;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, view);
+        assert!(
+            gpui::VisualTestContext::from_window(view.into(), &cx)
+                .debug_bounds("diff-new-1")
+                .is_some()
+        );
+        assert!(
+            view.read_with(&cx, |gallery, cx| gallery.repo_selected == Some(0)
+                && gallery.repo_message.read(cx).text() == "Keep this draft")
+                .unwrap()
+        );
+        view.update(&mut cx, |gallery, _, cx| {
+            gallery.section = Section::Diffs;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, view);
+        assert!(
+            gpui::VisualTestContext::from_window(view.into(), &cx)
+                .debug_bounds("diff-after")
+                .is_some()
+        );
+        view.update(&mut cx, |gallery, _, cx| {
+            gallery.diff_sample = 2;
+            gallery.diff_view = DiffView::Unified;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, view);
+        assert!(
+            gpui::VisualTestContext::from_window(view.into(), &cx)
+                .debug_bounds("diff-old-1")
+                .is_some()
+        );
+        assert!(
+            gpui::VisualTestContext::from_window(view.into(), &cx)
+                .debug_bounds("diff-old-5000")
+                .is_none()
         );
     }
 
