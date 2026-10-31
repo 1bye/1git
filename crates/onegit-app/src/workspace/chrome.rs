@@ -271,7 +271,11 @@ impl RepositoryWorkspace {
                         if !tracking.is_empty(){<div class="absolute top-[24px] rounded-[2px] px-0.5 text-caption bg-surface">{tracking.clone()}</div>}
                     </div>
                 </Tooltip>
-                <Tooltip {..Tooltip::new("branches-unavailable","Branch switching is not ported to Rust yet")}><div class="size-[32px] flex items-center justify-center text-muted-ink"><Icon size={IconSize::Navigation} label={Some("Branch switching unavailable".into())} {..Icon::new("branches",IconName::Branches)}/></div></Tooltip>
+                <Tooltip {..Tooltip::new("branches-tip","Branches")}><div style={|s|s.debug_selector(||"rail-branches".into())}>
+                    <IconButton size={ControlSize::Rail} state={if !ready||self.repository_busy||self.write_job.is_some(){ControlState::Disabled}else{ControlState::Enabled}}
+                        on_press={Some(Box::new(cx.listener(|_,_,_,cx|cx.emit(super::tabs::Request::Branches(None)))))}
+                        {..IconButton::new("branches",IconName::Branches,match &self.state{RepositoryState::Ready(source)=>format!("Branches · {}",source.snapshot.status.head.branch.as_deref().unwrap_or("Detached HEAD")),_=>"Branches".into()})}/>
+                </div></Tooltip>
                 <div class="w-5 h-[1px] bg-line"/>
                 <div role={accesskit::Role::TabList} aria-label="Repository views" class="flex flex-col gap-1">
                     for (index,(section,id,label,icon)) in [(Section::Changes,"changes","Changes",IconName::Changes),(Section::History,"history","History",IconName::History)].into_iter().enumerate() {

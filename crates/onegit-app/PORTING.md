@@ -39,7 +39,7 @@ spacing checks described in `docs/RUST.md`.
 ## Intentional differences
 
 Rust retains index staging rather than the source app's selected-file inclusion
-workflow. It retains explicit page loading in History. Unported workspace network, branch-switching, AI, amend/undo, stash,
+workflow. It retains explicit page loading in History. Unported workspace network, AI, amend/undo, stash,
 graph, account and SSH actions are unavailable. Read-only diffs do not include
 hunk staging, context expansion, syntax highlighting or text selection.
 These are behavior gaps, not a claim that the full original application is ported.
@@ -105,7 +105,7 @@ to 700–2200 ms, and a 220 ms return. Hover/close feedback uses a short 80 ms t
 Motion samples request frames only until settled, and reduced motion snaps.
 Tests check intermediate native selection/neighbor bounds, interrupted transitions,
 preview-versus-committed drag order, Escape, label delays/return and idle frames.
-Branch switching from the active tab remains part of the unported branch workflow.
+The active tab also opens the attached branch picker with click, Enter or Down.
 
 The motion pass passes 58 app tests, strict all-target Clippy, rustfmt, rustdoc,
 workspace spacing checks and the native build. The running app was exercised with
@@ -157,3 +157,68 @@ entire saved document matched before and after relaunch. Temporary drafts were
 cleared afterward. Both existing repositories retained their HEAD/index bytes.
 The freshly signed bundle initially needed the native folder picker to complete
 macOS folder access; the subsequent restart restored without another picker.
+
+
+## Branch navigation and writes
+
+| Source | Rust |
+| --- | --- |
+| `WorkspaceMenu` sidebar search/recent/expanded/create/remote forms | `workspace/branches/{mod,view}.rs` |
+| `WorkspaceMenuModel` and `RepositoryBranchTargets` | `branches/model.rs` and date-ordered `onegit-git::BranchCollection` |
+| `RepositoryBranches.write`, `RepositoryBranchChanges` | Existing `Repository::change_branch`, called through `write::Operation::Branch` |
+| Window-owned branch completion and shared-root invalidation | `tabs/branch_actions.rs` |
+
+The original 288-pixel, 28-pixel-row picker layout and 160 ms ease-out height/opacity
+transition map to an attached `DialogPresentation` with `gpui-ce-motion`. Standard
+dialogs keep their existing layout. The attached presentation shares modal focus,
+outside/Escape dismissal and busy guards with ordinary dialogs. Branch rows reuse
+`ListRow` feedback and can expose current-branch context without changing visible
+labels. Local refs are already sorted by Git; presentation keeps the current local
+branch first, hides tracked remote refs, filters without mutating metadata, and
+retains source numeric-auto English age labels. Remote selection uses an exact ref,
+never a guessed remote, and never contacts the network.
+
+Source test mappings: `workspace-menu.unit.test.ts` ordering/tracked-ref/date cases
+map to `branches/model_tests.rs`; `repository-branches.integration.test.ts` local
+creation/switching, remote tracking, dirty Leave/Bring/Restore, conflicts, stale
+review and worktree ownership map to `tabs/branch_tests.rs`. The native tests also
+cover duplicate-tab refresh and drafts/layout, busy protection before the next
+frame, intermediate geometry, reduced motion, active-tab access and idle frames.
+Real Git fixtures prove mixed staged/unstaged/untracked work and recovery backups
+survive partial failures. An unborn repository can change its symbolic branch
+without inventing a commit.
+
+This pass exposes search, create/switch, direct remote tracking and managed dirty
+work recovery. The source menu's rename/delete, integration, comparison, worktree
+and settings actions are omitted until those workflows are ported. The active tab
+is reconstructed above the backdrop when it opens the picker, including its cached
+avatar and connected surface; clicking that preview dismisses the menu. Session
+restoration continues to store navigation/drafts, never a pending branch action or
+dirty-switch consent. No changeset is needed for unpublished
+Rust crates.
+
+Validation: 83 app tests, 101 UI/gallery tests and 36 original branch-menu/branch-write
+tests pass. Strict workspace all-target/all-feature Clippy, rustfmt, app/UI rustdoc,
+native app build and workspace spacing checks pass. The spacing check also compiles
+Windows/Linux Git code. Native branch tests use disposable real repositories; the
+existing onbot/pkgs repositories retained their exact HEAD/index bytes during the
+read-only bundle check. The rebuilt, signed bundle is installed and running.
+
+Live captures of both branch pickers using `pkgs` / `development` revealed an extra
+search separator, narrower row insets, smaller/different glyphs, a verbose More
+label and an extra Close action in Rust. The corrected picker removes those extra
+rows, uses the source eight-pixel row insets/gaps and fourteen-pixel Phosphor glyphs,
+and shows More with its caret while retaining the descriptive accessible name.
+Menu rows are a single full-width button, including decorative glyphs and metadata;
+standard content rows retain independently interactive slots. Native geometry and
+pointer tests verify the first branch starts directly below the 32-pixel search and
+clicking its glyph activates the row. The supported creation form's wording and
+controls were also checked against the current app's accessibility tree.
+
+A post-correction foreground capture verified the supported picker rows against
+the reference `pkgs` / `development` menu, plus live filtering to `read-abort` and
+opening/cancelling the empty creation form. The geometry checks agree with the
+observed search/row alignment. Background captures can still return Stage Manager
+thumbnails or stale accessibility frames. This is scoped branch-picker verification,
+not a claim of pixel parity for the entire application. Worktree and integration
+menu actions remain outside this pass, so their rows are intentionally absent.

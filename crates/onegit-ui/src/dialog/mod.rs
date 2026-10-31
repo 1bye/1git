@@ -32,6 +32,22 @@ pub enum DialogAvailability {
     Busy,
 }
 
+/// Visual chrome and placement of a modal interaction surface.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum DialogPresentation {
+    /// Centered dialog with title, description and footer chrome.
+    #[default]
+    Standard,
+    /// Compact attached surface whose content supplies its own padding and visible heading.
+    /// The origin and animated height are logical pixels, constrained to the viewport.
+    Attached {
+        /// Preferred top-left point in the window.
+        origin: gpui::Point<gpui::Pixels>,
+        /// Content height; owners may animate it while retaining dialog focus semantics.
+        height: gpui::Pixels,
+    },
+}
+
 /// Accessible dialog semantics, independent of the footer action's color.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DialogKind {
@@ -104,6 +120,8 @@ pub struct Dialog {
     pub description: Option<gpui::SharedString>,
     /// Ordinary form or confirmation semantics.
     pub kind: DialogKind,
+    /// Centered dialog chrome or a compact attached surface.
+    pub presentation: DialogPresentation,
     /// User dismissal policy; application `close` is always available.
     pub dismissal: DialogDismissal,
     /// Busy suppresses incidental dismissal; the owner supplies disabled/busy footer controls.
@@ -114,6 +132,8 @@ pub struct Dialog {
     pub width: gpui::Pixels,
     /// Footer actions, normally Cancel followed by a primary action.
     pub footer: Option<gpui::AnyElement>,
+    /// Optional non-focusable trigger preview painted above an attached surface’s backdrop.
+    pub trigger_preview: Option<gpui::AnyElement>,
     /// Form or confirmation content. Retained values remain caller-owned.
     pub children: Vec<gpui::AnyElement>,
 }
@@ -132,11 +152,13 @@ impl Dialog {
             title: title.into(),
             description: None,
             kind: DialogKind::Standard,
+            presentation: DialogPresentation::Standard,
             dismissal: DialogDismissal::Escape,
             availability: DialogAvailability::Ready,
             initial_focus: None,
             width: px(440.),
             footer: None,
+            trigger_preview: None,
             children: Vec::new(),
         }
     }
@@ -186,12 +208,16 @@ impl Dialog {
         let outside = self.state.clone();
         let close = self.state.clone();
 
+        let attached = matches!(self.presentation, DialogPresentation::Attached { .. });
+        let inset = px(if attached { 16. } else { 32. });
+
         let panel = rake::view! {
             <div id={self.id} focus={&focus} role={if self.kind==DialogKind::Confirmation {accesskit::Role::AlertDialog}else{accesskit::Role::Dialog}}
                 aria-label={self.title.clone()} aria-description={self.description.clone().unwrap_or_default()}
                 class="flex flex-col min-h-0 border-1 rounded-control overflow-hidden"
-                style={|s|s.w(self.width.max(px(1.))).max_w((viewport.width-px(32.)).max(px(1.))).max_h((viewport.height-px(32.)).max(px(1.)))
-                    .bg(theme.surface).text_color(theme.ink).border_color(theme.line).shadow_lg().occlude()
+                style={|s|s.w(self.width.max(px(1.))).max_w((viewport.width-inset).max(px(1.))).max_h((viewport.height-inset).max(px(1.)))
+                    .bg(theme.surface).text_color(theme.ink).border_color(if attached{Theme::transparent()}else{theme.line}).when(!attached,|s|s.shadow_lg()).occlude()
+                    .when(attached,|s|s.border_0().rounded(px(12.)).when_some(match self.presentation{DialogPresentation::Attached{height,..}=>Some(height),_=>None},|s,height|s.h(height.max(px(0.)))))
                     .a11y_synthetic_children(move |builder|{builder.parent_node().set_modal();if busy {builder.parent_node().set_busy();}})}
                 on:key-down={move |event:&gpui::KeyDownEvent,window,cx|{
                     if window.default_prevented(){return;}
@@ -202,7 +228,7 @@ impl Dialog {
                     window.prevent_default();cx.stop_propagation();
                 }}>
                 <div id="first" focus={&first} class="size-0"/>
-                <header class="flex flex-row items-start justify-between gap-3 p-4 shrink-0">
+                if !attached {<header class="flex flex-row items-start justify-between gap-3 p-4 shrink-0">
                     <div class="flex flex-col gap-1 min-w-0">
                         <Text role={TextRole::Title} {..Text::new("title",self.title)}/>
                         if let Some(description)=self.description {<p class="text-body" style={|s|s.text_color(theme.muted_ink)}>{description}</p>}
@@ -212,8 +238,8 @@ impl Dialog {
                             on_press={Some(Box::new(move |_,window,cx|close.update(cx,|state,cx|state.dismiss(false,window,cx))))}
                             {..IconButton::new("close",IconName::Close,"Close dialog")}/>
                     }
-                </header>
-                <div class="flex flex-col gap-3 min-h-0 overflow-y-scroll px-4 pb-4" style={|s|s.children(self.children)}/>
+                </header>}
+                if attached {<div class="flex flex-col min-h-0 flex-1" style={|s|s.children(self.children)}/> } else {<div class="flex flex-col gap-3 min-h-0 overflow-y-scroll px-4 pb-4" style={|s|s.children(self.children)}/>}
                 if let Some(footer)=self.footer {<footer class="flex flex-row flex-wrap items-center justify-end gap-2 px-4 py-3 border-t-1 shrink-0" style={|s|s.border_color(theme.line)}>{footer}</footer>}
                 <div id="last" focus={&last} class="size-0"/>
             </div>
@@ -235,7 +261,7 @@ impl Dialog {
                     .id("backdrop")
                     .absolute()
                     .inset_0()
-                    .bg(gpui::rgba(0x00000070))
+                    .bg(gpui::rgba(if attached { 0x00000066 } else { 0x00000070 }))
                     .occlude()
                     .on_any_mouse_down(move |_, window, cx| {
                         outside.update(cx, |state, cx| state.dismiss(true, window, cx));
@@ -244,16 +270,40 @@ impl Dialog {
                     })
                     .on_scroll_wheel(|_, _, cx| cx.stop_propagation()),
             )
-            .child(
-                gpui::div()
+            .child(match self.presentation {
+                DialogPresentation::Standard => gpui::div()
                     .absolute()
                     .inset_0()
                     .flex()
                     .items_center()
                     .justify_center()
                     .child(panel),
-            );
+                DialogPresentation::Attached { origin, height } => {
+                    let width = self.width.min((viewport.width - px(16.)).max(px(1.)));
+                    let height = height.min((viewport.height - px(16.)).max(px(1.)));
 
-        screen.into_any_element()
+                    gpui::div()
+                        .absolute()
+                        .left(
+                            origin
+                                .x
+                                .max(px(8.))
+                                .min((viewport.width - width - px(8.)).max(px(8.))),
+                        )
+                        .top(
+                            origin
+                                .y
+                                .max(px(8.))
+                                .min((viewport.height - height - px(8.)).max(px(8.))),
+                        )
+                        .child(panel)
+                }
+            });
+
+        screen
+            .when_some(self.trigger_preview, |screen, preview| {
+                screen.child(preview)
+            })
+            .into_any_element()
     }
 }

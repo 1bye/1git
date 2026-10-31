@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 pub(super) enum Operation {
     File(ChangedFile),
+    Branch(onegit_git::BranchRequest),
     StageAll,
     UnstageAll,
     Commit {
@@ -25,6 +26,7 @@ impl Operation {
             Self::StageAll => "Staging all changes…",
             Self::UnstageAll => "Unstaging all changes…",
             Self::Commit { .. } => "Creating commit…",
+            Self::Branch(_) => "Updating branch…",
         }
     }
 
@@ -35,6 +37,7 @@ impl Operation {
             Self::StageAll => "Changes staged",
             Self::UnstageAll => "Changes unstaged",
             Self::Commit { .. } => "Commit created",
+            Self::Branch(_) => "Branch updated",
         }
     }
 }
@@ -43,6 +46,7 @@ pub(super) struct Outcome {
     pub loaded: Result<Arc<Loaded>, String>,
     pub result: Result<String, String>,
     pub committed: bool,
+    pub branch_action: bool,
 }
 
 pub(super) fn available(loaded: &Loaded) -> bool {
@@ -64,6 +68,10 @@ pub(super) fn staged_count(loaded: &Loaded) -> usize {
 }
 
 pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
+    if let Operation::Branch(request) = &operation {
+        return run_branch(loaded, request);
+    }
+
     let repository = &loaded.repository;
     let mut committed = false;
 
@@ -123,6 +131,9 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                     repository.stage(&paths, None)?
                 }
             }
+            Operation::Branch(_) => {
+                unreachable!("branch operations use their reviewed write guard")
+            }
             Operation::StageAll => repository.stage_all(None)?,
             Operation::UnstageAll => repository.unstage_all(None)?,
             Operation::Commit {
@@ -161,6 +172,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             loaded: Ok(read::from_snapshot(repository.clone(), snapshot)),
             result: Ok(detail),
             committed,
+            branch_action: false,
         },
         Err(error) => {
             let boundary = match error.phase {
@@ -185,6 +197,59 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                 loaded: refreshed,
                 result: Err(detail),
                 committed: false,
+                branch_action: false,
+            }
+        }
+    }
+}
+
+fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outcome {
+    let repository = &loaded.repository;
+
+    match repository.change_branch(request, None) {
+        Ok(result) => {
+            let detail = if let Some(saved) = &result.saved_changes {
+                format!(
+                    "Branch updated. Changes saved for “{}” ({}) can be restored from Branches.",
+                    saved.branch,
+                    saved.oid.chars().take(7).collect::<String>()
+                )
+            } else {
+                "Branch updated".into()
+            };
+
+            Outcome {
+                loaded: Ok(read::from_snapshot(repository.clone(), result.snapshot)),
+                result: Ok(detail),
+                committed: false,
+                branch_action: true,
+            }
+        }
+        Err(error) => {
+            let mut detail = error.to_string();
+
+            let boundary = match error.failure.phase {
+                WritePhase::BeforeCommand => "The branch operation did not start.",
+                WritePhase::Command => {
+                    "Git may have made partial changes. Review the repository and any recovery backup before trying again."
+                }
+                WritePhase::Refresh => {
+                    "The branch operation completed but could not be confirmed. Review the repository before submitting again."
+                }
+            };
+
+            detail.push('\n');
+            detail.push_str(boundary);
+            let loaded = repository
+                .snapshot(false, None)
+                .map(|snapshot| read::from_snapshot(repository.clone(), snapshot))
+                .map_err(read::message);
+
+            Outcome {
+                loaded,
+                result: Err(detail),
+                committed: false,
+                branch_action: true,
             }
         }
     }

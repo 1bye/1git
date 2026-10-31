@@ -69,6 +69,8 @@ pub enum IconName {
     Search,
     /// Expand a menu.
     ChevronDown,
+    /// Open a submenu or expand more results.
+    ChevronRight,
     /// Source branch.
     Branch,
     /// File/document.
@@ -182,6 +184,10 @@ impl IconName {
             Self::Refresh => ("onegit-ui/Refresh", include_bytes!("icons/Refresh.svg")),
             Self::Branch => ("onegit-ui/Branch", include_bytes!("icons/Branch.svg")),
             Self::Check => ("onegit-ui/Check", include_bytes!("icons/Check.svg")),
+            Self::ChevronRight => (
+                "onegit-ui/ChevronRight",
+                include_bytes!("icons/ChevronRight.svg"),
+            ),
             Self::ChevronDown => (
                 "onegit-ui/ChevronDown",
                 include_bytes!("icons/ChevronDown.svg"),

@@ -12,9 +12,20 @@ pub enum RowSelection {
     Selected,
 }
 
+/// Row geometry for content lists or attached menus.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ListRowVariant {
+    /// Standard content-list slots and button padding.
+    #[default]
+    Standard,
+    /// Menu rows with eight-pixel insets and slot gaps; slots are decorative.
+    Menu,
+}
+
 /// Composable list row; interactive slots are siblings of the main action.
 ///
-/// A checkbox in `leading` or `trailing` never sits inside the row's button.
+/// With the standard variant, a checkbox in `leading` or `trailing` stays outside
+/// the row's button. Menu slots must be decorative; the whole row is one button.
 /// Its controlled value can therefore remain independent of the viewed row.
 #[derive(IntoElement)]
 pub struct ListRow {
@@ -22,6 +33,8 @@ pub struct ListRow {
     pub id: ElementId,
     /// Main readable row label.
     pub label: SharedString,
+    /// Accessible name when navigation context differs from the visible label.
+    pub accessibility_label: Option<SharedString>,
     /// Optional secondary line.
     pub description: Option<SharedString>,
     /// Optional leading glyph/control.
@@ -30,6 +43,8 @@ pub struct ListRow {
     pub trailing: Option<AnyElement>,
     /// Persistent viewed-row state.
     pub selection: RowSelection,
+    /// Content-list or attached-menu geometry.
+    pub variant: ListRowVariant,
     /// Availability of the main action; slot controls keep their own state.
     pub state: ControlState,
     /// Activates the viewed row, independently of slot controls.
@@ -43,10 +58,12 @@ impl ListRow {
         Self {
             id: id.into(),
             label: label.into(),
+            accessibility_label: None,
             description: None,
             leading: None,
             trailing: None,
             selection: RowSelection::Unselected,
+            variant: ListRowVariant::Standard,
             state: ControlState::Enabled,
             on_press: None,
         }
@@ -69,6 +86,7 @@ impl RenderOnce for ListRow {
         let theme = Theme::current();
         let selected = self.selection == RowSelection::Selected;
         let enabled = self.state.is_interactive();
+        let menu = self.variant == ListRowVariant::Menu;
         let description = self.description.clone().unwrap_or_default();
 
         let rest = Surface::new(if selected {
@@ -85,11 +103,37 @@ impl RenderOnce for ListRow {
 
         // Slots remain independently interactive even when the main action is disabled.
         motion::surface(self.id.clone(), rest, hover, hover, true, move |paint| {
+            if menu {
+                return rake::view! {
+                    <button id={self.id} disabled={!enabled}
+                        aria-label={self.accessibility_label.unwrap_or_else(||self.label.clone())}
+                        aria-description={description}
+                        class="flex flex-row items-center gap-2 px-2 py-1 rounded-control min-w-0 w-full text-left"
+                        style={|s| focusable(s).min_h(px(28.)).bg(paint.background)
+                            .border_color(Theme::transparent()).aria_selected(selected)
+                            .when(!enabled,|s|s.opacity(0.5))}
+                        on:click={move |event,window,cx| {
+                            cx.stop_propagation();
+                            if let Some(handler)=&self.on_press {handler(event,window,cx);}
+                        }}>
+                        if let Some(leading)=self.leading { {leading} }
+                        <div class="flex flex-col flex-1 min-w-0">
+                            <Text max_lines={Some(1)} {..Text::new("label",self.label)}/>
+                            if let Some(description)=self.description {
+                                <Text role={TextRole::Caption} tone={TextTone::Muted} max_lines={Some(1)}
+                                    {..Text::new("description",description)}/>
+                            }
+                        </div>
+                        if let Some(trailing)=self.trailing { {trailing} }
+                    </button>
+                }.into_any_element();
+            }
+
             rake::view! {
                 <div id={self.id} class="flex flex-row items-center gap-1 px-1 rounded-control min-w-0"
                     style={|s| s.bg(paint.background)}>
                     if let Some(leading)=self.leading { {leading} }
-                    <button id="action" disabled={!enabled} aria-label={self.label.clone()}
+                    <button id="action" disabled={!enabled} aria-label={self.accessibility_label.unwrap_or_else(||self.label.clone())}
                         aria-description={description}
                         class="flex flex-col items-start justify-center flex-1 min-w-0 text-left px-1.5 py-1"
                         style={|s| focusable(s).min_h(px(28.)).border_color(Theme::transparent())
@@ -106,7 +150,7 @@ impl RenderOnce for ListRow {
                     </button>
                     if let Some(trailing)=self.trailing { {trailing} }
                 </div>
-            }
+            }.into_any_element()
         })
     }
 }

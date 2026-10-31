@@ -223,6 +223,15 @@ impl DialogState {
         true
     }
 
+    /// Apply interaction availability immediately, before the next render.
+    /// Keep [`super::Dialog::availability`] synchronized with the operation's retained state.
+    pub fn set_availability(&mut self, availability: DialogAvailability, cx: &mut Context<Self>) {
+        if self.availability != availability {
+            self.availability = availability;
+            cx.notify();
+        }
+    }
+
     /// Close an open dialog, including while busy, and restore its mounted opener or host fallback.
     /// Returns false when already closed. Application work is never cancelled by this method.
     ///

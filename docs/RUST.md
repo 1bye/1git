@@ -110,6 +110,28 @@ operations externally for now. A changed branch or HEAD is rejected and refreshe
 before writing; changed rename metadata also requires renewed review. External Git
 can still change the repository concurrently.
 
+The **Branches** rail control and an active repository tab open an attached picker.
+Click the active tab or press Enter/Down while it is focused. Search locally known
+branches (no fetch), expand the recent list, switch local branches, or create and
+switch from the displayed HEAD. Remote choices create an explicitly tracked local
+branch after confirmation; branches already tracked locally are hidden. Existing
+local-name collisions and branches used by another worktree remain unavailable.
+
+With dirty work, switching requires an explicit **Leave** or **Bring** choice.
+Leave retains a durable branch/worktree backup, discoverable through **Restore
+saved changes…** after returning to that branch. Bring restores the exact backup
+and staged state after switching, retaining it if conflicts occur. Branch creation
+requires a clean tree. A changed HEAD, conflicts, active Git operation or unknown
+outcome requires renewed review. Nothing is force-switched or replayed.
+
+Branch work uses the existing app-owned write flow. Every tab for the canonical
+worktree refreshes on success and failure while retaining independent commit drafts,
+filters, diff modes, selections where available and pane preferences. Other tabs
+for that worktree cannot start another write while the operation is pending.
+The picker uses `gpui-ce-motion` for its 160 ms height/opacity transitions, snaps
+with reduced motion, and stops requesting frames once settled. Rename/delete,
+branch integration and worktree management are separate UI work.
+
 The **History** tab browses locally available commits reachable from the checked-out
 HEAD. It loads 50 commits at a time; **Load more commits** appends the next page.
 Pages share the exact initial tip, so commits created outside the app cannot shift

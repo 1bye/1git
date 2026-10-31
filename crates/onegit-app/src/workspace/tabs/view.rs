@@ -205,16 +205,23 @@ impl TabStrip {
                 gpui::CursorStyle::OpenHand
             };
 
+            let origin = gpui::point(
+                self.scroll.bounds().left()
+                    + self.scroll.offset().x
+                    + px(frame.x + 10. + 105. - 144.),
+                px(41.),
+            );
+
             let trigger=gpui::div().id(("activate-tab",id)).h(px(24.)).flex_1().min_w_0().flex().items_center().gap(px(8.)).border_1().border_color(gpui::transparent_black()).rounded(px(6.))
                 .track_focus(&focus).tab_index(if active{0}else{-1}).focus_visible(|s|s.border_color(theme.focus_ring))
                 .role(gpui::accesskit::Role::Tab).aria_label(title.clone()).aria_selected(active)
-                .aria_description(format!("{} changed files. Drag to reorder, or use Shift+Left and Shift+Right. Delete closes the tab.",label.changes)).cursor(label_cursor)
+                .aria_description(format!("{} changed files. Click the active tab or press Enter or Down for branches. Drag to reorder, or use Shift+Left and Shift+Right. Delete closes the tab.",label.changes)).cursor(label_cursor)
                 .on_mouse_down(gpui::MouseButton::Left,cx.listener(move|_,event:&gpui::MouseDownEvent,window,cx| {
                     down_state.borrow_mut().begin(id,event.position.x.into(),-f64::from(scroll.offset().x),&down_ids,cx.background_executor().now());
                     window.focus(&down_focus,cx);cx.notify();
                 }))
                 .on_click(cx.listener(move|_,_,_,cx| {
-                    if !click_state.borrow().suppress_click{cx.emit(Request::Activate(id));}
+                    if !click_state.borrow().suppress_click{cx.emit(if active{Request::Branches(Some(origin))}else{Request::Activate(id)});}
                 }))
                 .on_key_down(cx.listener(move|_,event:&gpui::KeyDownEvent,window,cx| {
                     let key=event.keystroke.key.as_str();
@@ -226,12 +233,13 @@ impl TabStrip {
                     if event.keystroke.modifiers.secondary()||event.keystroke.modifiers.alt{return;}
 
                     let index=key_ids.iter().position(|item|*item==id).unwrap_or(0);
-                    let next=match key{"left"=>Some(index.saturating_sub(1)),"right"=>Some((index+1).min(key_ids.len()-1)),"home"=>Some(0),"end"=>Some(key_ids.len()-1),"enter"|"space"=>Some(index),_=>None};
+                    let next=match key{"left"=>Some(index.saturating_sub(1)),"right"=>Some((index+1).min(key_ids.len()-1)),"home"=>Some(0),"end"=>Some(key_ids.len()-1),"enter"|"space"=>Some(index),"down" if active=>Some(index),_=>None};
 
                     if let Some(next)=next {
                         keys_state.borrow_mut().cancel();window.prevent_default();cx.stop_propagation();
 
                         if event.keystroke.modifiers.shift&&matches!(key,"left"|"right"){cx.emit(Request::Move(id,key_ids[next]));}
+                        else if active&&matches!(key,"enter"|"space"|"down"){cx.emit(Request::Branches(Some(origin)));}
                         else{cx.emit(Request::Activate(key_ids[next]));}
                     }else if !event.is_held&&matches!(key,"backspace"|"delete") {cx.emit(Request::Close(id));cx.stop_propagation();}
                 }))

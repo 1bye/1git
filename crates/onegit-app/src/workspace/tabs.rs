@@ -1,4 +1,7 @@
 //! Window-owned tabs retain independent workspaces; filesystem reads are shared by canonical root.
+mod branch_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod branch_tests;
 mod motion;
 mod refresh;
 pub(in crate::workspace) mod session;
@@ -19,6 +22,7 @@ pub(super) enum Request {
     Activate(u64),
     Close(u64),
     Move(u64, u64),
+    Branches(Option<gpui::Point<gpui::Pixels>>),
 }
 
 impl gpui::EventEmitter<Request> for RepositoryWorkspace {}
@@ -64,6 +68,8 @@ struct Monitor {
 
 pub(crate) struct Workspace {
     home: gpui::Entity<home::Home>,
+    branch_host: onegit_ui::DialogHostState,
+    branches: gpui::Entity<super::branches::Picker>,
     welcome: gpui::Entity<RepositoryWorkspace>,
     tabs: Vec<Tab>,
     active: Option<u64>,
@@ -89,12 +95,25 @@ impl Workspace {
     ) -> Self {
         let native_error = native::install(window, Theme::current().appearance).err();
         let home = cx.new(|cx| home::Home::new(window, cx, write_scope.clone()));
+        let branch_host = onegit_ui::DialogHostState::new(cx);
+
+        let branches =
+            cx.new(|cx| super::branches::Picker::new(&branch_host, home.clone(), window, cx));
+
+        let branch_events = cx.subscribe_in(
+            &branches,
+            window,
+            |this: &mut Self, _, event: &super::branches::Submit, window, cx| {
+                this.submit_branch(event, window, cx)
+            },
+        );
 
         let welcome = cx
             .new(|cx| RepositoryWorkspace::for_tab(window, cx, write_scope.clone(), home.clone()));
 
         welcome.update(cx, |view, _| view.picker_error = native_error);
         let subscriptions = vec![
+            branch_events,
             cx.subscribe_in(
                 &home,
                 window,
@@ -132,6 +151,8 @@ impl Workspace {
 
         let mut workspace = Self {
             home,
+            branch_host,
+            branches,
             welcome,
             tabs: Vec::new(),
             active: None,
@@ -174,6 +195,7 @@ impl Workspace {
                 window.focus(&self.welcome.read(cx).focus.clone(), cx);
             }
             Request::Pick => self.choose_repository(cx),
+            Request::Branches(origin) => self.open_branches(origin, window, cx),
             Request::Activate(id) => {
                 self.activate(id, window, cx);
 
@@ -238,7 +260,14 @@ impl Workspace {
             });
         }
 
-        let mut state = Vec::new();
+        let mut state = vec![cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::branches::Completed, window, cx| {
+                this.branch_completed(id, event, window, cx)
+            },
+        )];
+
         let view = workspace.read(cx);
         let history = view.history.clone();
         let split = view.split.clone();
@@ -442,6 +471,26 @@ impl Workspace {
 
     fn reconcile(&mut self, cx: &mut gpui::Context<Self>) {
         let roots = self.roots(cx);
+
+        for tab in &self.tabs {
+            let root = match &tab.workspace.read(cx).state {
+                RepositoryState::Ready(loaded) => Some(loaded.snapshot.repository.root.clone()),
+                RepositoryState::Loading(path) | RepositoryState::Failed { path, .. } => {
+                    Some(path.clone())
+                }
+                _ => None,
+            };
+
+            let busy = root.is_some_and(|root| self.busy(&root, cx));
+
+            tab.workspace.update(cx, |view, cx| {
+                if view.repository_busy != busy {
+                    view.repository_busy = busy;
+                    cx.notify();
+                }
+            });
+        }
+
         // Keep a monitor through explicit refresh (Loading), but release it after the last close.
         let existing: Vec<_> = self.monitors.keys().cloned().collect();
 
@@ -704,7 +753,9 @@ impl gpui::Render for Workspace {
             view.session_error = self.session_error.clone();
         });
 
-        view
+        rake::view! {<onegit_ui::DialogHost state={self.branch_host.clone()} body={view.into_any_element()}>
+            {self.branches.clone()}
+        </onegit_ui::DialogHost>}
     }
 }
 

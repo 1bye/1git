@@ -1,4 +1,5 @@
 //! Repository workspace; Git reads and serialized writes run outside the UI thread.
+mod branches;
 mod chrome;
 mod history;
 mod home;
@@ -72,6 +73,7 @@ pub(crate) use tabs::Workspace;
 
 pub(crate) struct RepositoryWorkspace {
     hosted: bool,
+    repository_busy: bool,
     tab_strip: Option<tabs::TabStrip>,
     refresh_error: Option<String>,
     session_error: Option<String>,
@@ -202,6 +204,7 @@ impl RepositoryWorkspace {
 
         Self {
             hosted,
+            repository_busy: false,
             tab_strip: None,
             refresh_error: None,
             session_error: None,
@@ -439,6 +442,7 @@ impl RepositoryWorkspace {
 
     fn can_write(&self) -> bool {
         self.write_job.is_none()
+            && !self.repository_busy
             && self.picker.is_none()
             && matches!(&self.state, RepositoryState::Ready(loaded) if write::available(loaded))
     }
@@ -558,6 +562,12 @@ impl RepositoryWorkspace {
                 .update(cx, |input, cx| input.set_text("", cx));
         }
 
+        let branch_completion = outcome.branch_action.then(|| branches::Completed {
+            root: path.clone(),
+            loaded: outcome.loaded.clone(),
+            result: outcome.result.as_ref().map(|_| ()).map_err(Clone::clone),
+        });
+
         let feedback = match outcome.result {
             Ok(detail) => Toast {
                 description: Some(detail.into()),
@@ -575,12 +585,17 @@ impl RepositoryWorkspace {
         });
 
         match outcome.loaded {
+            Ok(loaded) if outcome.branch_action => self.apply_automatic(loaded, cx),
             Ok(loaded) => self.apply_loaded(loaded, preferred, cx),
             Err(error) => {
                 self.selected = None;
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if let Some(completion) = branch_completion {
+            cx.emit(completion);
         }
 
         cx.notify();

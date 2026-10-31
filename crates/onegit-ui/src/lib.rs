@@ -37,7 +37,7 @@ pub use checkbox::{CheckHandler, CheckState, Checkbox};
 
 pub use dialog::{
     Dialog, DialogAvailability, DialogDismissal, DialogEvent, DialogHost, DialogHostState,
-    DialogKind, DialogState,
+    DialogKind, DialogPresentation, DialogState,
 };
 
 pub use commit_list::{
@@ -58,7 +58,7 @@ pub use input::{
     TextArea, TextInput,
 };
 
-pub use list_row::{ListRow, RowSelection};
+pub use list_row::{ListRow, ListRowVariant, RowSelection};
 pub use pane::{Pane, PanePadding};
 pub use resizable_split::{ResizableSplit, SplitAxis, SplitEvent, SplitState};
 pub use tabs::{TabHandler, TabItem, TabVariant, Tabs};
