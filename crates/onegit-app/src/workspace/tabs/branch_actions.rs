@@ -20,7 +20,8 @@ impl Workspace {
             return;
         };
 
-        if self.busy(&source.snapshot.repository.root, cx) {
+        if self.busy(&source.snapshot.repository.root, cx) || tab.workspace.read(cx).refresh_blocked
+        {
             return;
         }
 

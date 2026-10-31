@@ -38,6 +38,11 @@ pub enum DialogPresentation {
     /// Centered dialog with title, description and footer chrome.
     #[default]
     Standard,
+    /// Centered compact surface with caller-owned heading/content and animated height.
+    Compact {
+        /// Preferred content height in logical pixels, constrained to the viewport.
+        height: gpui::Pixels,
+    },
     /// Compact attached surface whose content supplies its own padding and visible heading.
     /// The origin and animated height are logical pixels, constrained to the viewport.
     Attached {
@@ -209,15 +214,23 @@ impl Dialog {
         let close = self.state.clone();
 
         let attached = matches!(self.presentation, DialogPresentation::Attached { .. });
-        let inset = px(if attached { 16. } else { 32. });
+        let compact = !matches!(self.presentation, DialogPresentation::Standard);
+
+        let height = match self.presentation {
+            DialogPresentation::Attached { height, .. }
+            | DialogPresentation::Compact { height } => Some(height),
+            DialogPresentation::Standard => None,
+        };
+
+        let inset = px(if compact { 16. } else { 32. });
 
         let panel = rake::view! {
             <div id={self.id} focus={&focus} role={if self.kind==DialogKind::Confirmation {accesskit::Role::AlertDialog}else{accesskit::Role::Dialog}}
                 aria-label={self.title.clone()} aria-description={self.description.clone().unwrap_or_default()}
                 class="flex flex-col min-h-0 border-1 rounded-control overflow-hidden"
                 style={|s|s.w(self.width.max(px(1.))).max_w((viewport.width-inset).max(px(1.))).max_h((viewport.height-inset).max(px(1.)))
-                    .bg(theme.surface).text_color(theme.ink).border_color(if attached{Theme::transparent()}else{theme.line}).when(!attached,|s|s.shadow_lg()).occlude()
-                    .when(attached,|s|s.border_0().rounded(px(12.)).when_some(match self.presentation{DialogPresentation::Attached{height,..}=>Some(height),_=>None},|s,height|s.h(height.max(px(0.)))))
+                    .bg(theme.surface).text_color(theme.ink).border_color(if compact{Theme::transparent()}else{theme.line}).when(!attached,|s|s.shadow_lg()).occlude()
+                    .when(compact,|s|s.border_0().rounded(px(8.)).when_some(height,|s,height|s.h(height.max(px(0.)))))
                     .a11y_synthetic_children(move |builder|{builder.parent_node().set_modal();if busy {builder.parent_node().set_busy();}})}
                 on:key-down={move |event:&gpui::KeyDownEvent,window,cx|{
                     if window.default_prevented(){return;}
@@ -228,7 +241,7 @@ impl Dialog {
                     window.prevent_default();cx.stop_propagation();
                 }}>
                 <div id="first" focus={&first} class="size-0"/>
-                if !attached {<header class="flex flex-row items-start justify-between gap-3 p-4 shrink-0">
+                if !compact {<header class="flex flex-row items-start justify-between gap-3 p-4 shrink-0">
                     <div class="flex flex-col gap-1 min-w-0">
                         <Text role={TextRole::Title} {..Text::new("title",self.title)}/>
                         if let Some(description)=self.description {<p class="text-body" style={|s|s.text_color(theme.muted_ink)}>{description}</p>}
@@ -239,7 +252,7 @@ impl Dialog {
                             {..IconButton::new("close",IconName::Close,"Close dialog")}/>
                     }
                 </header>}
-                if attached {<div class="flex flex-col min-h-0 flex-1" style={|s|s.children(self.children)}/> } else {<div class="flex flex-col gap-3 min-h-0 overflow-y-scroll px-4 pb-4" style={|s|s.children(self.children)}/>}
+                if compact {<div class="flex flex-col min-h-0 flex-1" style={|s|s.children(self.children)}/> } else {<div class="flex flex-col gap-3 min-h-0 overflow-y-scroll px-4 pb-4" style={|s|s.children(self.children)}/>}
                 if let Some(footer)=self.footer {<footer class="flex flex-row flex-wrap items-center justify-end gap-2 px-4 py-3 border-t-1 shrink-0" style={|s|s.border_color(theme.line)}>{footer}</footer>}
                 <div id="last" focus={&last} class="size-0"/>
             </div>
@@ -261,7 +274,13 @@ impl Dialog {
                     .id("backdrop")
                     .absolute()
                     .inset_0()
-                    .bg(gpui::rgba(if attached { 0x00000066 } else { 0x00000070 }))
+                    .bg(gpui::rgba(if attached {
+                        0x00000066
+                    } else if compact {
+                        0x0000005c
+                    } else {
+                        0x00000070
+                    }))
                     .occlude()
                     .on_any_mouse_down(move |_, window, cx| {
                         outside.update(cx, |state, cx| state.dismiss(true, window, cx));
@@ -271,7 +290,7 @@ impl Dialog {
                     .on_scroll_wheel(|_, _, cx| cx.stop_propagation()),
             )
             .child(match self.presentation {
-                DialogPresentation::Standard => gpui::div()
+                DialogPresentation::Standard | DialogPresentation::Compact { .. } => gpui::div()
                     .absolute()
                     .inset_0()
                     .flex()

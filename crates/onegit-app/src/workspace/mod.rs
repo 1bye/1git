@@ -5,6 +5,7 @@ mod history;
 mod home;
 mod native;
 mod read;
+mod sync;
 mod tabs;
 #[cfg(test)]
 mod tests;
@@ -74,6 +75,8 @@ pub(crate) use tabs::Workspace;
 pub(crate) struct RepositoryWorkspace {
     hosted: bool,
     repository_busy: bool,
+    refresh_blocked: bool,
+    sync_rail: Option<gpui::Entity<sync::Rail>>,
     tab_strip: Option<tabs::TabStrip>,
     refresh_error: Option<String>,
     session_error: Option<String>,
@@ -205,6 +208,8 @@ impl RepositoryWorkspace {
         Self {
             hosted,
             repository_busy: false,
+            refresh_blocked: false,
+            sync_rail: None,
             tab_strip: None,
             refresh_error: None,
             session_error: None,
@@ -375,6 +380,8 @@ impl RepositoryWorkspace {
     ) {
         let root = loaded.snapshot.repository.root.clone();
 
+        self.refresh_blocked = false;
+
         self.home
             .update(cx, |home, cx| home.remember(root.clone(), cx));
 
@@ -443,6 +450,7 @@ impl RepositoryWorkspace {
     fn can_write(&self) -> bool {
         self.write_job.is_none()
             && !self.repository_busy
+            && !self.refresh_blocked
             && self.picker.is_none()
             && matches!(&self.state, RepositoryState::Ready(loaded) if write::available(loaded))
     }
@@ -711,6 +719,7 @@ impl RepositoryWorkspace {
         }
 
         self.refresh_error = None;
+        self.refresh_blocked = false;
         let preferred = self.selected.clone();
 
         let same = preferred
@@ -754,6 +763,10 @@ impl RepositoryWorkspace {
     }
 
     fn refresh(&mut self, cx: &mut gpui::Context<Self>) {
+        if self.repository_busy {
+            return;
+        }
+
         let path = match &self.state {
             RepositoryState::Ready(loaded) => loaded.snapshot.repository.root.clone(),
             RepositoryState::Failed { path, .. } => path.clone(),

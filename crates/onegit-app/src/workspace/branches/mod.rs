@@ -1,5 +1,5 @@
 //! Attached branch navigation; accepted writes remain owned by the repository workspace.
-mod model;
+pub(super) mod model;
 mod view;
 
 use super::{

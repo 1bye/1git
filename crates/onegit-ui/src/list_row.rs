@@ -20,6 +20,8 @@ pub enum ListRowVariant {
     Standard,
     /// Menu rows with eight-pixel insets and slot gaps; slots are decorative.
     Menu,
+    /// Forty-pixel single-choice form row with an outlined selected state.
+    Choice,
 }
 
 /// Composable list row; interactive slots are siblings of the main action.
@@ -86,7 +88,8 @@ impl RenderOnce for ListRow {
         let theme = Theme::current();
         let selected = self.selection == RowSelection::Selected;
         let enabled = self.state.is_interactive();
-        let menu = self.variant == ListRowVariant::Menu;
+        let menu = self.variant != ListRowVariant::Standard;
+        let choice = self.variant == ListRowVariant::Choice;
         let description = self.description.clone().unwrap_or_default();
 
         let rest = Surface::new(if selected {
@@ -109,8 +112,8 @@ impl RenderOnce for ListRow {
                         aria-label={self.accessibility_label.unwrap_or_else(||self.label.clone())}
                         aria-description={description}
                         class="flex flex-row items-center gap-2 px-2 py-1 rounded-control min-w-0 w-full text-left"
-                        style={|s| focusable(s).min_h(px(28.)).bg(paint.background)
-                            .border_color(Theme::transparent()).aria_selected(selected)
+                        style={|s| focusable(s).min_h(px(if choice {40.} else {28.})).bg(paint.background)
+                            .border_color(Theme::transparent()).when(choice,|s|s.px(px(12.)).border_1().border_color(if selected{theme.focus_ring}else{theme.line})).aria_selected(selected)
                             .when(!enabled,|s|s.opacity(0.5))}
                         on:click={move |event,window,cx| {
                             cx.stop_propagation();
@@ -118,7 +121,7 @@ impl RenderOnce for ListRow {
                         }}>
                         if let Some(leading)=self.leading { {leading} }
                         <div class="flex flex-col flex-1 min-w-0">
-                            <Text max_lines={Some(1)} {..Text::new("label",self.label)}/>
+                            <Text role={if choice{TextRole::Small}else{TextRole::Body}} max_lines={Some(1)} {..Text::new("label",self.label)}/>
                             if let Some(description)=self.description {
                                 <Text role={TextRole::Caption} tone={TextTone::Muted} max_lines={Some(1)}
                                     {..Text::new("description",description)}/>

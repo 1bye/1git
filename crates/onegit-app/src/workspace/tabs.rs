@@ -6,6 +6,9 @@ mod motion;
 mod refresh;
 pub(in crate::workspace) mod session;
 #[cfg(all(test, feature = "test-support"))]
+mod sync_tests;
+mod synchronization;
+#[cfg(all(test, feature = "test-support"))]
 mod tests;
 mod view;
 
@@ -19,6 +22,7 @@ use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, time::Inst
 pub(super) enum Request {
     Home,
     Pick,
+    Fetch,
     Activate(u64),
     Close(u64),
     Move(u64, u64),
@@ -69,6 +73,7 @@ struct Monitor {
 pub(crate) struct Workspace {
     home: gpui::Entity<home::Home>,
     branch_host: onegit_ui::DialogHostState,
+    syncs: HashMap<PathBuf, synchronization::Entry>,
     branches: gpui::Entity<super::branches::Picker>,
     welcome: gpui::Entity<RepositoryWorkspace>,
     tabs: Vec<Tab>,
@@ -152,6 +157,7 @@ impl Workspace {
         let mut workspace = Self {
             home,
             branch_host,
+            syncs: HashMap::new(),
             branches,
             welcome,
             tabs: Vec::new(),
@@ -172,6 +178,18 @@ impl Workspace {
             _subscriptions: subscriptions,
         };
 
+        workspace._subscriptions.push(cx.on_release(|this, cx| {
+            for entry in this.syncs.values() {
+                entry.state.update(cx, |state, cx| state.stop(cx));
+            }
+        }));
+        workspace._subscriptions.push(cx.on_app_quit(|this, cx| {
+            for entry in this.syncs.values() {
+                entry.state.update(cx, |state, cx| state.stop(cx));
+            }
+
+            async {}
+        }));
         workspace.session_subscriptions(window, cx);
 
         workspace
@@ -195,6 +213,7 @@ impl Workspace {
                 window.focus(&self.welcome.read(cx).focus.clone(), cx);
             }
             Request::Pick => self.choose_repository(cx),
+            Request::Fetch => self.fetch_shortcut(window, cx),
             Request::Branches(origin) => self.open_branches(origin, window, cx),
             Request::Activate(id) => {
                 self.activate(id, window, cx);
@@ -355,7 +374,12 @@ impl Workspace {
             return;
         };
 
-        if self.tabs[index].workspace.read(cx).write_job.is_some() {
+        let syncing = match &self.tabs[index].workspace.read(cx).state {
+            RepositoryState::Ready(source) => self.sync_busy(&source.snapshot.repository.root, cx),
+            _ => false,
+        };
+
+        if self.tabs[index].workspace.read(cx).write_job.is_some() || syncing {
             return;
         }
 
@@ -462,15 +486,18 @@ impl Workspace {
     }
 
     fn busy(&self, root: &std::path::Path, cx: &gpui::App) -> bool {
-        self.matching(root, cx).iter().any(|tab| {
-            let view = tab.read(cx);
+        self.sync_busy(root, cx)
+            || self.matching(root, cx).iter().any(|tab| {
+                let view = tab.read(cx);
 
-            view.write_job.is_some() || view.load_job.is_some()
-        })
+                view.write_job.is_some() || view.load_job.is_some()
+            })
     }
 
     fn reconcile(&mut self, cx: &mut gpui::Context<Self>) {
         let roots = self.roots(cx);
+
+        self.reconcile_syncs(&roots, cx);
 
         for tab in &self.tabs {
             let root = match &tab.workspace.read(cx).state {
@@ -724,11 +751,12 @@ impl gpui::Render for Workspace {
 
                 Label {
                     id: tab.id,
-                    root: path,
+                    root: path.clone(),
                     name,
                     branch,
                     changes,
-                    busy: view.write_job.is_some(),
+                    busy: view.write_job.is_some()
+                        || path.as_ref().is_some_and(|root| self.sync_busy(root, cx)),
                     focus: tab.focus.clone(),
                     close_focus: tab.close_focus.clone(),
                 }
@@ -755,6 +783,7 @@ impl gpui::Render for Workspace {
 
         rake::view! {<onegit_ui::DialogHost state={self.branch_host.clone()} body={view.into_any_element()}>
             {self.branches.clone()}
+            for entry in self.syncs.values() {<div id={("sync",entry.state.entity_id())} class="absolute inset-0">{entry.state.clone()}</div>}
         </onegit_ui::DialogHost>}
     }
 }
@@ -767,6 +796,7 @@ impl TabStrip {
         if modifiers.secondary() && !modifiers.alt {
             match key {
                 "o" | "t" => return Some(Request::Pick),
+                "r" if self.active.is_some() => return Some(Request::Fetch),
                 "w" => return self.active.map(Request::Close),
                 "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" => {
                     let index = key.parse::<usize>().ok()? - 1;

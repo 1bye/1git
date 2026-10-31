@@ -234,21 +234,6 @@ impl RepositoryWorkspace {
         let ready = matches!(self.state, RepositoryState::Ready(_));
         let theme = Theme::current();
 
-        let tracking = match &self.state {
-            RepositoryState::Ready(loaded) => {
-                let head = &loaded.snapshot.status.head;
-
-                if head.ahead > 0 {
-                    format!("↑ {}", head.ahead)
-                } else if head.behind > 0 {
-                    format!("↓ {}", head.behind)
-                } else {
-                    String::new()
-                }
-            }
-            _ => String::new(),
-        };
-
         let entries = [
             MenuItem {
                 selected: Some(theme.appearance == Appearance::Light),
@@ -266,13 +251,11 @@ impl RepositoryWorkspace {
         rake::view! {
             <nav aria-label="Workspace tools" class="w-[48px] shrink-0 flex flex-col items-center gap-1 pt-1.5 pb-3" style={|s|s.debug_selector(||"workspace-rail".into())}>
                 if !self.home_visible {
-                <Tooltip {..Tooltip::new("sync-unavailable",if tracking.is_empty(){"Synchronization is not ported to Rust yet".to_owned()}else{format!("{tracking} commits since the last fetch. Synchronization is not ported to Rust yet")})}>
-                    <div class="size-[32px] relative flex items-center justify-center text-muted-ink"><Icon size={IconSize::Navigation} label={Some("Synchronization unavailable".into())} {..Icon::new("sync-status",if tracking.is_empty(){IconName::Refresh}else{IconName::ArrowUp})}/>
-                        if !tracking.is_empty(){<div class="absolute top-[24px] rounded-[2px] px-0.5 text-caption bg-surface">{tracking.clone()}</div>}
-                    </div>
-                </Tooltip>
+                if let Some(rail)=&self.sync_rail {
+                    {rail.update(cx,|rail,cx|rail.configure(match &self.state{RepositoryState::Ready(source)=>Some(source.clone()),_=>None},self.repository_busy,cx));rail.clone()}
+                }
                 <Tooltip {..Tooltip::new("branches-tip","Branches")}><div style={|s|s.debug_selector(||"rail-branches".into())}>
-                    <IconButton size={ControlSize::Rail} state={if !ready||self.repository_busy||self.write_job.is_some(){ControlState::Disabled}else{ControlState::Enabled}}
+                    <IconButton size={ControlSize::Rail} state={if !ready||self.repository_busy||self.refresh_blocked||self.write_job.is_some(){ControlState::Disabled}else{ControlState::Enabled}}
                         on_press={Some(Box::new(cx.listener(|_,_,_,cx|cx.emit(super::tabs::Request::Branches(None)))))}
                         {..IconButton::new("branches",IconName::Branches,match &self.state{RepositoryState::Ready(source)=>format!("Branches · {}",source.snapshot.status.head.branch.as_deref().unwrap_or("Detached HEAD")),_=>"Branches".into()})}/>
                 </div></Tooltip>

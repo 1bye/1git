@@ -39,7 +39,7 @@ spacing checks described in `docs/RUST.md`.
 ## Intentional differences
 
 Rust retains index staging rather than the source app's selected-file inclusion
-workflow. It retains explicit page loading in History. Unported workspace network, AI, amend/undo, stash,
+workflow. It retains explicit page loading in History. Unported AI, amend/undo, stash,
 graph, account and SSH actions are unavailable. Read-only diffs do not include
 hunk staging, context expansion, syntax highlighting or text selection.
 These are behavior gaps, not a claim that the full original application is ported.
@@ -222,3 +222,77 @@ observed search/row alignment. Background captures can still return Stage Manage
 thumbnails or stale accessibility frames. This is scoped branch-picker verification,
 not a claim of pixel parity for the entire application. Worktree and integration
 menu actions remain outside this pass, so their rows are intentionally absent.
+
+
+## Explicit repository synchronization
+
+| Source | Rust |
+| --- | --- |
+| `RepositorySyncButton` rail, status and publication review | `workspace/sync/{rail,view}.rs` |
+| `RepositorySync.fetch/write` | `sync/worker.rs`, existing `Repository::fetch/sync_branch` |
+| `RepositorySyncProgress`, `syncProgressLabel` | native GPU-path gauge in `sync/rail.rs`, `model::progress_label` |
+| Window-owned pending state, cancellation and shared-root refresh | `sync::Sync`, `tabs/synchronization.rs` |
+
+Source tests in `repository-sync/state.unit.test.ts` map to
+`opening_sync_never_transports_and_fetch_refreshes_duplicate_and_linked_tabs_without_losing_state`,
+`rejected_push_keeps_error_until_explicit_action_and_refreshes_all_tabs_without_replaying`,
+`uncertain_status_preserves_drafts_and_selection_but_blocks_writes_until_a_fresh_read`,
+and the progress-label test. Source `sync.integration.test.ts` fetch, fast-forward,
+dirty/diverged pull, exact-upstream push, publication, stale review and ambiguous
+remote cases map to the corresponding `tabs/sync_tests.rs` fixtures. Rail tests for
+publication confirmation, multiple remotes, Escape, Command-R, busy ownership and
+cancellation map to the native event tests. Source progress tests map to the
+phase-local GPU gauge and clock-controlled panel geometry/reduced-motion/idle tests.
+
+The rail opens an explicit action panel rather than guessing and executing a
+combined sync action. This is an intentional user-requested change from the source:
+opening Synchronization never sends or receives repository objects. Fetch visits
+each configured remote; Pull is clean-worktree, fast-forward-only; Push uses the
+reviewed commit and exact upstream. Publishing requires a fresh reviewed local
+branch, one effective push destination and explicit confirmation. Destination
+configuration is reread before transport. No force/mirror, tag push, integration,
+repository hosting or account picker is introduced here. Existing Git helpers and
+SSH configuration remain available; account credentials are never copied into
+workspace/session state.
+
+One controller per canonical common directory owns progress, cancellation and the
+last confirmed fetch, with a bounded latest-progress channel and a dedicated
+transport worker. Only the retained rail/panel repaint for progress. The Rake task
+scope observes cleanup; window release/app quit/Stop cancel through Git's owned
+process-tree cleanup. Timeout is 120 seconds. Every result rereads each distinct
+worktree separately, including partial failures, and updates all related tabs and
+Home while retaining drafts and navigation. Uncertain status blocks local writes
+until a successful read; no pending operation or publication consent is persisted.
+
+The centered panel retains source 340/400-pixel widths, themed controls and a
+160 ms gpui-ce-motion transition; determinate progress settles over 120 ms. The
+270-degree rail gauge is painted directly as GPU paths, and sending 100% means
+waiting for Git confirmation. Reduced motion stops the unknown sweep and snaps
+size changes. Unrelated repositories retain independent progress and views.
+
+Validation: 98 app tests and 101 UI/gallery tests pass; the 14 native sync tests
+were rerun after the final row-layout/focus correction and pass. Workspace
+all-target/all-feature Clippy with warnings denied, rustfmt, app/UI rustdoc, native
+build and workspace spacing pass. Spacing also compiles Windows/Linux Git code.
+The original state/transport suites pass 22 tests. Its isolated publication test
+and light/dark gauge correctness tests pass another three, with captured reference
+images. Two optional source scrolling benchmarks return no scroll offset and fail;
+the TypeScript app was unchanged, and those failures are not Rust-test results.
+
+The captured reference publication dialog established a 400-by-168-pixel one-remote
+layout, forty-pixel choice rows, eight-pixel corners and a destination-specific
+confirmation. Compact dialogs retain caller-owned content and source modal shading;
+standard dialogs retain their existing chrome. Native geometry tests pin that
+publication size, horizontal action/footer rows, initial Close focus, visible branch
+details, intermediate width transitions, reduced motion and settled idle frames.
+The first live Rust capture caught stacked actions and focus scrolling identity out
+of view; both were corrected and covered by regression assertions. The user confirmed
+the final live panel is visible with horizontal buttons. Final automatic capture
+still returned a blank frame, so final screenshot-level pixel parity is unverified.
+
+All transport execution used disposable local bare remotes and worktrees. Live
+inspection only opened/dismissed the Rust synchronization panel; HEAD, index,
+FETCH_HEAD and ref digests in the existing onbot/pkgs repositories remained exact.
+The persisted workspace document also matched the pre-check document. The rebuilt,
+signed app bundle is installed and running; operations/consent are not restored.
+No changeset is needed for these unpublished Rust crates.

@@ -84,7 +84,7 @@ pub(super) fn remote_target(branch: &Branch, data: &BranchCollection) -> Result<
 }
 
 /// English relative labels matching the source's numeric-auto formatter for Git's ISO timestamps.
-pub(super) fn commit_age(timestamp: Option<&str>, now_ms: i64) -> String {
+pub(in crate::workspace) fn commit_age(timestamp: Option<&str>, now_ms: i64) -> String {
     let Some(date) = timestamp.and_then(|date| chrono::DateTime::parse_from_rfc3339(date).ok())
     else {
         return String::new();

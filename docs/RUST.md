@@ -151,7 +151,7 @@ failed pages retain existing rows and can be retried. Switching tabs preserves t
 commit draft and history selection. History never stages or changes files.
 
 Hunk staging, discard, remote machines, account management
-and network operations in repository workspaces remain future app work.
+remain future app work.
 Loading status and previews does not mutate repository contents.
 The component gallery remains available with
 `cargo run -p onegit-ui --example gallery --locked`.
@@ -229,3 +229,37 @@ Test the checker itself:
 ```sh
 python3 -m unittest discover -s scripts -p test_spacing.py -v
 ```
+
+
+### Fetch, pull, push and branch publication
+
+Open Synchronization from the top rail control. Opening it reads local status and
+remotes only. Fetch, Pull and Push are separate actions; the incoming/outgoing
+badges reflect the last fetch and cap visually at 99+ while accessibility keeps the
+exact counts. Command-R fetches remote updates; with no remotes, it refreshes local
+status. Pull only fast-forwards a clean committed branch. Push targets its exact
+configured upstream and does not force, mirror, include other branches or tags.
+
+For an untracked branch, choose Publish branch…, review its name and destination,
+then confirm Publish branch. A single remote with one push URL is preselected;
+multiple remotes require a selection. Closing or backing out clears publication
+consent. Detached/unborn branches, ongoing Git operations and ambiguous push URLs
+are explained rather than guessed. Creating hosted repositories and editing
+remotes/accounts remain separate future workflows; existing Git credential helpers
+and SSH configuration are used without importing account secrets.
+
+Progress, errors and the last confirmed fetch are shared across duplicate tabs
+and linked worktrees. Closing the panel leaves a transport running; Stop cancels
+explicitly. Closing the window or quitting cancels it too. A 120-second deadline
+bounds transport waits. Cancellation, failure and success all reread each worktree
+independently, preserving drafts, selections, filters, diff modes and panes. A
+failed status read keeps the view/draft but blocks writes until a fresh read succeeds.
+No transport is replayed automatically. Inspect local and remote status after an
+uncertain push before trying again.
+
+The centered panel uses the current 340/400-pixel status/publication widths,
+compact forty-pixel remote choices, destination-specific confirmation and shared
+controls and fast gpui-ce-motion width/height/opacity transitions. Its phase-local
+rail gauge is painted as native GPU paths. Progress updates repaint only the small
+retained rail/panel views. Reduced motion snaps transitions and stops the unknown
+progress sweep; settled views do not request animation frames.
