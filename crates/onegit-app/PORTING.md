@@ -452,3 +452,92 @@ Eight additional onbot untracked files appeared during concurrent external work.
 
 No changeset is needed: the changed Rust crates are unpublished, and no TypeScript
 release package is changed.
+
+## Conflict resolution and operation controls
+
+| Source | Rust |
+| --- | --- |
+| `RepositoryConflicts.read`, `ConflictPreviewModel` | `workspace/conflicts/read.rs`, bounded immutable index/working comparisons |
+| `RepositoryConflictFiles`, `RepositoryConflictPreview` | grouped operation file lists and split previews in `conflicts/view.rs` |
+| Whole-file version choice and `resolveConflict` | frozen `Action::Resolve`, Cancel-first `Form`, `resolve_reviewed_conflict` |
+| `RepositoryOperation` continue/abort | `FinishOperation` with reviewed operation, HEAD and durable marker token |
+| Workspace mutation refresh | `tabs/conflict_actions.rs`, independent related-worktree reads |
+
+Stage 2 and stage 3 are read as immutable blobs. Rebase labels are "Upstream
+version" and "Replayed commit", retaining Git's actual index-side semantics.
+The working result keeps exact UTF-8 bytes, BOM, newlines and markers. Preview
+reads and switching comparison sides never stage or edit files. Comparisons run
+off the UI thread through bounded Git no-index diff, with external diff/textconv
+disabled, and share the existing split viewer's virtualized scrolling.
+
+Whole-file replacement freezes the displayed working hash, indexed blob OID,
+branch/HEAD and operation fingerprint. The Git writer checks them under the
+common-directory guard before replacement and staging; replacement bytes come
+from the immutable reviewed blob. Manual "Mark resolved" stages only the exact
+reviewed path, refuses marker content, and never continues. Deleted, linked,
+binary, oversized and nested-conflict cases retain explicit unsupported behavior;
+the writer does not silently resolve them. The original conservative backend
+marker guard (including custom three-character markers) also governs the Rust
+display, rather than enabling a button the writer would reject.
+
+Continue and confirmed Abort are exposed for merge/rebase. Continue refuses
+unmerged or unstaged tracked changes, preserves Git's existing message, hooks and
+signing, and never implicitly stages. Abort warns that resolution edits may be
+lost. Failed commands are not replayed or compensated; a fresh status read shows
+partial effects or a subsequent rebase pause. Fresh operation state is rebuilt
+after restart; consent is never serialized.
+
+Each related root is refreshed separately after every accepted outcome. Drafts
+are not cleared by resolutions or continuation, and surviving selections,
+filters, diff modes and pane widths remain tab-owned. Unreadable refreshes keep
+the prior view and block more writes. App-owned tasks and shared busy state
+protect close/quit and concurrent writes through the final refresh.
+
+The original 320-pixel anchored confirmation, Cancel-first focus, source washes,
+amber operation strip and separate conflict/other-change groups are retained.
+Measured trigger bounds place confirmations for pointer and keyboard activation.
+Confirmation opacity/height use gpui-ce-motion with a 140 ms ease-out; reduced
+motion snaps and settled forms request no further animation frames. Existing
+buttons retain their motion and expose an optional accessible pressed state for
+the source selectors. Conflict previews use one aligned virtualized split list
+with shared hunk headers, fixed column bounds and synchronized scrolling.
+
+Source preview tests map to `conflicts::tests` (multiple/incomplete markers,
+unchanged and bounded comparisons, Unicode/newlines and separated hunks).
+Source resolution cases map to the existing Git conflict suite plus the new
+reviewed-operation/blob-identity case. Source operation merge/rebase cases map to
+the existing Git integration suite and app worker tests. Native pointer tests
+cover side replacement, default Cancel, abort cancellation/confirmation and
+shared refresh with independent drafts, selection, filters and pane widths.
+Form tests cover frozen consent, duplicate/busy rejection, failure review and
+reduced-motion geometry.
+
+Differences: the source's external-editor preference has not been ported;
+"Open editor" uses macOS's default text editor after validating a regular
+canonical path inside the repository; other platforms show manual-editor guidance. Interactive hunk context expansion and
+syntax highlighting remain shared diff-renderer gaps. Cherry-pick/revert and
+squash operation controls remain outside this merge/rebase slice.
+
+No changeset is required: these Rust crates are unpublished and no TypeScript
+release package is changed.
+
+Native QA uses a disposable paused merge with the same theme.ts selected in both
+apps. The source and Rust operation strip, source controls, paired patch and frozen
+replacement confirmation were inspected at the same window size. Comparing them
+removed redundant split labels and inclusion gutters, corrected shared hunk
+headers, matched the amber source/result treatment and tightened the popover.
+A native accessibility restart caught duplicate row identities in the aligned
+renderer; old/new cells now have distinct stable IDs. The corrected executable
+was verified against the running bundle and restored the screen with accessibility
+active. No live repository action was accepted during comparison.
+
+The original 24 preview/resolution and 14 operation backend tests pass. Its two
+native component suites stop at preload because the checkout's GPUIX addon is
+missing/stale; the installed app provides the live UI reference instead.
+
+Validation: the full workspace run passes 567 tests. The final 15-test focused
+conflict rerun includes the additional literal Unicode/pattern filename case,
+bringing coverage to 568 tests total. Strict workspace all-target/all-feature
+Clippy, rustfmt, rustdoc, the normal app build and workspace spacing (including
+Windows/Linux Git code) pass. The development bundle passes strict signature
+verification. CI was not run.

@@ -1,6 +1,7 @@
 //! Repository workspace; Git reads and serialized writes run outside the UI thread.
 mod branches;
 mod chrome;
+mod conflicts;
 mod discard;
 mod history;
 mod home;
@@ -91,6 +92,8 @@ pub(crate) struct RepositoryWorkspace {
     history: gpui::Entity<history::HistoryWorkspace>,
     stashes: gpui::Entity<stashes::Stashes>,
     discard: gpui::Entity<discard::Form>,
+    conflicts: gpui::Entity<conflicts::Form>,
+    conflict_side: onegit_git::ConflictSide,
     discard_host: Option<onegit_ui::DialogHostState>,
     selected: Option<ChangeKey>,
     preview: PreviewState,
@@ -103,6 +106,7 @@ pub(crate) struct RepositoryWorkspace {
     filter_visible: bool,
     visible_files: Arc<[usize]>,
     files_scroll: gpui::UniformListScrollHandle,
+    conflict_scroll: [gpui::UniformListScrollHandle; 2],
     split: gpui::Entity<SplitState>,
     process: GitProcess,
     load_job: Option<ReadJob>,
@@ -179,7 +183,29 @@ impl RepositoryWorkspace {
             )
         });
 
+        let conflicts = cx.new(|cx| {
+            conflicts::Form::new(host.or(discard_host.as_ref()).expect("dialog host"), cx)
+        });
+
         let mut subscriptions = vec![
+            cx.subscribe_in(
+                &conflicts,
+                window,
+                |this: &mut Self, _, event: &conflicts::Submit, window, cx| {
+                    if this.hosted {
+                        cx.emit(conflicts::Submit(event.0.clone()));
+                    } else {
+                        this.start_write(
+                            write::Operation::Conflict {
+                                action: event.0.clone(),
+                                peers: Vec::new(),
+                            },
+                            window,
+                            cx,
+                        );
+                    }
+                },
+            ),
             cx.subscribe_in(
                 &discard,
                 window,
@@ -271,6 +297,8 @@ impl RepositoryWorkspace {
             stashes,
             discard,
             discard_host,
+            conflicts,
+            conflict_side: onegit_git::ConflictSide::Ours,
             selected: None,
             preview: PreviewState::Empty,
             diff_state: None,
@@ -282,6 +310,10 @@ impl RepositoryWorkspace {
             filter_visible: false,
             visible_files: Arc::from([]),
             files_scroll: gpui::UniformListScrollHandle::new(),
+            conflict_scroll: [
+                gpui::UniformListScrollHandle::new(),
+                gpui::UniformListScrollHandle::new(),
+            ],
             split: cx.new(|cx| SplitState::new(px(310.), window, cx)),
             process: read::process(),
             load_job: None,
@@ -549,7 +581,11 @@ impl RepositoryWorkspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
-        if !self.can_write() {
+        if if matches!(operation, write::Operation::Conflict { .. }) {
+            !self.conflict_available()
+        } else {
+            !self.can_write()
+        } {
             return;
         }
 
@@ -634,6 +670,7 @@ impl RepositoryWorkspace {
                 .update(cx, |input, cx| input.set_text("", cx));
         }
 
+        let conflict_completion = outcome.conflict_completion;
         let stash_completion = outcome.stash_completion;
         let discard_completion = outcome.discard_completion;
 
@@ -687,12 +724,17 @@ impl RepositoryWorkspace {
             Ok(loaded)
                 if outcome.branch_action
                     || stash_completion.is_some()
-                    || discard_completion.is_some() =>
+                    || discard_completion.is_some()
+                    || conflict_completion.is_some() =>
             {
                 self.apply_automatic(loaded, cx)
             }
             Ok(loaded) => self.apply_loaded(loaded, preferred, cx),
-            Err(error) if stash_completion.is_some() || discard_completion.is_some() => {
+            Err(error)
+                if stash_completion.is_some()
+                    || discard_completion.is_some()
+                    || conflict_completion.is_some() =>
+            {
                 self.refresh_blocked = true;
                 self.refresh_error = Some(format!(
                     "Could not refresh after the file or stash action: {error}. Refresh before writing again."
@@ -703,6 +745,13 @@ impl RepositoryWorkspace {
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if let Some(completion) = conflict_completion {
+            self.conflicts.update(cx, |form, cx| {
+                form.finish(completion.result.clone(), window, cx)
+            });
+            cx.emit(completion);
         }
 
         if let Some(completion) = discard_completion {
@@ -964,6 +1013,22 @@ impl RepositoryWorkspace {
         {
             self.files_scroll
                 .scroll_to_item(position, gpui::ScrollStrategy::Nearest);
+        }
+
+        if !write::available(loaded) {
+            let conflict = file.status == onegit_git::FileStatus::Unmerged;
+
+            if let Some(position) = self
+                .visible_files
+                .iter()
+                .filter(|index| {
+                    (loaded.files[**index].status == onegit_git::FileStatus::Unmerged) == conflict
+                })
+                .position(|visible| *visible == index)
+            {
+                self.conflict_scroll[usize::from(!conflict)]
+                    .scroll_to_item(position, gpui::ScrollStrategy::Nearest);
+            }
         }
 
         let cancel = Cancellation::default();

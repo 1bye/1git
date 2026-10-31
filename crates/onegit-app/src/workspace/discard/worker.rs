@@ -171,6 +171,7 @@ pub(in crate::workspace) fn run(
         committed: false,
         branch_action: false,
         stash_completion: None,
+        conflict_completion: None,
         discard_completion: Some(Completed {
             snapshots,
             result,

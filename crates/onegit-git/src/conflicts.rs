@@ -9,8 +9,8 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use sha2::{Digest, Sha256};
 
 use super::{
-    BranchIdentity, FileData, FileSource, Repository, RepositoryError, Snapshot, WriteError,
-    WritePhase, check_cancelled,
+    BranchIdentity, FileData, FileSource, OperationState, Repository, RepositoryError, Snapshot,
+    WriteError, WritePhase, check_cancelled,
 };
 
 use crate::validation::require_paths;
@@ -54,6 +54,17 @@ pub struct ResolveConflict {
     pub side: Option<ConflictSide>,
 }
 
+/// Review identity for conflict actions displayed by a native application.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConflictReview {
+    /// Active operation shown with the preview; Normal permits stash conflicts.
+    pub operation: OperationState,
+    /// Marker fingerprint shown with the preview, absent only for Normal.
+    pub operation_token: Option<String>,
+    /// Immutable indexed blob shown for a whole-file replacement.
+    pub side_oid: Option<String>,
+}
+
 impl Repository {
     /// Read a conflict preview through the ordinary bounded working-file reader.
     ///
@@ -92,6 +103,32 @@ impl Repository {
         request: &ResolveConflict,
         cancellation: Option<&Cancellation>,
     ) -> Result<Snapshot, WriteError> {
+        self.resolve_conflict_inner(request, None, cancellation)
+    }
+
+    /// Resolve only the operation and immutable indexed version displayed in the review.
+    ///
+    /// Rechecks the review under the common-directory guard before any replacement
+    /// or staging. Manual resolution still requires the exact working-file hash.
+    ///
+    /// # Errors
+    /// Returns a before-command error for changed operation, side or working content.
+    /// Command/refresh failures may have partial effects; read fresh state before retrying.
+    pub fn resolve_reviewed_conflict(
+        &self,
+        request: &ResolveConflict,
+        review: &ConflictReview,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<Snapshot, WriteError> {
+        self.resolve_conflict_inner(request, Some(review), cancellation)
+    }
+
+    fn resolve_conflict_inner(
+        &self,
+        request: &ResolveConflict,
+        review: Option<&ConflictReview>,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<Snapshot, WriteError> {
         let _write = self.mutations.enter();
 
         let before = |error| WriteError {
@@ -106,7 +143,8 @@ impl Repository {
 
         check_cancelled(cancellation).map_err(|error| before(error.into()))?;
         require_paths([&request.path]).map_err(before)?;
-        self.check_conflict(request, cancellation).map_err(before)?;
+        self.check_conflict(request, review, cancellation)
+            .map_err(before)?;
         let mut file = self
             .open_working_file(&request.path, request.side.is_some())
             .map_err(path_error)
@@ -117,12 +155,20 @@ impl Repository {
 
         let chosen = request
             .side
-            .map(|side| self.conflict_side(&request.path, side, cancellation))
+            .map(|side| {
+                self.conflict_side(
+                    &request.path,
+                    side,
+                    review.and_then(|review| review.side_oid.as_deref()),
+                    cancellation,
+                )
+            })
             .transpose()
             .map_err(before)?;
 
         // Git object reads can take time; do not accept intervening editor/branch changes.
-        self.check_conflict(request, cancellation).map_err(before)?;
+        self.check_conflict(request, review, cancellation)
+            .map_err(before)?;
         self.check_conflict_path(&file, &request.path)
             .map_err(before)?;
         self.check_conflict_file(&mut file, request, cancellation)
@@ -174,10 +220,27 @@ impl Repository {
     fn check_conflict(
         &self,
         request: &ResolveConflict,
+        review: Option<&ConflictReview>,
         cancellation: Option<&Cancellation>,
     ) -> Result<(), RepositoryError> {
         self.check_write_identity()?;
         let snapshot = self.snapshot_uncoordinated(false, cancellation)?;
+
+        if let Some(review) = review
+            && (snapshot.operation != review.operation
+                || snapshot.operation_token != review.operation_token
+                || (snapshot.operation != OperationState::Normal
+                    && review.operation_token.as_ref().is_none_or(String::is_empty))
+                || (request.side.is_some()
+                    && review
+                        .side_oid
+                        .as_ref()
+                        .is_none_or(|oid| !crate::validation::full_oid(oid))))
+        {
+            return Err(RepositoryError::InvalidInput(
+                "The conflict operation changed. Refresh and review it before resolving.",
+            ));
+        }
 
         if BranchIdentity::from_snapshot(&snapshot) != request.expected {
             return Err(RepositoryError::InvalidInput(
@@ -193,6 +256,29 @@ impl Repository {
             return Err(RepositoryError::InvalidInput(
                 "This is no longer a supported conflicted file. Refresh first.",
             ));
+        }
+
+        if let (Some(side), Some(oid)) = (
+            request.side,
+            review.and_then(|review| review.side_oid.as_deref()),
+        ) {
+            let mut object = OsString::from(if side == ConflictSide::Ours {
+                ":2:"
+            } else {
+                ":3:"
+            });
+
+            object.push(request.path.to_argument()?);
+            let output = self.run(
+                [OsString::from("rev-parse"), "--verify".into(), object],
+                cancellation,
+            )?;
+
+            if std::str::from_utf8(&output.stdout).ok().map(str::trim) != Some(oid) {
+                return Err(RepositoryError::InvalidInput(
+                    "The indexed version changed. Refresh before resolving.",
+                ));
+            }
         }
 
         Ok(())
@@ -272,6 +358,7 @@ impl Repository {
         &self,
         path: &GitPath,
         side: ConflictSide,
+        expected_oid: Option<&str>,
         cancellation: Option<&Cancellation>,
     ) -> Result<String, RepositoryError> {
         let mut object = OsString::from(if side == ConflictSide::Ours {
@@ -281,6 +368,26 @@ impl Repository {
         });
 
         object.push(path.to_argument()?);
+
+        if let Some(expected) = expected_oid {
+            let output = self.run(
+                [
+                    OsString::from("rev-parse"),
+                    "--verify".into(),
+                    object.clone(),
+                ],
+                cancellation,
+            )?;
+
+            if std::str::from_utf8(&output.stdout).ok().map(str::trim) != Some(expected) {
+                return Err(RepositoryError::InvalidInput(
+                    "The indexed version changed. Refresh and review before replacing the file.",
+                ));
+            }
+        }
+
+        let object = expected_oid.map(OsString::from).unwrap_or(object);
+
         let mut command = GitCommand::new(
             &self.info.root,
             [OsString::from("cat-file"), "blob".into(), object],

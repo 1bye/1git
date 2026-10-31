@@ -112,7 +112,13 @@ fn cell(
     let total = document.rows(view).len();
 
     let mut row = gpui::div()
-        .id(position)
+        .id((
+            match side {
+                Side::Old => "old",
+                Side::New => "new",
+            },
+            position,
+        ))
         .debug_selector(move || match side {
             Side::Old => format!("diff-old-{position}"),
             Side::New => format!("diff-new-{position}"),
@@ -314,6 +320,107 @@ pub(super) fn list(
         .track_scroll(&horizontal)
         .role(accesskit::Role::List)
         .aria_label(format!("Diff {name}"))
+        .child(list)
+        .into_any_element()
+}
+
+/// One virtualized list owns both columns and full-width hunk headers.
+pub(super) fn aligned_list(
+    state: &gpui::Entity<Scroll>,
+    document: DiffDocument,
+    layout: Layout,
+    cx: &gpui::App,
+) -> gpui::AnyElement {
+    let handle = state.read(cx).handle.clone();
+    let offset = state.read(cx).horizontal.offset().x;
+    let width = layout.width;
+
+    let list = gpui::list(handle, move |position, _, _| {
+        match document.rows(DiffView::Split)[position] {
+            Row::Single(index) => cell(
+                &document,
+                Some(index),
+                position,
+                Layout {
+                    width: px(0.),
+                    ..layout
+                },
+            ),
+            Row::Pair { old, new } => gpui::div()
+                .w_full()
+                .flex()
+                .flex_row()
+                .child(
+                    gpui::div()
+                        .debug_selector(move || format!("diff-pane-old-{position}"))
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .child(gpui::div().relative().left(offset).child(cell(
+                            &document,
+                            old,
+                            position,
+                            Layout {
+                                side: Side::Old,
+                                ..layout
+                            },
+                        ))),
+                )
+                .child(
+                    gpui::div()
+                        .w(px(1.))
+                        .h(px(HEIGHT))
+                        .flex_shrink_0()
+                        .bg(Theme::current().hairline),
+                )
+                .child(
+                    gpui::div()
+                        .debug_selector(move || format!("diff-pane-new-{position}"))
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .child(gpui::div().relative().left(offset).child(cell(
+                            &document,
+                            new,
+                            position,
+                            Layout {
+                                side: Side::New,
+                                ..layout
+                            },
+                        ))),
+                )
+                .into_any_element(),
+        }
+    })
+    .size_full()
+    .with_sizing_behavior(gpui::ListSizingBehavior::Auto);
+
+    let scroll = state.clone();
+
+    gpui::div()
+        .id("aligned")
+        .debug_selector(|| "diff-aligned".into())
+        .flex_1()
+        .w_full()
+        .min_w_0()
+        .min_h_0()
+        .overflow_hidden()
+        .on_scroll_wheel(move |event, _, cx| {
+            let delta = event.delta.pixel_delta(px(HEIGHT));
+
+            if delta.x != px(0.) {
+                scroll.update(cx, |state, cx| {
+                    let pane = (state.handle.viewport_bounds().size.width - px(1.)) / 2.;
+                    let limit = (width - pane).max(px(0.));
+                    let next = (state.horizontal.offset().x + delta.x).clamp(-limit, px(0.));
+
+                    state.horizontal.set_offset(gpui::point(next, px(0.)));
+                    cx.notify();
+                });
+            }
+        })
+        .role(accesskit::Role::List)
+        .aria_label("Indexed and working diff rows")
         .child(list)
         .into_any_element()
 }

@@ -19,6 +19,16 @@ pub enum DiffGutterStyle {
     Inset,
 }
 
+/// Arrangement of split rows and caller-owned source headers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DiffSplitLayout {
+    /// Two labeled column surfaces.
+    #[default]
+    Columns,
+    /// One aligned list with shared hunk headers; the host supplies source labels.
+    Aligned,
+}
+
 /// Read-only diff surface. Give its parent a bounded height; retain its immutable document outside render.
 #[derive(Debug, IntoElement)]
 pub struct DiffViewer {
@@ -34,6 +44,8 @@ pub struct DiffViewer {
     pub show_header: bool,
     /// Line-number presentation; inset gutters align with working-tree inclusion controls.
     pub gutter_style: DiffGutterStyle,
+    /// Split row layout; aligned rows omit the default Before/After labels.
+    pub split_layout: DiffSplitLayout,
     /// Optional owner-retained state for tabbed viewers; otherwise state lasts while mounted.
     pub state: Option<gpui::Entity<DiffViewerState>>,
 }
@@ -53,6 +65,7 @@ impl DiffViewer {
             view: DiffView::Unified,
             show_header: true,
             gutter_style: DiffGutterStyle::Continuous,
+            split_layout: DiffSplitLayout::Columns,
             state: None,
         }
     }
@@ -117,29 +130,26 @@ impl RenderOnce for DiffViewer {
         let content = if self.document.lines().is_empty() {
             rake::view! {<div class="p-3"><Text tone={TextTone::Muted} {..Text::new("empty", "No changes to display.")}/></div>}.into_any_element()
         } else {
-            let left = rows::list(
-                &state,
-                self.document.clone(),
-                rows::Layout {
-                    view: self.view,
-                    side: rows::Side::Old,
-                    gutter,
-                    width,
-                    style: self.gutter_style,
-                },
-                cx,
-            );
-
-            if self.view == DiffView::Unified {
-                left
-            } else {
-                // Equal row heights and width budgets give both columns the same scroll extent.
-                let right = rows::list(
+            if self.view == DiffView::Split && self.split_layout == DiffSplitLayout::Aligned {
+                rows::aligned_list(
                     &state,
                     self.document.clone(),
                     rows::Layout {
                         view: self.view,
-                        side: rows::Side::New,
+                        side: rows::Side::Old,
+                        gutter,
+                        width,
+                        style: self.gutter_style,
+                    },
+                    cx,
+                )
+            } else {
+                let left = rows::list(
+                    &state,
+                    self.document.clone(),
+                    rows::Layout {
+                        view: self.view,
+                        side: rows::Side::Old,
                         gutter,
                         width,
                         style: self.gutter_style,
@@ -147,7 +157,24 @@ impl RenderOnce for DiffViewer {
                     cx,
                 );
 
-                rake::view! {
+                if self.view == DiffView::Unified {
+                    left
+                } else {
+                    // Equal row heights and width budgets give both columns the same scroll extent.
+                    let right = rows::list(
+                        &state,
+                        self.document.clone(),
+                        rows::Layout {
+                            view: self.view,
+                            side: rows::Side::New,
+                            gutter,
+                            width,
+                            style: self.gutter_style,
+                        },
+                        cx,
+                    );
+
+                    rake::view! {
                     <div class="flex flex-row flex-1 min-w-0 min-h-0">
                         <div class="flex flex-col flex-1 min-w-0 min-h-0">
                             <div class="px-3 py-1 border-b-1 border-line"><Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("before", "Before")}/></div>
@@ -160,6 +187,7 @@ impl RenderOnce for DiffViewer {
                         </div>
                     </div>
                 }.into_any_element()
+                }
             }
         };
 

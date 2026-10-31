@@ -46,8 +46,8 @@ pub use commit_list::{
 };
 
 pub use diff_viewer::{
-    DiffDocument, DiffGutterStyle, DiffLine, DiffLineKind, DiffParseError, DiffView, DiffViewer,
-    DiffViewerState,
+    DiffDocument, DiffGutterStyle, DiffLine, DiffLineKind, DiffParseError, DiffSplitLayout,
+    DiffView, DiffViewer, DiffViewerState,
 };
 
 pub use dropdown_menu::{
@@ -80,3 +80,5 @@ rake::theme!(Theme);
 /// Shared control outline; keyboard focus stays visible independently of selection.
 #[rake::style("border-1 rounded-control focus-visible:border-focus-ring")]
 pub(crate) fn focusable();
+
+pub use overlay::{AnchorBounds, track as track_anchor};

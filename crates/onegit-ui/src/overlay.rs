@@ -2,9 +2,11 @@
 use rake::gpui::{self, prelude::*};
 use std::{cell::Cell, rc::Rc};
 
-pub(crate) type AnchorBounds = Rc<Cell<Option<gpui::Bounds<gpui::Pixels>>>>;
+/// Shared visible bounds of a measured overlay trigger.
+pub type AnchorBounds = Rc<Cell<Option<gpui::Bounds<gpui::Pixels>>>>;
 
-pub(crate) fn track(inner: impl IntoElement, bounds: AnchorBounds) -> impl IntoElement {
+/// Measure a trigger during prepaint without changing its layout or input behavior.
+pub fn track(inner: impl IntoElement, bounds: AnchorBounds) -> impl IntoElement {
     Tracked {
         inner: inner.into_any_element(),
         bounds,

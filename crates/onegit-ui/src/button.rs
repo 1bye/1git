@@ -112,6 +112,8 @@ pub struct Button {
     pub icon: Option<IconName>,
     /// Optional accessible name overriding the visible label.
     pub accessibility_label: Option<SharedString>,
+    /// Optional toggle state for a controlled choice button.
+    pub pressed: Option<bool>,
     /// Optional retained focus target, for dialog initial focus or programmatic focus.
     pub focus: Option<gpui::FocusHandle>,
     /// Optional activation callback; availability is enforced before dispatch.
@@ -133,6 +135,7 @@ impl Button {
             state: ControlState::Enabled,
             icon: None,
             accessibility_label: None,
+            pressed: None,
             focus: None,
             on_press: None,
         }
@@ -297,6 +300,7 @@ impl RenderOnce for Button {
                                 .px(px(if icon_only {0.} else {self.size.padding()}))
                                 .bg(paint.background).text_color(paint.ink).border_color(paint.border)
                                 .when_some(self.radius, |s,radius|s.rounded(radius))
+                                .when_some(self.pressed, |s,pressed|s.aria_toggled(if pressed {gpui::accesskit::Toggled::True}else{gpui::accesskit::Toggled::False}))
                                 .opacity(paint.opacity)}
                             on:click={move |event, window, cx| {
                                 cx.stop_propagation();

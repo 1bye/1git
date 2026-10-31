@@ -2,6 +2,9 @@
 mod branch_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod branch_tests;
+mod conflict_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod conflict_tests;
 mod discard_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod discard_tests;
@@ -338,6 +341,21 @@ impl Workspace {
             window,
             move |this: &mut Self, _, event: &super::discard::Completed, window, cx| {
                 this.discard_completed(id, event, window, cx)
+            },
+        ));
+
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::conflicts::Submit, window, cx| {
+                this.submit_conflict(id, event, window, cx)
+            },
+        ));
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::conflicts::Completed, window, cx| {
+                this.conflict_completed(id, event, window, cx)
             },
         ));
 
@@ -847,6 +865,7 @@ impl gpui::Render for Workspace {
 
         rake::view! {<onegit_ui::DialogHost state={self.branch_host.clone()} body={view.into_any_element()}>
             {self.branches.clone()}
+            for tab in &self.tabs {<div id={("conflict-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).conflicts.clone()}</div>}
             for tab in &self.tabs {<div id={("discard-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).discard.clone()}</div>}
             for tab in &self.tabs {<div id={("stash-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).stashes.read(cx).form.clone()}</div>}
             for entry in self.syncs.values() {<div id={("sync",entry.state.entity_id())} class="absolute inset-0">{entry.state.clone()}</div>}

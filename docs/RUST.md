@@ -105,8 +105,9 @@ refresh status to expose partial effects, without replaying the write. Opening a
 refresh retain drafts. A write accepted before
 window closure continues while the application is running. Writes are registered
 as application-owned Rake tasks, so normal application quit waits for them.
-Writes require a normal repository state without conflicts; finish merge/rebase
-operations externally for now. A changed branch or HEAD is rejected and refreshed
+Ordinary staging/committing requires a normal repository state without conflicts.
+The conflict controls below handle merge/rebase; other operations finish outside
+the app. A changed branch or HEAD is rejected and refreshed
 before writing; changed rename metadata also requires renewed review. External Git
 can still change the repository concurrently.
 
@@ -318,3 +319,25 @@ Operations show progress and errors and refresh each related open worktree.
 Drafts, surviving file selections, filters, diff modes and pane sizes are retained.
 An uncertain refresh blocks further writes until a successful refresh.
 Confirmations use fast gpui-ce-motion transitions with reduced-motion support.
+
+## Resolve conflicts
+
+Changes groups unresolved files separately while a Git operation owns the index.
+Select a conflicted text file to compare Current/Incoming with its working result.
+During rebase the labels become Upstream version/Replayed commit.
+
+"Use this version…" asks before replacing the whole file and staging it.
+For manual resolution, save the file in your editor, Refresh, then use Mark
+resolved. Marker content cannot be staged by this action. Binary, oversized,
+deleted and linked conflicts require Git outside the app.
+
+Merge/rebase Continue is separate and becomes available after all conflicts are
+resolved with no unstaged tracked edits. It uses Git's existing message and
+configuration. Abort requires confirmation and may lose conflict-resolution
+edits. Stale working contents, indexed versions or operation state require a
+fresh review. A failed command may already have changed Git state; the app
+refreshes it without retrying.
+
+Accepted actions refresh every related worktree tab while retaining commit drafts,
+surviving selections, filters, diff modes and pane sizes. Consent is never restored
+after restart. Confirmation transitions use gpui-ce-motion and honor reduced motion.

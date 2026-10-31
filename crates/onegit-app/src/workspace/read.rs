@@ -101,6 +101,7 @@ impl Loaded {
 
 pub(super) enum Preview {
     Patch(DiffDocument),
+    Conflict(Box<super::conflicts::Preview>),
     Notice { title: &'static str, detail: String },
 }
 
@@ -197,9 +198,17 @@ pub(super) fn from_snapshot(repository: Arc<Repository>, snapshot: Snapshot) -> 
                 continue;
             }
 
+            let status = if file.record_type == RecordType::Unmerged {
+                FileStatus::Unmerged
+            } else {
+                status
+            };
+
             files.push(ChangedFile::new(file, side, status));
         }
     }
+
+    files.sort_by_key(|file| file.status != FileStatus::Unmerged);
 
     let positions = files
         .iter()
@@ -234,10 +243,7 @@ pub(super) fn preview(
     cancel: &Cancellation,
 ) -> Result<Preview, String> {
     if file.status == FileStatus::Unmerged {
-        return Ok(Preview::Notice {
-            title: "Unresolved merge conflict",
-            detail: "Resolve this file in your editor, then refresh the repository.".into(),
-        });
+        return super::conflicts::preview(repository, &file.key.path, cancel);
     }
 
     let mut paths = vec![file.key.path.clone()];

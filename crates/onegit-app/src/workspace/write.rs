@@ -18,6 +18,10 @@ pub(super) enum Operation {
         action: super::discard::Action,
         peers: Vec<Arc<onegit_git::Repository>>,
     },
+    Conflict {
+        action: super::conflicts::Action,
+        peers: Vec<Arc<onegit_git::Repository>>,
+    },
     StageAll,
     UnstageAll,
     Commit {
@@ -31,6 +35,7 @@ impl Operation {
         match self {
             Self::File(file) if file.key.side == Side::Staged => "Unstaging file…",
             Self::File(_) => "Staging file…",
+            Self::Conflict { .. } => "Updating conflict resolution…",
             Self::StageAll => "Staging all changes…",
             Self::UnstageAll => "Unstaging all changes…",
             Self::Commit { .. } => "Creating commit…",
@@ -48,6 +53,7 @@ impl Operation {
         match self {
             Self::File(file) if file.key.side == Side::Staged => "File unstaged",
             Self::File(_) => "File staged",
+            Self::Conflict { .. } => "Conflict state updated",
             Self::StageAll => "Changes staged",
             Self::UnstageAll => "Changes unstaged",
             Self::Commit { .. } => "Commit created",
@@ -64,6 +70,7 @@ pub(super) struct Outcome {
     pub committed: bool,
     pub branch_action: bool,
     pub stash_completion: Option<super::stashes::Completed>,
+    pub conflict_completion: Option<super::conflicts::Completed>,
     pub discard_completion: Option<super::discard::Completed>,
 }
 
@@ -86,6 +93,10 @@ pub(super) fn staged_count(loaded: &Loaded) -> usize {
 }
 
 pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
+    if let Operation::Conflict { action, peers } = &operation {
+        return super::conflicts::run(loaded, action, peers);
+    }
+
     if let Operation::Discard { action, peers } = &operation {
         return super::discard::run(loaded, action, peers);
     }
@@ -166,6 +177,9 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             Operation::Branch(_) => {
                 unreachable!("branch operations use their reviewed write guard")
             }
+            Operation::Conflict { .. } => {
+                unreachable!("conflict actions use their reviewed writer")
+            }
             Operation::StageAll => repository.stage_all(None)?,
             Operation::UnstageAll => repository.unstage_all(None)?,
             Operation::Commit {
@@ -207,6 +221,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             branch_action: false,
             stash_completion: None,
             discard_completion: None,
+            conflict_completion: None,
         },
         Err(error) => {
             let boundary = match error.phase {
@@ -234,6 +249,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                 branch_action: false,
                 stash_completion: None,
                 discard_completion: None,
+                conflict_completion: None,
             }
         }
     }
@@ -261,6 +277,7 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
                 branch_action: true,
                 stash_completion: None,
                 discard_completion: None,
+                conflict_completion: None,
             }
         }
         Err(error) => {
@@ -290,6 +307,7 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
                 branch_action: true,
                 stash_completion: None,
                 discard_completion: None,
+                conflict_completion: None,
             }
         }
     }
@@ -376,6 +394,7 @@ fn run_stash(
         committed: false,
         branch_action: false,
         discard_completion: None,
+        conflict_completion: None,
         stash_completion: Some(super::stashes::Completed {
             snapshots,
             result,

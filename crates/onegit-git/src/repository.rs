@@ -102,7 +102,7 @@ pub use discard::{
 
 pub use ignore::{IgnoreFile, IgnoreRule, ignore_extension, ignore_folders, ignore_pattern};
 
-pub use conflicts::{ConflictPreview, ConflictSide, ResolveConflict};
+pub use conflicts::{ConflictPreview, ConflictReview, ConflictSide, ResolveConflict};
 
 pub use integration::{
     FastForward, FinishKind, FinishOperation, IntegrationKind, IntegrationRequest, MergeOptions,

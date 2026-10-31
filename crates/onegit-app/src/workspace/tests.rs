@@ -92,6 +92,7 @@ fn patch(loaded: &Loaded, key: &ChangeKey) -> onegit_ui::DiffDocument {
     {
         Preview::Patch(document) => document,
         Preview::Notice { title, detail } => panic!("expected patch: {title}: {detail}"),
+        Preview::Conflict(_) => panic!("expected ordinary patch"),
     }
 }
 
@@ -310,10 +311,7 @@ fn conflicts_are_not_presented_as_an_empty_or_successful_text_patch() {
 
     assert!(matches!(
         read::preview(&loaded.repository, file, &Cancellation::default()).unwrap(),
-        Preview::Notice {
-            title: "Unresolved merge conflict",
-            ..
-        }
+        Preview::Conflict(_)
     ));
     assert_eq!(contents(&f.root), before);
 }

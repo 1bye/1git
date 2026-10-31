@@ -142,6 +142,11 @@ impl HistoryWorkspace {
             PreviewState::Ready(Preview::Notice { title, detail }) => {
                 notice("history-patch-notice", *title, detail.clone())
             }
+            PreviewState::Ready(Preview::Conflict(_)) => notice(
+                "history-conflict",
+                "Select Changes to resolve conflicts",
+                "Saved revisions never contain an editable conflict result.",
+            ),
             PreviewState::Ready(Preview::Patch(document)) => {
                 let title = self.file.as_ref().map(read::path_label).unwrap_or_default();
 

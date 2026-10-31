@@ -197,6 +197,7 @@ impl Stashes {
             PreviewState::Loading=>notice("stash-loading-patch","Loading patch…","Reading the saved version, without changing working files."),
             PreviewState::Failed(error)=>notice("stash-patch-error","Could not read saved patch",error.clone()),
             PreviewState::Ready(Preview::Notice{title,detail})=>notice("stash-patch-notice",*title,detail.clone()),
+            PreviewState::Ready(Preview::Conflict(_)) => notice("stash-conflict", "Select Changes to resolve conflicts", "Saved revisions never contain an editable conflict result."),
             PreviewState::Ready(Preview::Patch(document))=>rake::view!{<DiffViewer state={self.diff_state.clone()} show_header={false} view={self.view} {..DiffViewer::new("stash-diff",self.file.as_ref().map(|f|read::path_label(&f.file.path)).unwrap_or_default(),document.without_file_metadata())}/>}.into_any_element(),
         };
 

@@ -177,7 +177,7 @@ fn stale_confirmation_rejects_without_losing_drafts_and_untracked_deletion_keeps
     assert_eq!(fs::read(f.root.join("a.txt")).unwrap(), b"working\n");
 }
 
-fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>, value: &str) {
+pub(super) fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>, value: &str) {
     use gpui::InputEvent as _;
     cx.update_window(view.into(), |_, window, cx| {
         let keystroke = gpui::Keystroke::parse(value).unwrap();
@@ -197,7 +197,7 @@ fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>, value
     draw(cx, view);
 }
 
-fn pointer(
+pub(super) fn pointer(
     cx: &mut gpui::TestAppContext,
     view: gpui::WindowHandle<Workspace>,
     selector: &'static str,

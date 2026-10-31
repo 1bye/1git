@@ -10,13 +10,14 @@ struct Preview {
     mode: DiffView,
     retained: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
     visible: bool,
+    layout: onegit_ui::DiffSplitLayout,
 }
 
 impl Render for Preview {
     fn render(&mut self, _: &mut gpui::Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
         rake::view! {
             <div class="size-full" focus={&self.root} tab-navigation={true}>
-                if self.visible {<DiffViewer state={self.retained.clone()} view={self.mode} {..DiffViewer::new("diff", "theme.rs", self.document.clone())}/>}
+                if self.visible {<DiffViewer state={self.retained.clone()} view={self.mode} split_layout={self.layout} {..DiffViewer::new("diff", "theme.rs", self.document.clone())}/>}
             </div>
         }
     }
@@ -50,6 +51,7 @@ fn setup(mode: DiffView) -> (gpui::TestAppContext, gpui::WindowHandle<Preview>) 
             mode,
             retained: None,
             visible: true,
+            layout: onegit_ui::DiffSplitLayout::Columns,
         }
     });
 
@@ -345,4 +347,40 @@ fn retained_viewport_survives_hidden_tabs_and_same_file_refresh() {
     draw(&mut cx, v);
     assert_eq!(bounds(&cx, v, "diff-old-6").unwrap().top(), before);
     assert_eq!(before, top);
+}
+
+#[test]
+fn aligned_split_keeps_fixed_columns_shared_hunks_and_scrolls_both_versions_together() {
+    let (mut cx, v) = setup(DiffView::Split);
+
+    v.update(&mut cx, |view, _, cx| {
+        view.layout = onegit_ui::DiffSplitLayout::Aligned;
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    assert!(bounds(&cx, v, "diff-before").is_none());
+    assert!(bounds(&cx, v, "diff-after").is_none());
+    assert_eq!(
+        bounds(&cx, v, "diff-old-0").unwrap().size.width,
+        bounds(&cx, v, "diff-aligned").unwrap().size.width
+    );
+    assert!(bounds(&cx, v, "diff-new-0").is_none());
+    let pane = bounds(&cx, v, "diff-pane-new-1").unwrap();
+
+    assert!(pane.left() > px(300.) && pane.right() <= px(640.));
+    wheel(&mut cx, v, "diff-aligned", -120., -200.);
+    let old = bounds(&cx, v, "diff-old-11").unwrap();
+    let new = bounds(&cx, v, "diff-new-11").unwrap();
+    let pane = bounds(&cx, v, "diff-pane-new-11").unwrap();
+
+    assert_eq!(old.top(), new.top());
+    assert!(old.left() < px(-50.));
+    assert!(pane.left() > px(300.) && pane.right() <= px(640.));
+    let old_pane = bounds(&cx, v, "diff-pane-old-11").unwrap();
+
+    assert_eq!(new.left() - old.left(), pane.left() - old_pane.left());
+    key(&mut cx, v, "tab");
+    key(&mut cx, v, "end");
+    assert!(bounds(&cx, v, "diff-new-1000").is_some());
 }

@@ -94,6 +94,10 @@ impl RepositoryWorkspace {
         window: &gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> gpui::AnyElement {
+        if !write::available(&loaded) {
+            return self.operation_files(loaded, window, cx);
+        }
+
         let total = loaded.files.len();
         let count = self.visible_files.len();
         let indices = self.visible_files.clone();
@@ -235,8 +239,11 @@ impl RepositoryWorkspace {
         let list_focus = self.files_focus.clone();
         let last_commit = loaded.last_commit.clone();
 
+        let list_source = loaded.clone();
+
         let list=gpui::uniform_list("files",count,move |range,_,_|range.map(|position| {
             let index=indices[position];
+            let loaded=&list_source;
             let file=&loaded.files[index];
             let key=file.key.clone();
             let stage_file=file.clone();
@@ -245,8 +252,8 @@ impl RepositoryWorkspace {
             let context_stage=stage.clone();
             let context_stage_file=file.clone();
             let list_focus=list_focus.clone();
-            let scope=Self::discard_scope(&loaded, &file.key.path);
-            let discardable=writable && super::discard::Selection::new(&loaded,Some(&file.key.path),scope).is_some();
+            let scope=Self::discard_scope(loaded, &file.key.path);
+            let discardable=writable && super::discard::Selection::new(loaded,Some(&file.key.path),scope).is_some();
 
             let menu_entries=vec![
                 MenuItem {disabled: !writable, ..MenuItem::new("stage", if file.key.side==read::Side::Staged {"Unstage file"}else{"Stage file"})}.into(),
@@ -283,11 +290,11 @@ impl RepositoryWorkspace {
                     on:click={move |_,window,cx|{cx.stop_propagation();callback(&key,window,cx);}}>
                     {icon}
                     <div class="flex-1 min-w-0">{identity}</div>
-                    <div class="shrink-0" style={|s|s.debug_selector(||format!("workspace-stage-{index}"))}>
+                    if allowed {<div class="shrink-0" style={|s|s.debug_selector(||format!("workspace-stage-{index}"))}>
                     <Checkbox show_label={false} checked={if staged{CheckState::Checked}else{CheckState::Unchecked}} state={if writable{ControlState::Enabled}else{ControlState::Disabled}}
                         on_change={Some(Box::new(move |_,window,cx|stage(&stage_file,window,cx)))}
                         {..Checkbox::new("stage",format!("{} {}",if staged{"Unstage"}else{"Stage"},file.label))}/>
-                    </div>
+                    </div>}
                 </div>
                 </ContextMenu>
             }.into_any_element()
@@ -304,7 +311,8 @@ impl RepositoryWorkspace {
                     <IconButton size={ControlSize::Small} state={if writable{ControlState::Enabled}else{ControlState::Disabled}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.refresh(cx))))} {..IconButton::new("refresh-files",IconName::Refresh,"Refresh changed files")}/>
                     <IconButton size={ControlSize::Small} state={if self.write_job.is_some(){ControlState::Disabled}else{ControlState::Enabled}} on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.toggle_filter(window,cx))))} {..IconButton::new("filter-files",if self.filter_visible{IconName::Close}else{IconName::Search},if self.filter_visible{"Close file filter"}else{"Filter changed files"})}/>
                 </div>
-                <div class="h-[24px] flex flex-row items-center pl-[5px] pr-[18px] shrink-0">
+                {self.operation_strip(&loaded, cx)}
+                if allowed {<div class="h-[24px] flex flex-row items-center pl-[5px] pr-[18px] shrink-0">
                     <div class="flex-1 min-w-0"><DropdownMenu size={ControlSize::Small} label_role={TextRole::Caption} show_chevron={false} variant={ButtonVariant::Ghost} entries={entries}
                         on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,window,cx|{
                             if *id==gpui::ElementId::from("discard-tracked") { this.review_discard(None,onegit_git::DiscardScope::Tracked,window,cx); }
@@ -321,6 +329,7 @@ impl RepositoryWorkspace {
                         {..Checkbox::new("stage-all","Stage or unstage all changed files")}/>
                     </div>
                 </div>
+                }
                 <div class="flex-1 min-h-0 min-w-0 flex">
                 <ContextMenu fill={true} {..ContextMenu::new(keyboard_menu,self.files_focus.clone())}>
                 <div id="file-list" role={accesskit::Role::Grid} aria-label="Changed files" class="flex-1 min-h-0 min-w-0 overflow-hidden pl-1.5 pr-3"
@@ -330,8 +339,7 @@ impl RepositoryWorkspace {
                 </div>
                 </ContextMenu>
                 </div>
-                if !allowed {<div class="px-3 py-2"><Text role={TextRole::Caption} tone={TextTone::Danger} {..Text::new("operation-blocked","Finish the current Git operation and resolve conflicts in your editor first.")}/></div>}
-                <div class="h-[140px] p-2 shrink-0 border-t-1 border-hairline flex flex-col" style={|s|s.debug_selector(||"workspace-commit-composer".into())}>
+                if allowed {<div class="h-[140px] p-2 shrink-0 border-t-1 border-hairline flex flex-col" style={|s|s.debug_selector(||"workspace-commit-composer".into())}>
                     <TextInput show_label={false} variant={InputVariant::Plain} size={ControlSize::Small} placeholder={"Commit message…".into()} availability={if writable{InputAvailability::Enabled}else{InputAvailability::Disabled}} {..TextInput::new("commit-summary",&self.summary,"Summary")}/>
                     <div class="flex-1 min-h-0"><TextArea show_label={false} variant={InputVariant::Plain} size={ControlSize::Small} rows={4} placeholder={"".into()} availability={if writable{InputAvailability::Enabled}else{InputAvailability::Disabled}} {..TextArea::new("commit-description",&self.description,"Description")}/></div>
                     <div class="h-[24px] shrink-0 flex flex-row items-center justify-end gap-1.5">
@@ -340,7 +348,8 @@ impl RepositoryWorkspace {
                             on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.commit(window,cx))))} {..Button::new("commit",format!("Commit {staged} {}",if staged==1{"file"}else{"files"}))}/>
                     </div>
                 </div>
-                if let Some(commit)=&last_commit {
+                }
+                if allowed && let Some(commit)=&last_commit {
                     <div class="h-[52px] shrink-0 p-2.5 border-t-1 border-hairline flex flex-row items-center gap-1">
                         <div class="flex-1 min-w-0 flex flex-col gap-0.5">
                             <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("last-age",format!("Committed {}",super::chrome::age(&commit.committed_at)))}/>
@@ -427,10 +436,21 @@ impl RepositoryWorkspace {
         let toolbar = chrome::patch_toolbar(
             self.selected.as_ref().map(|key| &key.path),
             &self.preview,
-            selected_file
+            selected_file.as_ref().map_or("", |file| {
+                if file.status == onegit_git::FileStatus::Unmerged {
+                    ""
+                } else {
+                    file.key.side.label()
+                }
+            }),
+            if selected_file
                 .as_ref()
-                .map_or("", |file| file.key.side.label()),
-            menu,
+                .is_some_and(|file| file.status == onegit_git::FileStatus::Unmerged)
+            {
+                gpui::Empty.into_any_element()
+            } else {
+                menu
+            },
         );
 
         let content = match &self.preview {
@@ -446,6 +466,9 @@ impl RepositoryWorkspace {
             ),
             PreviewState::Failed(error) => {
                 notice("patch-error", "Could not load this patch", error.clone())
+            }
+            PreviewState::Ready(Preview::Conflict(preview)) => {
+                self.conflict_preview_view(preview, cx)
             }
             PreviewState::Ready(Preview::Notice { title, detail }) => {
                 notice("patch-notice", *title, detail.clone())
@@ -464,6 +487,7 @@ impl RepositoryWorkspace {
         rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
                 {toolbar}
+                if selected_file.as_ref().is_some_and(|file|file.status==onegit_git::FileStatus::Unmerged) && !matches!(self.preview,PreviewState::Ready(Preview::Conflict(_))) { {self.unsupported_conflict_toolbar(cx)} }
                 if matches!(self.preview,PreviewState::Failed(_)){<div class="px-3 py-1"><Button size={ControlSize::Small} variant={ButtonVariant::Ghost} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{if let Some(key)=this.selected.clone(){this.select(key,cx);}})))} {..Button::new("retry-patch","Retry patch")}/></div>}
                 <div class="flex-1 min-w-0 min-h-0">{content}</div>
             </div>
@@ -477,6 +501,10 @@ impl Render for RepositoryWorkspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
+        let conflict_blocked = !self.conflict_available();
+
+        self.conflicts
+            .update(cx, |form, cx| form.configure(conflict_blocked, cx));
         let blocked = !self.can_write();
 
         self.discard
@@ -561,7 +589,7 @@ impl Render for RepositoryWorkspace {
         }.into_any_element();
 
         if let Some(host) = &self.discard_host {
-            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}</onegit_ui::DialogHost> }.into_any_element()
+            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}{self.conflicts.clone()}</onegit_ui::DialogHost> }.into_any_element()
         } else {
             page
         }

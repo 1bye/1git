@@ -655,3 +655,69 @@ fn common_directory_queue_covers_final_status_and_related_reads() {
     reader.join().unwrap();
     assert_eq!(coordinator.pending_writes(&common), 0);
 }
+
+#[test]
+fn reviewed_resolution_rejects_changed_operation_and_indexed_side_before_writing() {
+    use onegit_git::{ConflictReview, FileSource};
+    let (fixture, repository) = paused("shared");
+    let request = request(&repository, "shared", Some(ConflictSide::Ours));
+    let snapshot = repository.snapshot(false, None).unwrap();
+
+    let oid = repository
+        .file_content(FileSource::Object(":2:shared"), &request.path, None)
+        .unwrap()
+        .revision;
+
+    let mut review = ConflictReview {
+        operation: snapshot.operation,
+        operation_token: snapshot.operation_token,
+        side_oid: Some("0".repeat(40)),
+    };
+
+    let before = fs::read(fixture.root.join("shared")).unwrap();
+
+    let error = repository
+        .resolve_reviewed_conflict(&request, &review, None)
+        .unwrap_err();
+
+    assert_eq!(error.phase, WritePhase::BeforeCommand);
+    assert_eq!(fs::read(fixture.root.join("shared")).unwrap(), before);
+    review.side_oid = Some(oid);
+    review.operation_token = Some("stale".into());
+    assert_eq!(
+        repository
+            .resolve_reviewed_conflict(&request, &review, None)
+            .unwrap_err()
+            .phase,
+        WritePhase::BeforeCommand
+    );
+    fixture.write("replacement", "changed index side\n");
+    let changed = String::from_utf8(fixture.git(&["hash-object", "-w", "replacement"])).unwrap();
+    let input = format!("100644 {} 2\tshared\n", changed.trim());
+    let mut update = GitCommand::new(&fixture.root, ["update-index", "--index-info"]);
+
+    update.stdin = input.as_bytes();
+    fixture.process().run(update).unwrap();
+    review.operation_token = repository.snapshot(false, None).unwrap().operation_token;
+    assert_eq!(
+        repository
+            .resolve_reviewed_conflict(&request, &review, None)
+            .unwrap_err()
+            .phase,
+        WritePhase::BeforeCommand
+    );
+    assert_eq!(fs::read(fixture.root.join("shared")).unwrap(), before);
+    let input = format!("100644 {} 2\tshared\n", review.side_oid.as_deref().unwrap());
+    let mut update = GitCommand::new(&fixture.root, ["update-index", "--index-info"]);
+
+    update.stdin = input.as_bytes();
+    fixture.process().run(update).unwrap();
+
+    review.operation_token = repository.snapshot(false, None).unwrap().operation_token;
+    let result = repository
+        .resolve_reviewed_conflict(&request, &review, None)
+        .unwrap();
+
+    assert_eq!(result.operation, OperationState::Merge);
+    assert_eq!(fs::read(fixture.root.join("shared")).unwrap(), b"ours\n");
+}
