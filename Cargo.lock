@@ -3921,9 +3921,15 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 name = "onegit-app"
 version = "0.0.1"
 dependencies = [
+ "chrono",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
  "onegit-git",
  "onegit-ui",
  "rake",
+ "raw-window-handle",
+ "serde_json",
+ "sha2",
  "tempfile",
 ]
 
@@ -3948,6 +3954,7 @@ version = "0.0.1"
 dependencies = [
  "gpui-ce-motion",
  "rake",
+ "regex",
  "unicode-segmentation",
 ]
 
@@ -4559,7 +4566,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 [[package]]
 name = "rake"
 version = "0.1.0"
-source = "git+https://github.com/1bye/rake?rev=6c643cedd195898d4d6297f61ba32786d0387ed4#6c643cedd195898d4d6297f61ba32786d0387ed4"
+source = "git+https://github.com/1bye/rake?rev=011294cb882fdb08fbe90bc84797b1caf6d6e115#011294cb882fdb08fbe90bc84797b1caf6d6e115"
 dependencies = [
  "anyhow",
  "async-io",
@@ -4593,7 +4600,7 @@ dependencies = [
 [[package]]
 name = "rake-client"
 version = "0.1.0"
-source = "git+https://github.com/1bye/rake?rev=6c643cedd195898d4d6297f61ba32786d0387ed4#6c643cedd195898d4d6297f61ba32786d0387ed4"
+source = "git+https://github.com/1bye/rake?rev=011294cb882fdb08fbe90bc84797b1caf6d6e115#011294cb882fdb08fbe90bc84797b1caf6d6e115"
 dependencies = [
  "async-io",
  "futures",
@@ -4609,7 +4616,7 @@ dependencies = [
 [[package]]
 name = "rake-diagnostics"
 version = "0.1.0"
-source = "git+https://github.com/1bye/rake?rev=6c643cedd195898d4d6297f61ba32786d0387ed4#6c643cedd195898d4d6297f61ba32786d0387ed4"
+source = "git+https://github.com/1bye/rake?rev=011294cb882fdb08fbe90bc84797b1caf6d6e115#011294cb882fdb08fbe90bc84797b1caf6d6e115"
 dependencies = [
  "serde",
  "serde_json",
@@ -4623,7 +4630,7 @@ dependencies = [
 [[package]]
 name = "rake-http"
 version = "0.1.0"
-source = "git+https://github.com/1bye/rake?rev=6c643cedd195898d4d6297f61ba32786d0387ed4#6c643cedd195898d4d6297f61ba32786d0387ed4"
+source = "git+https://github.com/1bye/rake?rev=011294cb882fdb08fbe90bc84797b1caf6d6e115#011294cb882fdb08fbe90bc84797b1caf6d6e115"
 dependencies = [
  "async-compat",
  "async-io",
@@ -4644,7 +4651,7 @@ dependencies = [
 [[package]]
 name = "rake-macros"
 version = "0.1.0"
-source = "git+https://github.com/1bye/rake?rev=6c643cedd195898d4d6297f61ba32786d0387ed4#6c643cedd195898d4d6297f61ba32786d0387ed4"
+source = "git+https://github.com/1bye/rake?rev=011294cb882fdb08fbe90bc84797b1caf6d6e115#011294cb882fdb08fbe90bc84797b1caf6d6e115"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -4655,7 +4662,7 @@ dependencies = [
 [[package]]
 name = "rake-protocol"
 version = "0.1.0"
-source = "git+https://github.com/1bye/rake?rev=6c643cedd195898d4d6297f61ba32786d0387ed4#6c643cedd195898d4d6297f61ba32786d0387ed4"
+source = "git+https://github.com/1bye/rake?rev=011294cb882fdb08fbe90bc84797b1caf6d6e115#011294cb882fdb08fbe90bc84797b1caf6d6e115"
 dependencies = [
  "percent-encoding",
  "rake-diagnostics",
@@ -4669,7 +4676,7 @@ dependencies = [
 [[package]]
 name = "rake-ui"
 version = "0.1.0"
-source = "git+https://github.com/1bye/rake?rev=6c643cedd195898d4d6297f61ba32786d0387ed4#6c643cedd195898d4d6297f61ba32786d0387ed4"
+source = "git+https://github.com/1bye/rake?rev=011294cb882fdb08fbe90bc84797b1caf6d6e115#011294cb882fdb08fbe90bc84797b1caf6d6e115"
 dependencies = [
  "gpui_ce",
  "palette",

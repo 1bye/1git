@@ -14,6 +14,9 @@ path = "src/main.rs"
 onegit-git.workspace = true
 onegit-ui.workspace = true
 rake.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+chrono = {workspace = true, features = ["clock"]}
 
 [features]
 test-support = ["onegit-ui/test-support", "rake/view-test-support"]
@@ -27,3 +30,8 @@ workspace = true
 [package.metadata.rake.bundle]
 name = "1git"
 identifier = "dev.1git.rust"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSAppearance", "NSGraphics", "NSResponder", "NSView", "NSVisualEffectView", "NSWindow"] }
+raw-window-handle = "=0.6.2"

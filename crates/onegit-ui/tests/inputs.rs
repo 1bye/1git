@@ -1,7 +1,7 @@
 //! Native input dispatch and composition checks on GPUI's deterministic platform.
 use onegit_ui::{
-    Button, InputAvailability, InputEvent, InputState, InputValidation, SearchField, TextArea,
-    TextInput, Theme,
+    Button, InputAvailability, InputEvent, InputState, InputValidation, InputVariant, SearchField,
+    TextArea, TextInput, Theme,
 };
 
 use rake::gpui::{self, EntityInputHandler, Focusable, InputEvent as NativeEvent, prelude::*};
@@ -14,6 +14,7 @@ struct Fields {
     search: gpui::Entity<InputState>,
     area: gpui::Entity<InputState>,
     availability: InputAvailability,
+    variant: InputVariant,
     changed: usize,
     submitted: usize,
     _subscriptions: Vec<gpui::Subscription>,
@@ -23,7 +24,7 @@ impl Render for Fields {
     fn render(&mut self, _: &mut gpui::Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
         rake::view! {
             <div class="size-full flex flex-col gap-2" focus={&self.focus} tab-navigation={true}>
-                <TextInput availability={self.availability} placeholder={"Branch name".into()}
+                <TextInput variant={self.variant} availability={self.availability} placeholder={"Branch name".into()}
                     validation={InputValidation::Invalid("Example validation".into())}
                     {..TextInput::new("text",&self.text,"Branch")}/>
                 <SearchField {..SearchField::new("search",&self.search,"Files")}/>
@@ -67,6 +68,7 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Fields>) {
             search,
             area,
             availability: InputAvailability::Enabled,
+            variant: InputVariant::Outlined,
             changed: 0,
             submitted: 0,
             _subscriptions: subscriptions,
@@ -412,4 +414,37 @@ fn multiline_wrap_and_scrolling_keep_native_caret_geometry_visible() {
         unbroken.right() <= gpui::px(260.),
         "long words must wrap within the field"
     );
+}
+
+#[test]
+fn plain_fields_keep_native_editing_history_and_selection_across_style_changes() {
+    let (mut cx, view) = setup();
+
+    key(&mut cx, view, "tab");
+    native_insert(&mut cx, view, "café 日本語");
+    key(&mut cx, view, "left");
+    let selection = view
+        .read_with(&cx, |view, cx| view.text.read(cx).selection())
+        .unwrap();
+
+    view.update(&mut cx, |view, _, cx| {
+        view.variant = InputVariant::Plain;
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    assert_eq!(
+        view.read_with(&cx, |view, cx| view.text.read(cx).selection())
+            .unwrap(),
+        selection
+    );
+    native_insert(&mut cx, view, "!");
+    key(&mut cx, view, &primary("z"));
+    assert_eq!(
+        view.read_with(&cx, |view, cx| view.text.read(cx).text().to_owned())
+            .unwrap(),
+        "café 日本語"
+    );
+    key(&mut cx, view, "enter");
+    assert_eq!(view.read_with(&cx, |view, _| view.submitted).unwrap(), 1);
 }

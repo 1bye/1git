@@ -16,7 +16,7 @@ onegit-ui = { path = "crates/onegit-ui" }
 # To build against a local checkout, add an untracked .cargo/config.toml with
 # [patch."https://github.com/1bye/rake"] rake = { path = "../rake/crates/rake" }
 # and do not commit the Cargo.lock changes it causes.
-rake = { git = "https://github.com/1bye/rake", rev = "6c643cedd195898d4d6297f61ba32786d0387ed4" }
+rake = { git = "https://github.com/1bye/rake", rev = "011294cb882fdb08fbe90bc84797b1caf6d6e115" }
 # Must match the GPUI CE revision Rake pins so both resolve to one crate.
 gpui = { package = "gpui_ce", git = "https://github.com/gpui-ce/gpui-ce", rev = "99109e3a77ddadbcb46cba8567e779a651600608", default-features = false }
 gpui-ce-motion = { version = "=0.4.0", default-features = false }

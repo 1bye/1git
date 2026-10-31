@@ -20,6 +20,7 @@ struct Workbench {
     last_preference: Option<gpui::Pixels>,
     axis: SplitAxis,
     disabled: bool,
+    divider_size: gpui::Pixels,
     mounted: bool,
     width: gpui::Pixels,
     variant: TabVariant,
@@ -59,7 +60,7 @@ impl Render for Workbench {
                 </div>
                 if self.mounted {
                     <div style={|s| s.w(self.width).h(px(220.)).flex_shrink_0()}>
-                        <ResizableSplit axis={self.axis} disabled={self.disabled} min_first={px(80.)} min_second={px(100.)}
+                        <ResizableSplit divider_size={self.divider_size} axis={self.axis} disabled={self.disabled} min_first={px(80.)} min_second={px(100.)}
                             first={first} second={second} {..ResizableSplit::new("split", &self.split, "Main size")}/>
                     </div>
                 }
@@ -115,6 +116,7 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Workbench>) {
             last_preference: None,
             axis: SplitAxis::Horizontal,
             disabled: false,
+            divider_size: px(6.),
             mounted: true,
             width: px(500.),
             variant: TabVariant::Underline,
@@ -545,4 +547,68 @@ fn shrinking_during_a_drag_restores_the_saved_preference_and_releases_capture() 
     .unwrap();
     draw(&mut cx, v);
     assert_eq!(bounds(&cx, v, "first-pane").size.width, px(160.));
+}
+
+#[test]
+fn hairline_splits_keep_a_wide_pointer_target_and_resize_both_panes() {
+    let (mut cx, v) = setup();
+
+    v.update(&mut cx, |view, _, cx| {
+        view.divider_size = px(1.);
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    let first = bounds(&cx, v, "first-pane");
+    let second = bounds(&cx, v, "second-pane");
+    let divider = bounds(&cx, v, "split-Main size");
+
+    assert_eq!(second.left() - first.right(), px(1.));
+    assert!(divider.size.width >= px(6.));
+    let origin = gpui::point(divider.right() - px(1.), divider.center().y);
+
+    pointer(&mut cx, v, origin, "down");
+    pointer(&mut cx, v, origin + gpui::point(px(30.), px(0.)), "move");
+    pointer(&mut cx, v, origin + gpui::point(px(30.), px(0.)), "up");
+    assert_eq!(
+        bounds(&cx, v, "first-pane").size.width,
+        first.size.width + px(30.)
+    );
+    assert_eq!(
+        bounds(&cx, v, "second-pane").size.width,
+        second.size.width - px(30.)
+    );
+}
+
+#[test]
+fn proportional_split_preserves_user_share_when_the_viewport_changes() {
+    let (mut cx, view) = setup();
+
+    view.update(&mut cx, |this, window, cx| {
+        this.split = cx.new(|cx| SplitState::proportional(0.5, window, cx));
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    assert_eq!(bounds(&cx, view, "first-pane").size.width, px(247.));
+    view.update(&mut cx, |this, _, cx| {
+        this.width = px(400.);
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    assert_eq!(bounds(&cx, view, "first-pane").size.width, px(197.));
+    view.update(&mut cx, |this, window, cx| {
+        this.split
+            .update(cx, |split, cx| split.resize(px(118.2), window, cx))
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    view.update(&mut cx, |this, _, cx| {
+        this.width = px(500.);
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    assert!((f32::from(bounds(&cx, view, "first-pane").size.width) - 148.2).abs() < 0.51);
 }

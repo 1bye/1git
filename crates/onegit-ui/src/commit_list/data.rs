@@ -32,6 +32,15 @@ impl CommitRef {
     }
 }
 
+/// Optional application-supplied status at the trailing edge of a history row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommitStatus {
+    /// Decorative glyph; the row includes its description in its accessible name.
+    pub icon: crate::IconName,
+    /// Complete status, such as publication relative to the last fetch.
+    pub label: SharedString,
+}
+
 /// Application-formatted history entry; the UI performs no Git, clock or network access.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitItem {
@@ -47,6 +56,8 @@ pub struct CommitItem {
     pub hash: Option<SharedString>,
     /// Ordered branch/tag decorations. The first two are shown, followed by an overflow count.
     pub references: Vec<CommitRef>,
+    /// Optional read-only row status. Absence does not imply a publication state.
+    pub status: Option<CommitStatus>,
 }
 
 impl CommitItem {
@@ -60,6 +71,7 @@ impl CommitItem {
             date: None,
             hash: None,
             references: Vec::new(),
+            status: None,
         }
     }
 }

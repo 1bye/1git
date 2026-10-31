@@ -26,12 +26,26 @@ impl RouteViews<Destination> for AppRoutes {
         cx: &mut rake::gpui::App,
     ) -> Result<AnyView, MountError> {
         if rake::theme::try_current::<Theme>().is_none() {
-            Theme::dark().install(cx);
+            let theme = match cx.window_appearance() {
+                rake::gpui::WindowAppearance::Dark | rake::gpui::WindowAppearance::VibrantDark => {
+                    Theme::dark()
+                }
+                _ => Theme::light(),
+            };
+
+            theme.install(cx);
         }
 
         match destination {
             Destination::Home => Ok(cx
-                .new(|cx| RepositoryWorkspace::new(window, cx, Some(page.app().tasks())))
+                .new(|cx| {
+                    let mut workspace =
+                        RepositoryWorkspace::new(window, cx, Some(page.app().tasks()));
+
+                    workspace.load_home(cx);
+
+                    workspace
+                })
                 .into()),
         }
     }

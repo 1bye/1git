@@ -84,6 +84,7 @@ impl ChangedFile {
 pub(super) struct Loaded {
     pub repository: Arc<Repository>,
     pub snapshot: Snapshot,
+    pub last_commit: Option<Arc<onegit_git::CommitInfo>>,
     pub files: Vec<ChangedFile>,
     positions: HashMap<ChangeKey, usize>,
 }
@@ -206,7 +207,16 @@ pub(super) fn from_snapshot(repository: Arc<Repository>, snapshot: Snapshot) -> 
         .map(|(index, file)| (file.key.clone(), index))
         .collect();
 
+    let last_commit = snapshot
+        .status
+        .head
+        .oid
+        .as_deref()
+        .and_then(|oid| repository.commit(oid, None).ok())
+        .map(Arc::new);
+
     Arc::new(Loaded {
+        last_commit,
         repository,
         snapshot,
         files,

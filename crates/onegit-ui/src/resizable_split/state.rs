@@ -16,6 +16,7 @@ pub(super) struct Config {
     pub min_first: gpui::Pixels,
     pub min_second: gpui::Pixels,
     pub disabled: bool,
+    pub divider_size: gpui::Pixels,
     pub mount: gpui::EntityId,
 }
 
@@ -23,17 +24,20 @@ struct Drag {
     origin: gpui::Pixels,
     size: gpui::Pixels,
     preferred: gpui::Pixels,
+    fraction: Option<f32>,
 }
 
-/// Window-owned split sizing and divider focus. Viewport changes preserve the preferred size.
+/// Window-owned split sizing and divider focus. Viewport changes preserve the chosen size or proportion.
 pub struct SplitState {
     preferred: gpui::Pixels,
+    fraction: Option<f32>,
     pub(super) actual: gpui::Pixels,
     pub(super) axis: SplitAxis,
     pub(super) min_first: gpui::Pixels,
     pub(super) min_second: gpui::Pixels,
     pub(super) available: gpui::Pixels,
     pub(super) disabled: bool,
+    divider_size: gpui::Pixels,
     pub(super) focus: gpui::FocusHandle,
     drag: Option<Drag>,
     window: gpui::WindowId,
@@ -77,18 +81,34 @@ impl SplitState {
 
         Self {
             preferred: size,
+            fraction: None,
             actual: size,
             axis: SplitAxis::Horizontal,
             min_first: px(120.),
             min_second: px(120.),
             available: size + px(120.),
             disabled: false,
+            divider_size: px(DIVIDER),
             focus: cx.focus_handle(),
             drag: None,
             window: window.window_handle().window_id(),
             mount: None,
             _activation: activation,
         }
+    }
+
+    /// Create a split that preserves a fraction of the available space as the viewport changes.
+    /// Fractions are clamped to 0–1; nonfinite input uses an equal split.
+    pub fn proportional(fraction: f32, window: &mut gpui::Window, cx: &mut Context<Self>) -> Self {
+        let mut state = Self::new(px(0.), window, cx);
+
+        state.fraction = Some(if fraction.is_finite() {
+            fraction.clamp(0., 1.)
+        } else {
+            0.5
+        });
+
+        state
     }
 
     /// Effective first-pane size, after the last layout constrained it to the available space.
@@ -112,6 +132,11 @@ impl SplitState {
 
         if self.preferred != size {
             self.preferred = size;
+
+            if self.fraction.is_some() && self.available > px(0.) {
+                self.fraction = Some(f32::from(size) / f32::from(self.available));
+            }
+
             self.actual = size;
             cx.emit(SplitEvent::Resized(size));
             cx.notify();
@@ -149,8 +174,11 @@ impl SplitState {
     }
 
     pub(super) fn measure(&mut self, length: gpui::Pixels) {
-        self.available = (length - px(DIVIDER)).max(px(0.));
-        self.actual = self.clamp(self.preferred);
+        self.available = (length - self.divider_size).max(px(0.));
+        self.actual = self.clamp(
+            self.fraction
+                .map_or(self.preferred, |fraction| self.available * fraction),
+        );
     }
 
     pub(super) fn configure(
@@ -177,6 +205,7 @@ impl SplitState {
         self.min_first = nonnegative(config.min_first);
         self.min_second = nonnegative(config.min_second);
         self.disabled = config.disabled;
+        self.divider_size = nonnegative(config.divider_size).max(px(1.));
         self.mount = Some(config.mount);
     }
 
@@ -206,6 +235,7 @@ impl SplitState {
             origin: self.axis.coordinate(position),
             size: self.actual,
             preferred: self.preferred,
+            fraction: self.fraction,
         });
         window.focus(&self.focus, cx);
         cx.notify();
@@ -247,9 +277,17 @@ impl SplitState {
     pub(super) fn cancel(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
         if let Some(drag) = self.drag.take() {
             self.preferred = drag.preferred;
-            self.actual = self.clamp(self.preferred);
+            self.fraction = drag.fraction;
+            self.actual = self.clamp(
+                self.fraction
+                    .map_or(self.preferred, |fraction| self.available * fraction),
+            );
             window.release_pointer();
-            cx.emit(SplitEvent::Resized(self.preferred));
+            cx.emit(SplitEvent::Resized(if self.fraction.is_some() {
+                self.actual
+            } else {
+                self.preferred
+            }));
             cx.notify();
         }
     }

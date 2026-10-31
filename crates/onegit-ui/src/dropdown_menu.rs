@@ -1,6 +1,6 @@
 use crate::{
-    ButtonTone, ButtonVariant, ControlSize, ControlState, Icon, IconName, IconSize, Theme,
-    focusable,
+    ButtonTone, ButtonVariant, ControlSize, ControlState, Icon, IconName, IconSize, TextRole,
+    Theme, focusable,
     motion::{self, Surface},
     overlay,
 };
@@ -79,6 +79,10 @@ pub struct DropdownMenu {
     pub id: gpui::ElementId,
     /// Visible trigger label; required accessible name even in icon-only mode.
     pub label: gpui::SharedString,
+    /// Trigger typography; captions use muted ink for compact metadata actions.
+    pub label_role: TextRole,
+    /// Show the trailing disclosure glyph on text triggers.
+    pub show_chevron: bool,
     /// Optional leading trigger icon; used alone when `icon_only` is true.
     pub icon: Option<IconName>,
     /// Use a square trigger; its label remains accessible.
@@ -106,6 +110,8 @@ impl DropdownMenu {
         Self {
             id: id.into(),
             label: label.into(),
+            label_role: TextRole::Body,
+            show_chevron: true,
             icon: None,
             icon_only: false,
             variant: ButtonVariant::Secondary,
@@ -428,12 +434,21 @@ impl Menu {
         };
 
         let content_label = label.clone();
+        let label_role = self.config.label_role;
+
+        let label_ink = if self.config.label_role == TextRole::Caption {
+            theme.muted_ink
+        } else {
+            rest.ink
+        };
+
+        let show_chevron = self.config.show_chevron;
 
         let content = move || {
             rake::view! {
                 <div class="flex flex-row items-center justify-center gap-1.5 min-w-0">
                     if let Some(icon)=icon {<Icon {..Icon::new("icon",icon)}/>}
-                    if !icon_only {<p class="text-body font-medium" wrap={false} ellipsis={true}>{content_label.clone()}</p><Icon size={IconSize::Small} {..Icon::new("chevron",IconName::ChevronDown)}/>}
+                    if !icon_only {<p class={match label_role {TextRole::Caption=>"text-caption font-normal",TextRole::Small=>"text-small font-medium",TextRole::Body=>"text-body font-medium",TextRole::Title=>"text-title",TextRole::Heading=>"text-heading",TextRole::Code=>"text-code font-mono"}} style={|s|s.text_color(label_ink)} wrap={false} ellipsis={true}>{content_label.clone()}</p>if show_chevron {<Icon size={IconSize::Small} {..Icon::new("chevron",IconName::ChevronDown)}/>}}
                 </div>
             }
         };
@@ -445,6 +460,8 @@ impl Menu {
                 ControlSize::Small => 8.,
                 ControlSize::Medium => 10.,
                 ControlSize::Large => 14.,
+                ControlSize::Rail => 10.,
+                ControlSize::Library => 12.,
             }
         });
 
@@ -477,6 +494,7 @@ impl Menu {
         let height = px(self.config.size.height());
         let outside = cx.entity();
         let row_height = height;
+        let owns_focus = self.focus.is_focused(window);
 
         gpui::div().id("popup").track_focus(&self.focus).role(accesskit::Role::Menu).aria_label(self.config.label.clone())
             .w(self.config.width.max(px(120.))).max_w((window.viewport_size().width-px(16.)).max(px(1.)))
@@ -497,7 +515,7 @@ impl Menu {
                         <div id={id.clone()} role={if selected.is_some(){accesskit::Role::MenuItemRadio}else{accesskit::Role::MenuItem}} aria-label={item.label.clone()}
                             class="flex flex-row items-center gap-2 px-2 shrink-0 rounded-control"
                             style={|s|s.h(row_height).min_w_0().cursor(if disabled {gpui::CursorStyle::Arrow}else{gpui::CursorStyle::PointingHand}).bg(if active {theme.hover}else{Theme::transparent()}).text_color(ink).opacity(if disabled {0.5}else{1.})
-                                .when(active,|s|s.aria_active_descendant()).when_some(selected,|s,value|s.aria_toggled(if value{accesskit::Toggled::True}else{accesskit::Toggled::False}))
+                                .when(active && owns_focus,|s|s.aria_active_descendant()).when_some(selected,|s,value|s.aria_toggled(if value{accesskit::Toggled::True}else{accesskit::Toggled::False}))
                                 .a11y_synthetic_children(move |builder|{if disabled {let node=builder.parent_node();node.set_disabled();node.clear_actions();}})
                                 .on_hover(move |value,_,cx|{if *value && !disabled {hover.update(cx,|this,cx|this.set_active(Some(hover_id.clone()),cx));}})}
                             on:click={move |_,window,cx|{cx.stop_propagation();choose.update(cx,|this,cx|this.activate(&id,window,cx));}}>

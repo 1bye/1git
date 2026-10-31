@@ -90,12 +90,12 @@ impl RenderOnce for Checkbox {
         };
 
         let box_paint = Surface {
-            border: if filled { theme.accent } else { theme.line },
-            ink: theme.on_accent,
+            border: if filled { theme.primary } else { theme.line },
+            ink: theme.on_primary,
             ..Surface::new(if filled {
-                theme.accent
+                theme.primary
             } else {
-                theme.surface_sunken
+                Theme::transparent()
             })
         };
 
@@ -115,7 +115,7 @@ impl RenderOnce for Checkbox {
                 rake::view! {
                     <button id={self.id} disabled={!enabled} aria-label={self.label.clone()}
                         class="flex flex-row items-center justify-start gap-2 px-1 shrink-0"
-                        style={|s| focusable(s).h(px(24.)).border_color(Theme::transparent())
+                        style={|s| focusable(s).h(px(24.)).when(!self.show_label,|s|s.w(px(24.)).px(px(0.)).justify_center()).border_color(Theme::transparent())
                             .role(accesskit::Role::CheckBox).aria_toggled(toggled)
                             .text_color(paint.ink).bg(paint.background).opacity(paint.opacity)}
                         on:click={move |_, window, cx| {
@@ -123,7 +123,7 @@ impl RenderOnce for Checkbox {
                             if let Some(handler)=&self.on_change {handler(&next,window,cx);}
                         }}>
                         {motion::surface("box-motion".into(), box_paint, box_paint, box_paint, false, move |paint| rake::view! {
-                        <span class="size-[14px] border-1 rounded-[3px] items-center justify-center shrink-0"
+                        <span class="size-[12px] border-1 rounded-[3px] items-center justify-center shrink-0"
                             style={|s| s.border_color(paint.border).bg(paint.background).text_color(paint.ink)}>
                             if filled {
                                 <Icon name={if self.checked==CheckState::Mixed {IconName::Minus} else {IconName::Check}}

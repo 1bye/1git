@@ -121,6 +121,8 @@ fn large_unified_patches_are_virtualized_and_keyboard_navigation_reaches_both_en
     let (mut cx, v) = setup(DiffView::Unified);
 
     assert!(bounds(&cx, v, "diff-old-1").is_some());
+    assert_eq!(bounds(&cx, v, "diff-old-0").unwrap().size.height, px(26.));
+    assert_eq!(bounds(&cx, v, "diff-old-1").unwrap().size.height, px(20.));
     assert!(bounds(&cx, v, "diff-old-1000").is_none());
     key(&mut cx, v, "tab");
     key(&mut cx, v, "pagedown");
@@ -144,14 +146,14 @@ fn split_columns_share_both_scroll_axes_without_displacing_the_second_column() {
     assert!(before.right() <= after.left());
     assert!(after.right() <= px(640.));
     assert!(before.size.width > px(300.) && after.size.width > px(300.));
-    wheel(&mut cx, v, "diff-before", -120., -240.);
+    wheel(&mut cx, v, "diff-before", -120., -200.);
     let old = bounds(&cx, v, "diff-old-11").expect("left virtualized row");
     let new = bounds(&cx, v, "diff-new-11").expect("right virtualized row");
 
     assert_eq!(old.top(), new.top());
     assert!((old.left() - before.left()) < px(-50.));
     assert!(((old.left() - before.left()) - (new.left() - after.left())).abs() < px(1.));
-    wheel(&mut cx, v, "diff-after", -60., -240.);
+    wheel(&mut cx, v, "diff-after", -60., -200.);
     let old = bounds(&cx, v, "diff-old-21").expect("left row follows right wheel");
     let new = bounds(&cx, v, "diff-new-21").expect("right row follows right wheel");
 

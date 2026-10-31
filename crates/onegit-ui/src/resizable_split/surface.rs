@@ -91,7 +91,12 @@ impl gpui::Element for SplitSurface {
         let focus = state.focus.clone().tab_stop(!disabled);
         let dragging = state.dragging();
         let focused = focus.is_focused(window) && window.last_input_was_keyboard();
-        let divider = px(DIVIDER).min(axis.length(bounds.size));
+
+        let divider = super::state::nonnegative(self.config.divider_size)
+            .max(px(1.))
+            .min(axis.length(bounds.size));
+
+        let hit_size = px(DIVIDER).max(divider);
         let second = (axis.length(bounds.size) - first - divider).max(px(0.));
         let theme = Theme::current();
         let key = self.config.state.clone();
@@ -114,6 +119,10 @@ impl gpui::Element for SplitSurface {
                     .id("divider")
                     .debug_selector(|| format!("split-{}", label))
                     .size_full()
+                    .when(horizontal, |s| s.w(hit_size).ml(-(hit_size - divider) / 2.))
+                    .when(!horizontal, |s| {
+                        s.h(hit_size).mt(-(hit_size - divider) / 2.)
+                    })
                     .flex()
                     .items_center()
                     .justify_center()
@@ -206,16 +215,19 @@ impl gpui::Element for SplitSurface {
         let second_content =
             std::mem::replace(&mut self.config.second, gpui::Empty.into_any_element());
 
-        let mut origin = bounds.origin;
+        // Paint the wider hit target last so both adjacent panes leave it reachable.
+        for (index, offset, length, content) in [
+            (0usize, px(0.), first, first_content),
+            (2, first + divider, second, second_content),
+            (1, first, divider, handle),
+        ] {
+            let origin = bounds.origin
+                + if horizontal {
+                    gpui::point(offset, px(0.))
+                } else {
+                    gpui::point(px(0.), offset)
+                };
 
-        for (index, (length, content)) in [
-            (first, first_content),
-            (divider, handle),
-            (second, second_content),
-        ]
-        .into_iter()
-        .enumerate()
-        {
             let size = if horizontal {
                 gpui::size(length, bounds.size.height)
             } else {
@@ -228,7 +240,7 @@ impl gpui::Element for SplitSurface {
                 .h(size.height)
                 .min_w_0()
                 .min_h_0()
-                .overflow_hidden()
+                .when(index != 1, |s| s.overflow_hidden())
                 .children((size.width > px(0.) && size.height > px(0.)).then_some(content))
                 .into_any_element();
 
@@ -242,12 +254,6 @@ impl gpui::Element for SplitSurface {
                 cx,
             );
             self.children.push(child);
-
-            if horizontal {
-                origin.x += length;
-            } else {
-                origin.y += length;
-            }
         }
     }
 

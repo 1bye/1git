@@ -7,10 +7,10 @@ use onegit_ui::{
     CommitListData, CommitListDensity, ControlSize, ControlState, Dialog, DialogAvailability,
     DialogDismissal, DialogHost, DialogHostState, DialogKind, DialogState, DiffDocument, DiffView,
     DiffViewer, DropdownMenu, Icon, IconButton, IconName, IconSize, InputAvailability, InputEvent,
-    InputState, InputValidation, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane, ResizableSplit,
-    RowSelection, SearchField, SplitAxis, SplitState, TabItem, TabVariant, Tabs, Text, TextArea,
-    TextInput, TextRole, TextTone, Theme, Toast, ToastAction, ToastHost, ToastId, ToastKind,
-    ToastState, Tooltip,
+    InputState, InputValidation, InputVariant, ListRow, MenuAlignment, MenuEntry, MenuItem, Pane,
+    ResizableSplit, RowSelection, SearchField, SplitAxis, SplitState, TabItem, TabVariant, Tabs,
+    Text, TextArea, TextInput, TextRole, TextTone, Theme, Toast, ToastAction, ToastHost, ToastId,
+    ToastKind, ToastState, Tooltip,
 };
 
 use rake::gpui::{self, Context, FocusHandle, Focusable, ScrollHandle, Window, prelude::*, px};
@@ -581,7 +581,7 @@ impl Gallery {
 
         let message = rake::view! {
             <div class="size-full flex flex-col gap-2 p-3 bg-surface overflow-y-scroll">
-                <TextArea rows={2} {..TextArea::new("message", &self.repo_message, "Commit message")}/>
+                <TextArea variant={InputVariant::Plain} rows={2} {..TextArea::new("message", &self.repo_message, "Commit message")}/>
                 <Text tone={TextTone::Muted} role={TextRole::Caption} {..Text::new("sample", "Sample state only · no repository changes")}/>
             </div>
         }.into_any_element();

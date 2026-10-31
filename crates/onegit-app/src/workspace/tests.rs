@@ -11,13 +11,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-struct Fixture {
-    directory: tempfile::TempDir,
-    root: PathBuf,
+pub(super) struct Fixture {
+    pub(super) directory: tempfile::TempDir,
+    pub(super) root: PathBuf,
 }
 
 impl Fixture {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
         let root = directory.path().join("repository été");
 
@@ -29,11 +29,11 @@ impl Fixture {
         fixture
     }
 
-    fn process(&self) -> GitProcess {
+    pub(super) fn process(&self) -> GitProcess {
         self.process_with_limit(16 * 1024 * 1024)
     }
 
-    fn process_with_limit(&self, limit: usize) -> GitProcess {
+    pub(super) fn process_with_limit(&self, limit: usize) -> GitProcess {
         let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
 
         GitProcess::new("git", limit).with_environment([
@@ -54,23 +54,23 @@ impl Fixture {
         ])
     }
 
-    fn git(&self, args: &[&str]) -> Vec<u8> {
+    pub(super) fn git(&self, args: &[&str]) -> Vec<u8> {
         self.process()
             .run(GitCommand::new(&self.root, args.iter().copied()))
             .unwrap()
             .stdout
     }
 
-    fn write(&self, path: &str, text: &str) {
+    pub(super) fn write(&self, path: &str, text: &str) {
         fs::write(self.root.join(path), text).unwrap();
     }
 
-    fn commit(&self) {
+    pub(super) fn commit(&self) {
         self.git(&["add", "--all"]);
         self.git(&["commit", "-m", "Fixture"]);
     }
 
-    fn load(&self) -> Arc<Loaded> {
+    pub(super) fn load(&self) -> Arc<Loaded> {
         read::load(&self.root, self.process(), &Cancellation::default()).unwrap()
     }
 }
@@ -95,7 +95,7 @@ fn patch(loaded: &Loaded, key: &ChangeKey) -> onegit_ui::DiffDocument {
     }
 }
 
-fn contents(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+pub(super) fn contents(root: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     fn visit(root: &Path, path: &Path, result: &mut BTreeMap<PathBuf, Vec<u8>>) {
         for entry in fs::read_dir(path).unwrap() {
             let entry = entry.unwrap();
@@ -866,5 +866,146 @@ mod native {
         draw(&mut cx, v);
         assert_eq!(write::staged_count(&f.load()), 0);
         assert_eq!(fs::read(f.root.join("a.txt")).unwrap(), b"untracked\n");
+    }
+
+    #[test]
+    fn home_and_repository_tab_preserve_the_active_patch_selection_and_commit_draft() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "alpha\n");
+        f.write("b.txt", "beta\n");
+        let (mut cx, v) = setup(&f);
+
+        choose(&mut cx, v, Some(f.root.clone()));
+        click_file(&mut cx, v, "workspace-file-1");
+        set_message(&mut cx, v, "Keep summary", "Keep description");
+        click_file(&mut cx, v, "workspace-home");
+        assert!(v.read_with(&cx, |view, _| view.home_visible).unwrap());
+        click_file(&mut cx, v, "workspace-repository-tab");
+        assert!(!v.read_with(&cx, |view, _| view.home_visible).unwrap());
+        assert!(patch_text(&cx, v).contains("+beta"));
+        v.read_with(&cx, |view, cx| {
+            assert_eq!(view.summary.read(cx).text(), "Keep summary");
+            assert_eq!(view.description.read(cx).text(), "Keep description");
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn original_shell_measurements_and_compact_file_rows_match_the_reference() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "alpha\n");
+        f.write("b.txt", "beta\n");
+        let (mut cx, v) = setup(&f);
+
+        choose(&mut cx, v, Some(f.root.clone()));
+        let mut visual = gpui::VisualTestContext::from_window(v.into(), &cx);
+        // apps/gpuix design tokens and repository-list.tsx define these logical-pixel measurements.
+        let titlebar = visual.debug_bounds("workspace-titlebar").unwrap();
+        let rail = visual.debug_bounds("workspace-rail").unwrap();
+        let surface = visual.debug_bounds("workspace-surface").unwrap();
+        let row = visual.debug_bounds("workspace-file-0").unwrap();
+        let composer = visual.debug_bounds("workspace-commit-composer").unwrap();
+        let toolbar = visual.debug_bounds("workspace-patch-toolbar").unwrap();
+
+        assert_eq!(titlebar.size.height, px(42.));
+        assert_eq!(rail.size.width, px(48.));
+        assert_eq!(surface.left(), px(48.));
+        assert_eq!(surface.top(), px(42.));
+        assert_eq!(surface.bottom(), px(634.));
+        assert_eq!(row.size.height, px(28.));
+        assert_eq!(composer.size.height, px(140.));
+        assert_eq!(toolbar.size.height, px(36.));
+        assert_eq!(toolbar.left(), surface.left() + px(311.));
+    }
+
+    #[test]
+    fn row_checkboxes_stage_and_unstage_without_changing_the_viewed_file_or_draft() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "base\n");
+        f.commit();
+        f.write("a.txt", "changed\n");
+        f.write("b.txt", "untracked\n");
+        let (mut cx, v) = setup(&f);
+
+        choose(&mut cx, v, Some(f.root.clone()));
+        set_message(&mut cx, v, "Keep draft", "Keep description");
+        click_file(&mut cx, v, "workspace-stage-1");
+        assert_eq!(f.git(&["show", ":b.txt"]), b"untracked\n");
+        assert_eq!(
+            v.read_with(&cx, |view, _| view.selected.clone()).unwrap(),
+            Some(key("a.txt", read::Side::Working))
+        );
+        assert!(patch_text(&cx, v).contains("+changed"));
+        click_file(&mut cx, v, "workspace-stage-0");
+        assert_eq!(write::staged_count(&f.load()), 0);
+        assert_eq!(fs::read(f.root.join("b.txt")).unwrap(), b"untracked\n");
+        assert_eq!(
+            v.read_with(&cx, |view, cx| view.summary.read(cx).text().to_owned())
+                .unwrap(),
+            "Keep draft"
+        );
+    }
+
+    #[test]
+    fn filtering_keeps_keyboard_selection_in_results_and_stage_all_uses_the_entire_repository() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "alpha\n");
+        f.write("b.txt", "beta\n");
+        let (mut cx, v) = setup(&f);
+
+        choose(&mut cx, v, Some(f.root.clone()));
+        v.update(&mut cx, |view, window, cx| {
+            view.toggle_filter(window, cx);
+            view.filter
+                .update(cx, |input, cx| input.set_text("b.txt", cx));
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(
+            v.read_with(&cx, |view, _| view.visible_files.len())
+                .unwrap(),
+            1
+        );
+        assert!(patch_text(&cx, v).contains("+beta"));
+        click_file(&mut cx, v, "workspace-stage-all");
+        assert_eq!(write::staged_count(&f.load()), 2);
+        assert_eq!(
+            v.read_with(&cx, |view, _| view.visible_files.len())
+                .unwrap(),
+            1
+        );
+        v.update(&mut cx, |view, window, cx| view.toggle_filter(window, cx))
+            .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(
+            v.read_with(&cx, |view, _| view.visible_files.len())
+                .unwrap(),
+            2
+        );
+        v.update(&mut cx, |view, window, cx| {
+            window.focus(&view.section_focus[0], cx)
+        })
+        .unwrap();
+        cx.update_window(v.into(), |_, window, cx| {
+            window.dispatch_event(
+                gpui::KeyDownEvent {
+                    keystroke: gpui::Keystroke::parse("down").unwrap(),
+                    is_held: false,
+                    prefer_character_input: false,
+                }
+                .to_platform_input(),
+                cx,
+            );
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        assert!(
+            v.read_with(&cx, |view, _| view.section == Section::History)
+                .unwrap()
+        );
     }
 }

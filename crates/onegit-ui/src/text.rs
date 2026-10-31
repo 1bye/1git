@@ -7,6 +7,8 @@ pub enum TextRole {
     /// Normal 12/18-pixel content.
     #[default]
     Body,
+    /// Compact file names and editor text at 11/16 pixels.
+    Small,
     /// Secondary 10/14-pixel metadata.
     Caption,
     /// Section title at 14/20 pixels.
@@ -25,6 +27,8 @@ pub enum TextTone {
     Neutral,
     /// Secondary information.
     Muted,
+    /// Low-priority paths and supporting labels.
+    Faint,
     /// Accent information.
     Accent,
     /// Positive status.
@@ -40,6 +44,7 @@ impl TextTone {
         match self {
             Self::Neutral => theme.ink,
             Self::Muted => theme.muted_ink,
+            Self::Faint => theme.faint_ink,
             Self::Accent => theme.accent,
             Self::Success => theme.success,
             Self::Warning => theme.warning,
@@ -88,6 +93,7 @@ impl RenderOnce for Text {
             <p id={self.id} class={match self.role {
                     TextRole::Body => "min-w-0 text-body",
                     TextRole::Caption => "min-w-0 text-caption",
+                    TextRole::Small => "min-w-0 text-small",
                     TextRole::Title => "min-w-0 text-title",
                     TextRole::Heading => "min-w-0 text-heading",
                     TextRole::Code => "min-w-0 text-code font-mono",

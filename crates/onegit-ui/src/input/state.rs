@@ -1,5 +1,5 @@
 use super::{
-    Config, InputAvailability, InputValidation, Kind,
+    Config, InputAvailability, InputValidation, InputVariant, Kind,
     buffer::Buffer,
     element::{EditorText, Layout},
     same_theme,
@@ -598,12 +598,20 @@ impl Render for InputState {
             _ => self.config.description.to_string(),
         };
 
-        let line_height = theme.body.line_height.unwrap_or(px(18.)).max(px(1.));
+        let plain = self.config.variant == InputVariant::Plain;
+        let typography = if plain { theme.small } else { theme.body };
+        let line_height = typography.line_height.unwrap_or(px(18.)).max(px(1.));
 
-        let padding = px(match self.config.size {
-            crate::ControlSize::Small => 6.,
-            crate::ControlSize::Medium => 8.,
-            crate::ControlSize::Large => 10.,
+        let padding = px(if plain {
+            4.
+        } else {
+            match self.config.size {
+                crate::ControlSize::Small => 6.,
+                crate::ControlSize::Medium => 8.,
+                crate::ControlSize::Large => 10.,
+                crate::ControlSize::Rail => 8.,
+                crate::ControlSize::Library => 12.,
+            }
         });
 
         let height = if multiline {
@@ -662,21 +670,37 @@ impl Render for InputState {
             .h(height)
             .flex()
             .items_center()
-            .gap(px(6.))
+            .gap(px(if self.config.size == crate::ControlSize::Library {
+                8.
+            } else {
+                6.
+            }))
             .px(padding)
             .border_1()
-            .rounded(theme.control)
-            .bg(theme.surface_sunken)
-            .border_color(if focused {
-                theme.focus_ring
-            } else if invalid {
+            .rounded(if self.config.size == crate::ControlSize::Library {
+                px(6.)
+            } else {
+                theme.control
+            })
+            .bg(
+                if plain || self.config.size == crate::ControlSize::Library {
+                    Theme::transparent()
+                } else {
+                    theme.surface_sunken
+                },
+            )
+            .border_color(if invalid {
                 theme.danger
+            } else if plain {
+                Theme::transparent()
+            } else if focused {
+                theme.focus_ring
             } else {
                 theme.line
             })
             .text_color(theme.ink)
-            .text_size(theme.body.size.max(px(1.)))
-            .font_weight(theme.body.weight.unwrap_or(gpui::FontWeight::NORMAL))
+            .text_size(typography.size.max(px(1.)))
+            .font_weight(typography.weight.unwrap_or(gpui::FontWeight::NORMAL))
             .line_height(line_height)
             .cursor(if disabled {
                 gpui::CursorStyle::Arrow
@@ -715,7 +739,11 @@ impl Render for InputState {
             )
             .when(search, |s| {
                 s.child(Icon {
-                    size: IconSize::Medium,
+                    size: if self.config.size == crate::ControlSize::Library {
+                        IconSize::Navigation
+                    } else {
+                        IconSize::Medium
+                    },
                     ..Icon::new("search", IconName::Search)
                 })
             })

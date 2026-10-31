@@ -7,7 +7,10 @@ use crate::{
     motion::{self, Surface},
 };
 
-pub use data::{CommitItem, CommitListData, CommitListDataError, CommitRef, CommitRefKind};
+pub use data::{
+    CommitItem, CommitListData, CommitListDataError, CommitRef, CommitRefKind, CommitStatus,
+};
+
 use rake::gpui::{self, ColorExt, accesskit, prelude::*, px};
 use std::rc::Rc;
 
@@ -37,6 +40,8 @@ impl CommitListDensity {
 /// A read-only commit list. Supply a bounded parent height and retain its data snapshot outside render.
 #[derive(IntoElement)]
 pub struct CommitList {
+    /// Display conventional-prefix badges using the original desktop palette.
+    pub type_badges: bool,
     /// Stable identity retaining focus and scrolling.
     pub id: gpui::ElementId,
     /// Accessible list name.
@@ -62,6 +67,7 @@ impl CommitList {
         data: CommitListData,
     ) -> Self {
         Self {
+            type_badges: false,
             id: id.into(),
             label: label.into(),
             data,
@@ -102,6 +108,11 @@ fn describe(item: &CommitItem) -> String {
         text.push_str(&reference.label);
     }
 
+    if let Some(status) = &item.status {
+        text.push_str(", ");
+        text.push_str(&status.label);
+    }
+
     text
 }
 
@@ -113,8 +124,6 @@ impl RenderOnce for CommitList {
         state.update(cx, |state, _| {
             state.reconcile(self.data.clone(), selected.clone(), self.density)
         });
-        let theme = Theme::current();
-
         let focus = state
             .read(cx)
             .focus
@@ -122,7 +131,8 @@ impl RenderOnce for CommitList {
             .tab_stop(!self.data.items().is_empty());
 
         let pointer_focus = focus.clone();
-        let focused = focus.is_focused(window);
+        let owns_focus = focus.is_focused(window);
+        let focused = owns_focus && window.last_input_was_keyboard();
         let cursor = state.read(cx).cursor.clone();
         let scroll = state.read(cx).scroll.clone();
         let handler = self.on_select.map(Rc::new);
@@ -130,6 +140,7 @@ impl RenderOnce for CommitList {
         let key_selected = selected.clone();
         let keyboard = state.clone();
         let density = self.density;
+        let type_badges = self.type_badges;
         let count = self.data.items().len();
 
         let content = if count == 0 {
@@ -153,9 +164,9 @@ impl RenderOnce for CommitList {
                     motion::surface(item.id.clone().into(),rest,hover,hover,true,move |paint| {
                         rake::view! {
                             <div id="row" role={accesskit::Role::ListBoxOption} aria-label={description}
-                                class="w-full min-w-0 flex flex-col justify-center gap-0.5 px-3 py-1 border-1 overflow-hidden"
-                                style={|s| s.h(px(density.height())).bg(paint.background).border_color(if active && focused {theme.focus_ring} else {Theme::transparent()})
-                                    .aria_selected(is_selected).when(active,|s| s.aria_active_descendant()).cursor(gpui::CursorStyle::PointingHand)
+                                class="relative w-full min-w-0 flex flex-col justify-center gap-0.5 px-2 py-1 border-1 rounded-[6px] overflow-hidden"
+                                style={|s| s.h(px(density.height())).when(item.status.is_some(),|s|s.pr(px(32.))).bg(paint.background).border_color(if active && focused {theme.focus_ring} else {Theme::transparent()})
+                                    .aria_selected(is_selected).when(active && owns_focus,|s| s.aria_active_descendant()).cursor(gpui::CursorStyle::PointingHand)
                                     .debug_selector(||format!("commit-row-{}",item.id))
                                     .a11y_synthetic_children(move |builder| {builder.parent_node().set_position_in_set(index+1);builder.parent_node().set_size_of_set(count);})}
                                 on:click={move |_,window,cx| {
@@ -163,8 +174,9 @@ impl RenderOnce for CommitList {
                                     state.update(cx,|state,cx|state.choose(&item.id,cx));
                                     if !is_selected && let Some(handler)=&handler {handler(&item.id,window,cx);}
                                 }}>
+                                if let Some(status)=&item.status {<div class="absolute right-2 text-faint-ink" style={|s|s.top(px((density.height()-18.)/2.))}><crate::Icon size={crate::IconSize::Navigation} {..crate::Icon::new("status-icon",status.icon)}/></div>}
                                 <div class="flex flex-row items-center gap-2 min-w-0">
-                                    <div class="flex-1 min-w-0"><Text max_lines={Some(1)} {..Text::new("subject",item.summary.clone())}/></div>
+                                    <div class="flex-1 min-w-0">if type_badges {<crate::CommitSubject {..crate::CommitSubject::new("subject",item.summary.clone())}/>}else{<Text role={TextRole::Small} max_lines={Some(1)} {..Text::new("subject",item.summary.clone())}/>}</div>
                                     <div class="flex flex-row gap-1 shrink-0 min-w-0 overflow-hidden" style={|s| s.max_w(gpui::relative(0.5))}>
                                         for (index,reference) in item.references.iter().take(2).enumerate() {
                                             <div id={("ref",index)} class="rounded-[3px] px-1 text-caption min-w-0" style={|s| {
@@ -176,7 +188,7 @@ impl RenderOnce for CommitList {
                                     </div>
                                 </div>
                                 <div class="flex flex-row items-center gap-2 min-w-0">
-                                    <div class="flex-1 min-w-0"><Text max_lines={Some(1)} role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("author-date",author_date)}/></div>
+                                    <div class="flex-1 min-w-0"><Text max_lines={Some(1)} role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("author-date",author_date)}/></div>
                                     if let Some(hash)=&item.hash {<p class="text-caption font-mono text-muted-ink shrink-0" style={|s| s.max_w(px(80.))} wrap={false} ellipsis={true}>{hash.clone()}</p>}
                                 </div>
                             </div>
@@ -189,7 +201,7 @@ impl RenderOnce for CommitList {
         rake::view! {
             <div id={self.id} role={accesskit::Role::ListBox} aria-label={self.label}
                 class="size-full min-w-0 min-h-0 bg-surface text-ink overflow-hidden"
-                style={|s| focusable(s).border_color(theme.line).track_focus(&pointer_focus).debug_selector(||"commit-list".into())
+                style={|s| focusable(s).border_color(Theme::transparent()).track_focus(&pointer_focus).debug_selector(||"commit-list".into())
                     .on_mouse_down(gpui::MouseButton::Left,move |_,window,cx|window.focus(&pointer_focus,cx))
                     .on_key_down(move |event,window,cx| {
                         let id=keyboard.update(cx,|state,cx|state.key(event,window,cx));

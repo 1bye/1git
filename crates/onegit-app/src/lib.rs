@@ -17,12 +17,18 @@ pub fn application() -> App<Destination> {
         .window_options(rake::gpui::WindowOptions {
             window_bounds: Some(rake::gpui::WindowBounds::Windowed(rake::gpui::Bounds {
                 origin: rake::gpui::point(rake::gpui::px(100.), rake::gpui::px(80.)),
-                size: rake::gpui::size(rake::gpui::px(1080.), rake::gpui::px(740.)),
+                size: rake::gpui::size(rake::gpui::px(1280.), rake::gpui::px(820.)),
             })),
-            window_min_size: Some(rake::gpui::size(rake::gpui::px(640.), rake::gpui::px(480.))),
+            window_min_size: Some(rake::gpui::size(rake::gpui::px(640.), rake::gpui::px(420.))),
+            app_owns_titlebar_drag: cfg!(target_os = "macos"),
+            window_background: rake::gpui::WindowBackgroundAppearance::Blurred,
             titlebar: Some(rake::gpui::TitlebarOptions {
                 title: Some("1git".into()),
-                ..Default::default()
+                appears_transparent: cfg!(target_os = "macos"),
+                traffic_light_position: Some(rake::gpui::point(
+                    rake::gpui::px(16.),
+                    rake::gpui::px(13.),
+                )),
             }),
             ..Default::default()
         })

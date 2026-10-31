@@ -5,42 +5,33 @@ pub(super) struct Scroll {
     pub document: DiffDocument,
     pub view: DiffView,
     pub focus: gpui::FocusHandle,
-    pub handle: gpui::UniformListScrollHandle,
+    pub handle: gpui::ListState,
+    pub horizontal: gpui::ScrollHandle,
 }
 
 impl Scroll {
     pub fn new(document: DiffDocument, view: DiffView, cx: &mut gpui::Context<Self>) -> Self {
         Self {
-            document,
+            document: document.clone(),
             view,
             focus: cx.focus_handle(),
-            handle: gpui::UniformListScrollHandle::new(),
+            handle: gpui::ListState::new(
+                document.rows(view).len(),
+                gpui::ListAlignment::Top,
+                px(100.),
+            ),
+            horizontal: gpui::ScrollHandle::new(),
         }
     }
 
-    // Uniform lists do not populate the base handle's child bounds; derive the row from pixels.
     fn top(&self) -> usize {
-        let handle = self.handle.0.borrow();
-
-        handle.deferred_scroll_to_item.as_ref().map_or_else(
-            || {
-                (-f32::from(handle.base_handle.offset().y) / super::rows::HEIGHT)
-                    .floor()
-                    .max(0.) as usize
-            },
-            |pending| pending.item_index,
-        )
+        self.handle.logical_scroll_top().item_ix
     }
 
     pub fn configure(&mut self, document: DiffDocument, view: DiffView) {
         if !self.document.same(&document) {
-            self.handle
-                .0
-                .borrow()
-                .base_handle
-                .set_offset(gpui::point(px(0.), px(0.)));
-            self.handle
-                .scroll_to_item_strict(0, gpui::ScrollStrategy::Top);
+            self.handle.reset(document.rows(view).len());
+            self.horizontal.set_offset(gpui::point(px(0.), px(0.)));
         } else if self.view != view {
             let current = self.top();
 
@@ -59,13 +50,11 @@ impl Scroll {
                 })
                 .unwrap_or(0);
 
-            self.handle
-                .0
-                .borrow()
-                .base_handle
-                .set_offset(gpui::point(px(0.), px(0.)));
-            self.handle
-                .scroll_to_item_strict(destination, gpui::ScrollStrategy::Top);
+            self.handle.reset(document.rows(view).len());
+            self.handle.scroll_to(gpui::ListOffset {
+                item_ix: destination,
+                offset_in_item: px(0.),
+            });
         }
 
         self.document = document;
@@ -89,7 +78,7 @@ impl Scroll {
         }
 
         let current = self.top();
-        let viewport = self.handle.0.borrow().base_handle.bounds().size.height;
+        let viewport = self.handle.viewport_bounds().size.height;
         let page = (f32::from(viewport) / super::rows::HEIGHT).floor().max(1.) as usize;
 
         let target = match event.keystroke.key.as_str() {
@@ -103,8 +92,10 @@ impl Scroll {
         }
         .min(count - 1);
 
-        self.handle
-            .scroll_to_item_strict(target, gpui::ScrollStrategy::Top);
+        self.handle.scroll_to(gpui::ListOffset {
+            item_ix: target,
+            offset_in_item: px(0.),
+        });
         window.prevent_default();
         cx.stop_propagation();
         cx.notify();

@@ -1,7 +1,7 @@
 # onegit-ui
 
 Reusable native 1git controls on Rake and GPUI. The compact palette and geometry
-refine the existing desktop design. This crate has no Git, application-service,
+match the existing desktop design tokens. This crate has no Git, application-service,
 storage or network dependency of its own.
 
 ## Run the gallery
@@ -11,7 +11,7 @@ cargo run -p onegit-ui --example gallery --locked
 ```
 
 The native gallery includes light/dark switching, primary/secondary/ghost actions,
-normal/destructive tones, borderless secondary actions, 24/28/34-pixel sizes, disabled/busy states, native path
+normal/destructive tones, borderless secondary actions, 24/28/32/34-pixel sizes, disabled/busy states, embedded SVG
 icons, independent row/checkbox selection, mixed selection and long Unicode labels.
 Its actions only update sample entity state. Sections reflow to one column in a
 narrow window. No assets need to be installed or registered for the built-in icons.
@@ -56,9 +56,9 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 
 | Component | Properties |
 | --- | --- |
-| `Text` | Body/caption/title/heading/code, semantic tone, optional line limit |
-| `Icon` | Built-in line glyph, 12/16/20-pixel size, optional accessible label |
-| `Button` | Primary/secondary/ghost, normal/danger tone, 24/28/34-pixel size, leading icon |
+| `Text` | Body/small/caption/title/heading/code, semantic tone, optional line limit |
+| `Icon` | Cached SVG glyph, 12/14/16/18/20/24/28-pixel size, optional accessible label |
+| `Button` | Primary/secondary/ghost, normal/danger tone, 24/28/32/34-pixel size, leading icon |
 | `IconButton` | Same action variants, square geometry, required accessible action label |
 | `Checkbox` | Unchecked/checked/mixed, optional visible label, controlled change callback |
 | `ListRow` | Label/description, leading/trailing slots, independent selection and activation |
@@ -70,9 +70,10 @@ requires an ID, and direct loop-root components must also have an explicit `id` 
 | `DropdownMenu` | Branch choices and actions, icons, shortcut captions, separators, disabled/danger states |
 | `Dialog` | Standard/confirmation modal, title/description, body/footer, initial focus, busy and dismissal policies |
 | `Tabs` | Underline/segmented variants, sizes, disabled and closable tabs, controlled selection and panel |
+| `CommitSubject` | Original conventional-prefix grammar and light/dark type badges; exact accessible subject |
 | `CommitList` | Virtualized history, controlled selection, commit metadata, reference badges and row densities |
-| `DiffViewer` | Immutable patch document, old/new line numbers, unified/split modes and synchronized virtualized rows |
-| `ResizableSplit` | Horizontal/vertical panes, minimum sizes, retained dimensions and keyboard divider |
+| `DiffViewer` | Immutable patch document, old/new line numbers, unified/split modes, continuous/inset gutters and synchronized variable-height virtualized rows |
+| `ResizableSplit` | Horizontal/vertical panes, minimum sizes, retained dimensions or viewport proportions and keyboard divider |
 | `Toast` / `ToastHost` | Success/error/progress feedback, action/dismissal, bounded stack, paused expiration and live regions |
 
 `ControlState::{Enabled, Disabled, Busy}` prevents contradictory availability flags.
@@ -132,6 +133,11 @@ Undo retains up to 100 edits; one composition transaction is one undo step.
 `set_text(...)` replaces the application value and resets history;
 `clear(...)` is an undoable user edit. Single-line fields convert pasted or
 programmatically supplied line breaks to spaces; text areas preserve them.
+
+`InputVariant::Outlined` is the default standalone field. Use `InputVariant::Plain`
+for transparent, borderless 11/16-pixel editing in a toolbar or commit composer;
+native selection, IME, undo, validation and accessible labels remain available.
+Set `show_label={false}` to keep only the accessible label in an integrated field.
 
 `InputAvailability::ReadOnly` permits focus, selection and copying, while
 `Disabled` blocks editing and skips Tab. Search clearing is disabled in either
@@ -349,7 +355,9 @@ fn workspace(state: &Entity<SplitState>) -> impl IntoElement {
 }
 ```
 
-Drag the six-pixel divider, or focus it with Tab. Arrows along its resize axis move
+The default divider occupies six pixels. Set `divider_size={px(1.)}` for a hairline
+separator; its pointer target remains at least six pixels wide and overlaps adjacent
+panes without consuming their space. Drag the divider, or focus it with Tab. Arrows along its resize axis move
 10 logical pixels; Shift moves 40, and Home/End reach the available limits. Escape
 cancels a drag and restores its original preference. Pointer capture follows the
 drag outside moving hitboxes; window deactivation, disabling, changing axis,
@@ -548,6 +556,12 @@ scroll without wrapping. Changing mode anchors near the same source line;
 replacing the document resets scroll. Retain the same document across ordinary
 rerenders and theme changes to preserve position.
 
+Use `document.without_file_metadata()` to hide Git's file-envelope rows when text
+hunks exist. It shares precomputed compact row maps and retains exact patch bytes,
+line metadata and counts. Binary and metadata-only changes stay visible. Set
+`show_header={false}` when the app provides a file toolbar. Diff lines use the
+original desktop's 20-pixel leading and dedicated added/deleted/hunk colors.
+
 Tab or a pointer click focuses the viewer. Up/Down, Page Up/Down and Home/End
 navigate rows; scroll wheel/trackpad handles both axes. Accessible row descriptions
 include change kind, coordinates, raw source text and missing-final-newline state.
@@ -651,5 +665,8 @@ exercise real component rendering and pointer/keyboard dispatch with a doubled
 window/text/GPU backend; they do not establish native screen-reader behavior.
 The gallery provides the native appearance and interaction check.
 
-The native app now uses these controls for local repository status and diff browsing. Staging, committing and history loading are subsequent app slices. No changeset is needed for this unreleased Rust crate
+The native app uses these controls for repository status, staged and unstaged diffs,
+whole-file staging and committing, and paginated history with committed file patches.
+See [the Rust guide](../../docs/RUST.md) for the working app flow.
+No changeset is needed for this unreleased Rust crate
 (`publish = false`).

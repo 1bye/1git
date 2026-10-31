@@ -32,6 +32,16 @@ pub enum InputValidation {
     Invalid(SharedString),
 }
 
+/// Field presentation without changing native editing or accessibility behavior.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum InputVariant {
+    /// Bordered control with its own inset background.
+    #[default]
+    Outlined,
+    /// Transparent editor for compact toolbars and integrated commit composers.
+    Plain,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Text,
@@ -46,6 +56,7 @@ struct Config {
     placeholder: SharedString,
     description: SharedString,
     availability: InputAvailability,
+    variant: InputVariant,
     validation: InputValidation,
     size: ControlSize,
     rows: u16,
@@ -59,6 +70,7 @@ impl Default for Config {
             placeholder: "".into(),
             description: "".into(),
             availability: InputAvailability::Enabled,
+            variant: InputVariant::Outlined,
             validation: InputValidation::Valid,
             size: ControlSize::Medium,
             rows: 5,
@@ -94,6 +106,8 @@ macro_rules! field {
             pub description: Option<SharedString>,
             /// Editing and focus availability.
             pub availability: InputAvailability,
+            /// Outlined field or borderless editor integrated into its parent.
+            pub variant: InputVariant,
             /// Application-supplied validation message.
             pub validation: InputValidation,
             /// Compact control geometry; multiline fields use its padding.
@@ -106,7 +120,7 @@ macro_rules! field {
             #[must_use]
             pub fn new(id:impl Into<ElementId>, state:&Entity<InputState>, label:impl Into<SharedString>) -> Self {
                 Self {id:id.into(),state:state.clone(),label:label.into(),show_label:true,placeholder:"".into(),
-                    description:None,availability:InputAvailability::Enabled,validation:InputValidation::Valid,
+                    description:None,availability:InputAvailability::Enabled,variant:InputVariant::Outlined,validation:InputValidation::Valid,
                     size:ControlSize::Medium,$($row:5,)?}
             }
         }
@@ -114,7 +128,7 @@ macro_rules! field {
             fn render(self, _: &mut gpui::Window, cx:&mut gpui::App) -> impl IntoElement {
                 let description=self.description.clone().unwrap_or_default();
                 let config=Config {kind:Kind::$kind,label:self.label.clone(),placeholder:self.placeholder,
-                    description,availability:self.availability,validation:self.validation.clone(),size:self.size,rows:field_rows!(self $(,$row)?)};
+                    description,availability:self.availability,variant:self.variant,validation:self.validation.clone(),size:self.size,rows:field_rows!(self $(,$row)?)};
                 let theme=Theme::current();
                 self.state.update(cx,|state,cx|state.configure(config,theme,cx));
                 let focus=self.state.read(cx).focus_handle(cx);

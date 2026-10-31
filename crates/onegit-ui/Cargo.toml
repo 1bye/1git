@@ -7,6 +7,7 @@ publish.workspace = true
 description = "Reusable 1git components and themes on Rake and GPUI"
 
 [dependencies]
+regex.workspace = true
 gpui-ce-motion.workspace = true
 unicode-segmentation.workspace = true
 rake = { workspace = true, features = ["experimental-view"] }

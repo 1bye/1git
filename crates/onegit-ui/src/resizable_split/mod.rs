@@ -48,6 +48,8 @@ pub struct ResizableSplit {
     pub min_second: gpui::Pixels,
     /// Disable pointer, keyboard and accessibility resizing.
     pub disabled: bool,
+    /// Layout space for the separator; its pointer target stays at least six pixels wide.
+    pub divider_size: gpui::Pixels,
     /// Leading or upper pane.
     pub first: gpui::AnyElement,
     /// Trailing or lower pane.
@@ -70,6 +72,7 @@ impl ResizableSplit {
             min_first: px(120.),
             min_second: px(120.),
             disabled: false,
+            divider_size: px(state::DIVIDER),
             first: gpui::Empty.into_any_element(),
             second: gpui::Empty.into_any_element(),
         }
@@ -120,6 +123,7 @@ impl RenderOnce for ResizableSplit {
                     min_first: self.min_first,
                     min_second: self.min_second,
                     disabled: self.disabled,
+                    divider_size: self.divider_size,
                     mount: mount.entity_id(),
                 },
                 window,

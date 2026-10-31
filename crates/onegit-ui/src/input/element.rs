@@ -226,7 +226,7 @@ impl gpui::Element for EditorText {
                     len: display.len(),
                     font: style.font(),
                     color: if placeholder {
-                        state.theme.muted_ink
+                        state.theme.placeholder_ink
                     } else {
                         style.color
                     },

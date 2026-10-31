@@ -1,4 +1,8 @@
 //! Repository workspace; Git reads and serialized writes run outside the UI thread.
+mod chrome;
+mod history;
+mod home;
+mod native;
 mod read;
 #[cfg(test)]
 mod tests;
@@ -56,13 +60,27 @@ enum PreviewState {
     Failed(String),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Section {
+    Changes,
+    History,
+}
+
 pub(crate) struct RepositoryWorkspace {
     state: RepositoryState,
+    section: Section,
+    home: gpui::Entity<home::Home>,
+    home_visible: bool,
+    history: gpui::Entity<history::HistoryWorkspace>,
     selected: Option<ChangeKey>,
     preview: PreviewState,
     view: DiffView,
     focus: gpui::FocusHandle,
     files_focus: gpui::FocusHandle,
+    section_focus: [gpui::FocusHandle; 2],
+    filter: gpui::Entity<InputState>,
+    filter_visible: bool,
+    visible_files: Arc<[usize]>,
     files_scroll: gpui::UniformListScrollHandle,
     split: gpui::Entity<SplitState>,
     process: GitProcess,
@@ -85,6 +103,7 @@ impl RepositoryWorkspace {
         cx: &mut gpui::Context<Self>,
         write_scope: Option<rake::tasks::TaskScope>,
     ) -> Self {
+        let native_error = native::install(window, onegit_ui::Theme::current().appearance).err();
         let focus = cx.focus_handle();
 
         window.focus(&focus, cx);
@@ -92,8 +111,35 @@ impl RepositoryWorkspace {
 
         let summary = cx.new(|cx| InputState::new("", window, cx));
         let description = cx.new(|cx| InputState::new("", window, cx));
+        let filter = cx.new(|cx| InputState::new("", window, cx));
+
+        let home = cx.new(|cx| home::Home::new(window, cx, write_scope.clone()));
+
+        let history = cx.new(|cx| history::HistoryWorkspace::new(window, cx));
 
         let subscriptions = vec![
+            cx.subscribe(&history, |this: &mut Self, _, _: &history::Refresh, cx| {
+                this.refresh(cx)
+            }),
+            cx.subscribe_in(
+                &home,
+                window,
+                |this: &mut Self, _, event, window, cx| match event {
+                    home::HomeEvent::Open(path) => this.open(path.clone(), None, cx),
+                    home::HomeEvent::Pick => this.choose_repository(cx),
+                    home::HomeEvent::Restored(width) => {
+                        if let Some(width) = width {
+                            // GPUIX includes the hairline in its sidebar width; SplitState reserves it separately.
+                            this.split
+                                .update(cx, |split, cx| split.resize(px(*width - 1.), window, cx));
+                            this.history.update(cx, |history, cx| {
+                                history.sidebar_width(px(*width - 1.), window, cx)
+                            });
+                        }
+                    }
+                },
+            ),
+            cx.subscribe(&filter, |this: &mut Self, _, _, cx| this.update_filter(cx)),
             cx.subscribe_in(&summary, window, |this: &mut Self, _, event, window, cx| {
                 if *event == InputEvent::Submitted {
                     window.focus(&this.description.read(cx).focus_handle(cx), cx);
@@ -116,18 +162,26 @@ impl RepositoryWorkspace {
 
         Self {
             state: RepositoryState::Welcome,
+            section: Section::Changes,
+            home,
+            home_visible: true,
+            history,
             selected: None,
             preview: PreviewState::Empty,
             view: DiffView::Unified,
             focus,
             files_focus: cx.focus_handle(),
+            section_focus: [cx.focus_handle(), cx.focus_handle()],
+            filter,
+            filter_visible: false,
+            visible_files: Arc::from([]),
             files_scroll: gpui::UniformListScrollHandle::new(),
-            split: cx.new(|cx| SplitState::new(px(300.), window, cx)),
+            split: cx.new(|cx| SplitState::new(px(310.), window, cx)),
             process: read::process(),
             load_job: None,
             diff_job: None,
             picker: None,
-            picker_error: None,
+            picker_error: native_error,
             write_job: None,
             write_scope,
             summary,
@@ -136,6 +190,10 @@ impl RepositoryWorkspace {
             toasts: cx.new(|cx| ToastState::new(window, cx)),
             _subscriptions: subscriptions,
         }
+    }
+
+    pub fn load_home(&mut self, cx: &mut gpui::Context<Self>) {
+        self.home.update(cx, |home, cx| home.load(cx));
     }
 
     fn choose_repository(&mut self, cx: &mut gpui::Context<Self>) {
@@ -189,9 +247,12 @@ impl RepositoryWorkspace {
 
         self.load_job = None;
         self.diff_job = None;
+        self.history
+            .update(cx, |history, cx| history.set_source(None, cx));
         self.selected = None;
         self.preview = PreviewState::Empty;
         self.picker_error = None;
+        self.home_visible = false;
         self.state = RepositoryState::Loading(path.clone());
         self.files_scroll
             .0
@@ -255,11 +316,16 @@ impl RepositoryWorkspace {
     ) {
         let root = loaded.snapshot.repository.root.clone();
 
+        self.home
+            .update(cx, |home, cx| home.remember(root.clone(), cx));
+
         if self.draft_root.as_ref() != Some(&root) {
             self.summary.update(cx, |input, cx| input.set_text("", cx));
             self.description
                 .update(cx, |input, cx| input.set_text("", cx));
             self.draft_root = Some(root);
+            self.filter_visible = false;
+            self.filter.update(cx, |filter, cx| filter.set_text("", cx));
         }
 
         let selected = preferred
@@ -279,10 +345,24 @@ impl RepositoryWorkspace {
 
         self.selected = None;
         self.preview = PreviewState::Empty;
+        self.history.update(cx, |history, cx| {
+            history.set_source(Some(loaded.clone()), cx);
+
+            if self.section == Section::History {
+                history.activate(cx);
+            }
+        });
         self.state = RepositoryState::Ready(loaded);
+        self.rebuild_filter(cx);
+
+        let selected = selected.filter(|key| self.visible_files.iter().any(|index| {
+            matches!(&self.state, RepositoryState::Ready(loaded) if &loaded.files[*index].key == key)
+        }));
 
         if let Some(key) = selected {
             self.select(key, cx);
+        } else {
+            self.select_first_visible(cx);
         }
     }
 
@@ -435,6 +515,101 @@ impl RepositoryWorkspace {
         cx.notify();
     }
 
+    fn rebuild_filter(&mut self, cx: &gpui::App) {
+        let query = self.filter.read(cx).text().to_lowercase();
+
+        self.visible_files = match &self.state {
+            RepositoryState::Ready(loaded) => loaded
+                .files
+                .iter()
+                .enumerate()
+                .filter(|(_, file)| query.is_empty() || file.label.to_lowercase().contains(&query))
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>()
+                .into(),
+            _ => Arc::from([]),
+        };
+    }
+
+    fn select_first_visible(&mut self, cx: &mut gpui::Context<Self>) {
+        let key = match &self.state {
+            RepositoryState::Ready(loaded) => self
+                .visible_files
+                .first()
+                .map(|index| loaded.files[*index].key.clone()),
+            _ => None,
+        };
+
+        if let Some(key) = key {
+            self.select(key, cx);
+        }
+    }
+
+    fn update_filter(&mut self, cx: &mut gpui::Context<Self>) {
+        self.rebuild_filter(cx);
+        let visible = matches!((&self.state,&self.selected),(RepositoryState::Ready(loaded),Some(key)) if self.visible_files.iter().any(|index| &loaded.files[*index].key == key));
+
+        if !visible && self.write_job.is_none() {
+            self.diff_job = None;
+            self.selected = None;
+            self.preview = PreviewState::Empty;
+            self.select_first_visible(cx);
+        }
+
+        cx.notify();
+    }
+
+    fn toggle_filter(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
+        self.filter_visible = !self.filter_visible;
+
+        if self.filter_visible {
+            window.focus(&self.filter.read(cx).focus_handle(cx), cx);
+        } else {
+            self.filter.update(cx, |filter, cx| filter.set_text("", cx));
+            window.focus(&self.files_focus, cx);
+        }
+
+        cx.notify();
+    }
+
+    fn navigate_sections(
+        &mut self,
+        event: &gpui::KeyDownEvent,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if event.keystroke.modifiers.modified() {
+            return;
+        }
+
+        let next = match event.keystroke.key.as_str() {
+            "up" | "left" | "home" => 0,
+            "down" | "right" | "end" => 1,
+            _ => return,
+        };
+
+        let id = gpui::ElementId::from(if next == 0 { "changes" } else { "history" });
+
+        window.prevent_default();
+        cx.stop_propagation();
+        self.change_section(&id, cx);
+        window.focus(&self.section_focus[next], cx);
+    }
+
+    fn change_section(&mut self, id: &gpui::ElementId, cx: &mut gpui::Context<Self>) {
+        self.section = if *id == gpui::ElementId::from("history") {
+            Section::History
+        } else {
+            Section::Changes
+        };
+
+        if self.section == Section::History {
+            self.history.update(cx, |history, cx| history.activate(cx));
+        }
+
+        cx.notify();
+    }
+
     fn refresh(&mut self, cx: &mut gpui::Context<Self>) {
         let path = match &self.state {
             RepositoryState::Ready(loaded) => loaded.snapshot.repository.root.clone(),
@@ -464,8 +639,16 @@ impl RepositoryWorkspace {
         self.diff_job = None;
         self.selected = Some(key.clone());
         self.preview = PreviewState::Loading;
-        self.files_scroll
-            .scroll_to_item(index, gpui::ScrollStrategy::Nearest);
+
+        if let Some(position) = self
+            .visible_files
+            .iter()
+            .position(|visible| *visible == index)
+        {
+            self.files_scroll
+                .scroll_to_item(position, gpui::ScrollStrategy::Nearest);
+        }
+
         let cancel = Cancellation::default();
         let worker_cancel = cancel.clone();
         let completion_cancel = cancel.clone();
@@ -524,7 +707,7 @@ impl RepositoryWorkspace {
             return;
         };
 
-        if loaded.files.is_empty() {
+        if self.visible_files.is_empty() {
             return;
         }
 
@@ -532,17 +715,22 @@ impl RepositoryWorkspace {
             .selected
             .as_ref()
             .and_then(|key| loaded.index(key))
+            .and_then(|index| {
+                self.visible_files
+                    .iter()
+                    .position(|visible| *visible == index)
+            })
             .unwrap_or(0);
 
         let next = match event.keystroke.key.as_str() {
             "up" => current.saturating_sub(1),
-            "down" => (current + 1).min(loaded.files.len() - 1),
+            "down" => (current + 1).min(self.visible_files.len() - 1),
             "home" => 0,
-            "end" => loaded.files.len() - 1,
+            "end" => self.visible_files.len() - 1,
             _ => return,
         };
 
-        let key = loaded.files[next].key.clone();
+        let key = loaded.files[self.visible_files[next]].key.clone();
 
         window.prevent_default();
         cx.stop_propagation();

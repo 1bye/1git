@@ -80,6 +80,9 @@ struct Document {
     lines: Vec<DiffLine>,
     unified: Vec<Row>,
     split: Vec<Row>,
+    words: Vec<Vec<std::ops::Range<usize>>>,
+    compact_unified: Vec<Row>,
+    compact_split: Vec<Row>,
     added: usize,
     deleted: usize,
     binary: bool,
@@ -89,7 +92,7 @@ struct Document {
 
 /// Cheaply cloned, immutable single-file diff, parsed once outside render. Contains no Git or filesystem access.
 #[derive(Clone, Debug)]
-pub struct DiffDocument(Arc<Document>);
+pub struct DiffDocument(Arc<Document>, bool);
 
 /// Invalid, unsupported or over-budget input; source coordinates are never invented for malformed patches.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -473,20 +476,42 @@ impl DiffDocument {
             .unwrap_or(1);
 
         let digits = maximum.to_string().len().max(2);
-        let unified = (0..lines.len()).map(Row::Single).collect();
+        let unified: Vec<Row> = (0..lines.len()).map(Row::Single).collect();
         let split = split_rows(&lines);
+        let words = super::words::annotate(&lines);
+        let has_hunks = lines.iter().any(|line| line.kind == DiffLineKind::Hunk);
 
-        Ok(Self(Arc::new(Document {
-            patch: patch.to_owned(),
-            lines,
-            unified,
-            split,
-            added,
-            deleted,
-            binary,
-            columns,
-            digits,
-        })))
+        let compact = |rows: &[Row]| {
+            rows.iter()
+                .copied()
+                .filter(|row| !has_hunks || lines[row.anchor()].kind != DiffLineKind::Metadata)
+                .collect()
+        };
+
+        let compact_unified = compact(&unified);
+        let compact_split = compact(&split);
+
+        Ok(Self(
+            Arc::new(Document {
+                patch: patch.to_owned(),
+                lines,
+                unified,
+                split,
+                words,
+                compact_unified,
+                compact_split,
+                added,
+                deleted,
+                binary,
+                columns,
+                digits,
+            }),
+            false,
+        ))
+    }
+
+    pub(super) fn word_ranges(&self, index: usize) -> &[std::ops::Range<usize>] {
+        &self.0.words[index]
     }
 
     /// Exact input patch, useful for an application-owned Copy patch action.
@@ -519,7 +544,21 @@ impl DiffDocument {
         self.0.binary
     }
 
+    /// Hide Git's file-envelope metadata when text hunks are present, retaining exact patch bytes.
+    /// Binary and metadata-only changes remain visible. Derived row maps are prepared during parsing.
+    #[must_use]
+    pub fn without_file_metadata(&self) -> Self {
+        Self(self.0.clone(), true)
+    }
+
     pub(super) fn rows(&self, view: DiffView) -> &[Row] {
+        if self.1 {
+            return match view {
+                DiffView::Unified => &self.0.compact_unified,
+                DiffView::Split => &self.0.compact_split,
+            };
+        }
+
         match view {
             DiffView::Unified => &self.0.unified,
             DiffView::Split => &self.0.split,
@@ -527,7 +566,7 @@ impl DiffDocument {
     }
 
     pub(super) fn same(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
+        Arc::ptr_eq(&self.0, &other.0) && self.1 == other.1
     }
 
     pub(super) fn columns(&self) -> usize {
@@ -542,6 +581,31 @@ impl DiffDocument {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compact_views_hide_only_file_headers_and_keep_exact_patch_and_binary_metadata() {
+        let patch = "diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-old\n+new\n";
+        let document = DiffDocument::parse(patch).unwrap();
+        let compact = document.without_file_metadata();
+
+        assert_eq!(compact.patch(), patch);
+        assert_eq!(compact.lines().len(), document.lines().len());
+        assert_eq!(compact.rows(DiffView::Unified).len(), 3);
+        assert_eq!(compact.rows(DiffView::Split).len(), 2);
+        assert_eq!((compact.added_lines(), compact.deleted_lines()), (1, 1));
+        assert!(!document.same(&compact));
+        assert!(compact.same(&compact.without_file_metadata()));
+        let metadata =
+            DiffDocument::parse("diff --git a/a b/a\nBinary files a/a and b/a differ\n").unwrap();
+
+        assert_eq!(
+            metadata.rows(DiffView::Unified).len(),
+            metadata
+                .without_file_metadata()
+                .rows(DiffView::Unified)
+                .len()
+        );
+    }
 
     #[test]
     fn coordinates_counts_and_unequal_replacements_are_exact() {

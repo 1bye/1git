@@ -9,6 +9,7 @@
 mod button;
 mod checkbox;
 mod commit_list;
+mod commit_subject;
 mod dialog;
 mod diff_viewer;
 mod dropdown_menu;
@@ -29,6 +30,8 @@ pub use button::{
     Button, ButtonTone, ButtonVariant, ControlSize, ControlState, IconButton, PressHandler,
 };
 
+pub use commit_subject::CommitSubject;
+
 pub use checkbox::{CheckHandler, CheckState, Checkbox};
 
 pub use dialog::{
@@ -38,16 +41,19 @@ pub use dialog::{
 
 pub use commit_list::{
     CommitItem, CommitList, CommitListData, CommitListDataError, CommitListDensity, CommitRef,
-    CommitRefKind, CommitSelectionHandler,
+    CommitRefKind, CommitSelectionHandler, CommitStatus,
 };
 
-pub use diff_viewer::{DiffDocument, DiffLine, DiffLineKind, DiffParseError, DiffView, DiffViewer};
+pub use diff_viewer::{
+    DiffDocument, DiffGutterStyle, DiffLine, DiffLineKind, DiffParseError, DiffView, DiffViewer,
+};
 
 pub use dropdown_menu::{DropdownMenu, MenuAlignment, MenuEntry, MenuHandler, MenuItem};
 pub use icon::{Icon, IconName, IconSize};
 
 pub use input::{
-    InputAvailability, InputEvent, InputState, InputValidation, SearchField, TextArea, TextInput,
+    InputAvailability, InputEvent, InputState, InputValidation, InputVariant, SearchField,
+    TextArea, TextInput,
 };
 
 pub use list_row::{ListRow, RowSelection};

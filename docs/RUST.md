@@ -10,7 +10,28 @@ compiler pinned in `rust-toolchain.toml`.
 cargo run -p onegit-app --locked
 ```
 
-Git must be available on `PATH`. Choose **Open repository…** and select a local
+The window uses the original 1git chrome and compact workspace geometry: a
+42-pixel custom titlebar, 36-pixel connected repository tab, 48-pixel navigation
+rail, and a white/dark workspace with 14-pixel corners. On macOS the six-pixel
+outer inset exposes AppKit's Sidebar material and the original cached grain.
+The window starts at 1280×820 and supports sizes down to 640×420. The gear switches
+light/dark palettes. Changes and History use accessible vertical rail tabs.
+
+Home includes Machines, Quick Actions, a searchable repository library, folders,
+tile/list views, repository avatars, and local branch/change/tracking summaries.
+The first launch imports the original app's persisted local library and cached
+avatars without modifying either. Rust subsequently saves its own library at
+`~/Library/Application Support/1git-rust/home.json` on macOS. Only visible rows
+request background status, with at most four reads in flight. Star/forget actions
+change library metadata, never repository files. Create/clone require a new absolute
+destination and refuse existing folders. Remote machines and hosting accounts are
+explicitly marked as not yet ported; no credentials are imported.
+
+Home preserves the mounted repository, selected patch and draft. Click its tab to
+return. **Open from disk** uses the native folder picker; **Add folder** discovers
+repositories under a chosen directory without following descendant symlinks.
+
+Git must be available on `PATH`. Choose **Open from disk** and select a local
 working folder. The app opens its canonical worktree, reads changed files, and
 loads a real patch when a file is selected. Staged and unstaged entries are shown
 separately, including both sides of partially staged files. Use **Unified** or
@@ -19,9 +40,9 @@ The changed-file list supports Up/Down and Home/End navigation and virtualizes r
 
 **Refresh** reads a fresh snapshot and retains the selected path/side when it
 still exists. Removed selections fall back to the same path on its other side,
-then the first remaining change; a clean worktree has an explicit empty state. Changes made outside the app require a
-manual refresh. Open/read failures have retry controls and are never presented as
-a clean repository.
+then the first remaining change; a clean worktree has an explicit empty state.
+Changes made outside the app require a manual refresh. Open/read failures have
+retry controls and are never presented as a clean repository.
 
 Git reads and patch parsing run on GPUI's background executor. Superseded reads
 are cancelled, stale results are ignored, and window closure requests process
@@ -30,14 +51,19 @@ bytes for selection and command arguments; labels escape controls and invalid
 UTF-8 bytes for display. Binary patches, metadata-only changes, oversized patches
 and unresolved conflicts have explicit presentations.
 
-Use **Stage file** or **Unstage file** above the selected patch to move the entire
-file between the working tree and index. **Stage all** and **Unstage all** apply
-to the repository. Unstaging preserves working files. Staging a partially staged
-file replaces its staged content with the complete current working version.
+Use each file row's checkbox to stage or unstage the whole file. Its label names
+the actual index operation; checked rows are staged entries. Partially staged
+files retain separate staged and unstaged entries. The header checkbox and count
+menu offer **Stage all files** and **Unstage all files** for the entire repository,
+including files hidden by the optional search filter. The file toolbar's display
+menu also provides **Stage file** or **Unstage file** for the selected patch.
+Unstaging preserves working files. Staging a partially staged file replaces its
+staged content with the complete current working version.
 
-The commit form shows the staged-file count and accepts a required summary and
-optional description. **Commit staged changes** commits only the existing index;
-unstaged and untracked content stays in the working tree. Enter in the summary
+The compact, borderless commit composer accepts a required summary and optional
+description; its action shows the staged-file count. **Commit staged changes**
+commits only the existing index; unstaged and untracked content stays in the working
+tree. Enter in the summary
 moves to the description; Command+Enter on macOS or Ctrl+Enter elsewhere in the
 description submits. Git's configured hooks and signing settings are respected.
 
@@ -53,8 +79,27 @@ operations externally for now. A changed branch or HEAD is rejected and refreshe
 before writing; changed rename metadata also requires renewed review. External Git
 can still change the repository concurrently.
 
-Hunk staging, discard, network operations, repository history and persistence remain
-future app work. Loading status and previews does not mutate repository contents.
+The **History** tab browses locally available commits reachable from the checked-out
+HEAD. It loads 50 commits at a time; **Load more commits** appends the next page.
+Pages share the exact initial tip, so commits created outside the app cannot shift
+offsets mid-session. **Refresh** starts again from the current HEAD and resets
+history selection and pagination. A commit created through the app invalidates
+cached history automatically. Ordinary staging keeps existing history selection.
+
+Select a commit to see its subject, author, date, message and changed files; the
+short SHA button copies the full object ID. Select a file to load its unified or split patch. Commits and changed files
+share a proportionally resizable stacked sidebar; selected commit metadata sits above the right-hand patch.
+The sliders menu switches unified/split modes. Merge commits show changes
+against their first parent; root commits show additions against an empty tree.
+Empty commits, an unborn branch, binary files and oversized patches have explicit
+states. History lists and committed file lists virtualize rows and support keyboard
+selection. Git reads and patch parsing run in the background with cancellation;
+failed pages retain existing rows and can be retried. Switching tabs preserves the
+commit draft and history selection. History never stages or changes files.
+
+Hunk staging, discard, background file watching, remote machines, account management
+and network operations in repository workspaces remain future app work.
+Loading status and previews does not mutate repository contents.
 The component gallery remains available with
 `cargo run -p onegit-ui --example gallery --locked`.
 
@@ -71,7 +116,11 @@ files, index bytes, objects and refs. Native-event tests exercise folder-picker
 cancellation/opening, selection, refresh, errors and stale-result suppression.
 Write tests cover literal paths, renames, copies, partially staged files, unborn
 branches, index locks, rejecting hooks, exact commit messages, draft retention,
-keyboard submission, duplicate prevention and window closure.
+keyboard submission, duplicate prevention and window closure. Native layout checks
+pin the original shell/file-row/composer measurements, and event tests cover row
+staging, filtering and rail keyboard navigation. History tests cover
+pinned pagination, first-parent merges, root/rename/deletion/binary patches, byte
+preservation, failed-read recovery, tab/draft retention and stale-read cancellation.
 The filesystem-backed non-UTF-8-name test runs on Linux, since macOS filesystems
 reject those names; label escaping is checked on every platform.
 

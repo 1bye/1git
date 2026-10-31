@@ -30,11 +30,15 @@ pub enum ButtonTone {
 /// Shared action geometry in logical pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ControlSize {
+    /// Forty-pixel Home library search and view controls.
+    Library,
     /// Compact 24-pixel control.
     Small,
     /// Standard 28-pixel control.
     #[default]
     Medium,
+    /// Thirty-two-pixel workspace rail control.
+    Rail,
     /// Prominent 34-pixel control.
     Large,
 }
@@ -47,6 +51,8 @@ impl ControlSize {
             Self::Small => 24.,
             Self::Medium => 28.,
             Self::Large => 34.,
+            Self::Rail => 32.,
+            Self::Library => 40.,
         }
     }
 
@@ -55,6 +61,8 @@ impl ControlSize {
             Self::Small => 8.,
             Self::Medium => 10.,
             Self::Large => 14.,
+            Self::Rail => 10.,
+            Self::Library => 12.,
         }
     }
 }
@@ -224,7 +232,9 @@ impl RenderOnce for Button {
 
         // The inert measurement uses the same native geometry and typography as
         // the live control, without duplicate focus handles or event listeners.
-        let icon_size = if self.size == ControlSize::Small {
+        let icon_size = if self.size == ControlSize::Rail {
+            IconSize::Navigation
+        } else if self.size == ControlSize::Small {
             IconSize::Small
         } else {
             IconSize::Medium

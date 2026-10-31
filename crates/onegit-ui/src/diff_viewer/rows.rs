@@ -1,8 +1,11 @@
-use super::{DiffDocument, DiffLine, DiffLineKind, DiffView, document::Row, state::Scroll};
-use crate::Theme;
-use rake::gpui::{self, ColorExt, accesskit, prelude::*, px};
+use super::{
+    DiffDocument, DiffGutterStyle, DiffLine, DiffLineKind, DiffView, document::Row, state::Scroll,
+};
 
-pub(super) const HEIGHT: f32 = 24.;
+use crate::Theme;
+use rake::gpui::{self, accesskit, prelude::*, px};
+
+pub(super) const HEIGHT: f32 = 20.;
 
 #[derive(Clone, Copy)]
 pub(super) enum Side {
@@ -10,26 +13,55 @@ pub(super) enum Side {
     New,
 }
 
-fn number(value: Option<u64>, width: gpui::Pixels, theme: &Theme) -> impl IntoElement {
+fn number(
+    value: Option<u64>,
+    width: gpui::Pixels,
+    theme: &Theme,
+    background: gpui::Hsla,
+) -> impl IntoElement {
     gpui::div()
         .w(width)
         .flex_shrink_0()
-        .text_color(theme.muted_ink)
-        .text_size(px(10.))
-        .pr(px(7.))
-        .text_right()
+        .text_color(theme.diff_muted_ink)
+        .text_size(px(11.))
+        .pr(px(8.))
+        .h_full()
+        .flex()
+        .items_center()
+        .justify_end()
+        .bg(background)
         .child(value.map(|number| number.to_string()).unwrap_or_default())
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct Layout {
+    pub view: DiffView,
+    pub side: Side,
+    pub gutter: gpui::Pixels,
+    pub width: gpui::Pixels,
+    pub style: DiffGutterStyle,
 }
 
 fn cell(
     document: &DiffDocument,
     index: Option<usize>,
-    view: DiffView,
-    side: Side,
-    gutter: gpui::Pixels,
-    width: gpui::Pixels,
     position: usize,
+    layout: Layout,
 ) -> gpui::AnyElement {
+    let Layout {
+        view,
+        side,
+        gutter,
+        width,
+        style,
+    } = layout;
+
+    let inset = if style == DiffGutterStyle::Inset {
+        px(36.)
+    } else {
+        px(0.)
+    };
+
     let theme = Theme::current();
     let line = index.map(|index| &document.lines()[index]);
 
@@ -38,19 +70,11 @@ fn cell(
     });
 
     let (background, ink, marker) = match kind {
-        DiffLineKind::Added => (theme.success.opacity(0.12), theme.ink, "+"),
-        DiffLineKind::Deleted => (theme.danger.opacity(0.12), theme.ink, "−"),
-        DiffLineKind::Hunk => (theme.accent.opacity(0.1), theme.accent, " "),
-        DiffLineKind::Metadata => (theme.surface_raised, theme.muted_ink, "·"),
-        DiffLineKind::Context => (
-            if line.is_some() {
-                theme.surface_sunken
-            } else {
-                theme.surface
-            },
-            theme.ink,
-            " ",
-        ),
+        DiffLineKind::Added => (theme.diff_added, theme.diff_ink, "+"),
+        DiffLineKind::Deleted => (theme.diff_deleted, theme.diff_ink, "−"),
+        DiffLineKind::Hunk => (theme.diff_hunk, theme.muted_ink, " "),
+        DiffLineKind::Metadata => (theme.diff_hunk, theme.muted_ink, "·"),
+        DiffLineKind::Context => (theme.surface, theme.diff_ink, " "),
     };
 
     let marker_ink = match kind {
@@ -67,6 +91,24 @@ fn cell(
         |line| describe(line, view, side),
     );
 
+    let text = gpui::StyledText::new(text).with_highlights(
+        index
+            .into_iter()
+            .flat_map(|index| document.word_ranges(index).iter())
+            .map(|range| {
+                (
+                    range.clone(),
+                    gpui::HighlightStyle {
+                        background_color: Some(match kind {
+                            DiffLineKind::Added => theme.diff_added_word,
+                            _ => theme.diff_deleted_word,
+                        }),
+                        ..Default::default()
+                    },
+                )
+            }),
+    );
+
     let total = document.rows(view).len();
 
     let mut row = gpui::div()
@@ -75,7 +117,11 @@ fn cell(
             Side::Old => format!("diff-old-{position}"),
             Side::New => format!("diff-new-{position}"),
         })
-        .h(px(HEIGHT))
+        .h(px(if kind == DiffLineKind::Hunk {
+            26.
+        } else {
+            HEIGHT
+        }))
         .min_w(width)
         .w_full()
         .flex_shrink_0()
@@ -86,7 +132,7 @@ fn cell(
         .font_family(theme.mono)
         .text_size(theme.code.size)
         .line_height(px(HEIGHT))
-        .bg(background)
+        .bg(theme.surface)
         .text_color(ink)
         .role(accesskit::Role::ListItem)
         .aria_label(description)
@@ -95,10 +141,40 @@ fn cell(
             builder.parent_node().set_size_of_set(total);
         });
 
+    if kind == DiffLineKind::Hunk || kind == DiffLineKind::Metadata {
+        return row
+            .bg(background)
+            .pl(inset + gutter * if view == DiffView::Unified { 2. } else { 1. } + px(34.))
+            .child(text)
+            .into_any_element();
+    }
+
+    let number_background = if style == DiffGutterStyle::Continuous {
+        background
+    } else {
+        theme.surface
+    };
+
+    if style == DiffGutterStyle::Continuous {
+        row = row.child(
+            gpui::div()
+                .w(px(2.))
+                .h_full()
+                .flex_shrink_0()
+                .bg(match kind {
+                    DiffLineKind::Added => theme.diff_added_rail,
+                    DiffLineKind::Deleted => theme.diff_deleted_rail,
+                    _ => gpui::transparent_black(),
+                }),
+        );
+    }
+
+    row = row.child(gpui::div().w(inset).h_full().flex_shrink_0());
+
     if view == DiffView::Unified {
         row = row
-            .child(number(old, gutter, &theme))
-            .child(number(new, gutter, &theme));
+            .child(number(old, gutter, &theme, number_background))
+            .child(number(new, gutter, &theme, number_background));
     } else {
         row = row.child(number(
             match side {
@@ -107,21 +183,47 @@ fn cell(
             },
             gutter,
             &theme,
+            number_background,
         ));
     }
 
     row.child(
         gpui::div()
+            .w(px(if style == DiffGutterStyle::Inset {
+                2.
+            } else {
+                0.
+            }))
+            .h_full()
+            .flex_shrink_0()
+            .bg(match kind {
+                DiffLineKind::Added => theme.diff_added_rail,
+                DiffLineKind::Deleted => theme.diff_deleted_rail,
+                _ => gpui::transparent_black(),
+            }),
+    )
+    .child(
+        gpui::div()
             .w(px(18.))
+            .h_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(background)
             .flex_shrink_0()
             .text_color(marker_ink)
             .child(marker),
     )
     .child(
         gpui::div()
-            .flex_shrink_0()
+            .flex_1()
+            .min_w_0()
             .whitespace_nowrap()
-            .pr(px(16.))
+            .h_full()
+            .flex()
+            .items_center()
+            .px(px(14.))
+            .bg(background)
             .child(text),
     )
     .into_any_element()
@@ -169,43 +271,36 @@ fn describe(line: &DiffLine, view: DiffView, side: Side) -> String {
 pub(super) fn list(
     state: &gpui::Entity<Scroll>,
     document: DiffDocument,
-    view: DiffView,
-    side: Side,
-    gutter: gpui::Pixels,
-    width: gpui::Pixels,
+    layout: Layout,
     cx: &gpui::App,
 ) -> gpui::AnyElement {
-    let length = document.rows(view).len();
+    let Layout {
+        view, side, width, ..
+    } = layout;
+
     let handle = state.read(cx).handle.clone();
+    let horizontal = state.read(cx).horizontal.clone();
 
     let name = match side {
         Side::Old => "before",
         Side::New => "after",
     };
 
-    let mut list = gpui::uniform_list(name, length, move |range, _, _| {
-        range
-            .map(|position| {
-                let source = match document.rows(view)[position] {
-                    Row::Single(index) => Some(index),
-                    Row::Pair { old, new } => match side {
-                        Side::Old => old,
-                        Side::New => new,
-                    },
-                };
+    let list = gpui::list(handle, move |position, _, _| {
+        let source = match document.rows(view)[position] {
+            Row::Single(index) => Some(index),
+            Row::Pair { old, new } => match side {
+                Side::Old => old,
+                Side::New => new,
+            },
+        };
 
-                cell(&document, source, view, side, gutter, width, position)
-            })
-            .collect()
+        cell(&document, source, position, layout)
     })
-    .size_full()
-    .min_w_0()
-    .min_h_0()
-    .track_scroll(&handle)
-    .with_sizing_behavior(gpui::ListSizingBehavior::Auto)
-    .with_horizontal_sizing_behavior(gpui::ListHorizontalSizingBehavior::Unconstrained);
-
-    list.style().allow_concurrent_scroll = Some(true);
+    .h_full()
+    .w_full()
+    .min_w(width)
+    .with_sizing_behavior(gpui::ListSizingBehavior::Auto);
 
     gpui::div()
         .id(name)
@@ -214,7 +309,9 @@ pub(super) fn list(
         .w_full()
         .min_w_0()
         .min_h_0()
-        .overflow_hidden()
+        .overflow_x_scroll()
+        .overflow_y_hidden()
+        .track_scroll(&horizontal)
         .role(accesskit::Role::List)
         .aria_label(format!("Diff {name}"))
         .child(list)
