@@ -43,6 +43,11 @@ pub enum DialogPresentation {
         /// Preferred content height in logical pixels, constrained to the viewport.
         height: gpui::Pixels,
     },
+    /// Centered compact surface matching the native app's alert geometry.
+    Alert {
+        /// Preferred animated content height.
+        height: gpui::Pixels,
+    },
     /// Anchored modal popover with caller-owned content and a dimmed dismissal layer.
     Popover {
         /// Preferred top-left point in window coordinates.
@@ -219,6 +224,7 @@ impl Dialog {
         let outside = self.state.clone();
         let close = self.state.clone();
 
+        let alert = matches!(self.presentation, DialogPresentation::Alert { .. });
         let attached = matches!(self.presentation, DialogPresentation::Attached { .. });
         let popover = matches!(self.presentation, DialogPresentation::Popover { .. });
         let compact = !matches!(self.presentation, DialogPresentation::Standard);
@@ -226,7 +232,8 @@ impl Dialog {
         let height = match self.presentation {
             DialogPresentation::Attached { height, .. }
             | DialogPresentation::Compact { height }
-            | DialogPresentation::Popover { height, .. } => Some(height),
+            | DialogPresentation::Popover { height, .. }
+            | DialogPresentation::Alert { height } => Some(height),
             DialogPresentation::Standard => None,
         };
 
@@ -237,8 +244,8 @@ impl Dialog {
                 aria-label={self.title.clone()} aria-description={self.description.clone().unwrap_or_default()}
                 class="flex flex-col min-h-0 border-1 rounded-control overflow-hidden"
                 style={|s|s.w(self.width.max(px(1.))).max_w((viewport.width-inset).max(px(1.))).max_h((viewport.height-inset).max(px(1.)))
-                    .bg(theme.surface).text_color(theme.ink).border_color(if compact{Theme::transparent()}else{theme.line}).when(!attached,|s|s.shadow_lg()).occlude()
-                    .when(compact,|s|s.border_0().rounded(px(8.)).when_some(height,|s,height|s.h(height.max(px(0.)))))
+                    .bg(if alert {gpui::rgb_to_hsla(gpui::rgb(if theme.appearance==crate::Appearance::Dark {0x515151}else{0xefefef}))}else{theme.surface}).text_color(theme.ink).border_color(if compact{Theme::transparent()}else{theme.line}).when(!attached,|s|s.shadow_lg()).occlude()
+                    .when(compact,|s|s.border_0().rounded(px(if alert {16.}else{8.})).when_some(height,|s,height|s.h(height.max(px(0.)))))
                     .a11y_synthetic_children(move |builder|{builder.parent_node().set_modal();if busy {builder.parent_node().set_busy();}})}
                 on:key-down={move |event:&gpui::KeyDownEvent,window,cx|{
                     if window.default_prevented(){return;}
@@ -298,7 +305,9 @@ impl Dialog {
                     .on_scroll_wheel(|_, _, cx| cx.stop_propagation()),
             )
             .child(match self.presentation {
-                DialogPresentation::Standard | DialogPresentation::Compact { .. } => gpui::div()
+                DialogPresentation::Standard
+                | DialogPresentation::Compact { .. }
+                | DialogPresentation::Alert { .. } => gpui::div()
                     .absolute()
                     .inset_0()
                     .flex()

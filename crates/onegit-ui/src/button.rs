@@ -15,6 +15,8 @@ pub enum ButtonVariant {
     Secondary,
     /// Low-emphasis transparent action.
     Ghost,
+    /// Neutral pill action used by native-style confirmation alerts.
+    Alert,
 }
 
 /// Ordinary or explicitly destructive action appearance.
@@ -100,6 +102,10 @@ pub struct Button {
     pub tone: ButtonTone,
     /// Control geometry.
     pub size: ControlSize,
+    /// Optional explicit logical width, included in size transitions.
+    pub width: Option<gpui::Pixels>,
+    /// Optional corner radius for native-style alert actions.
+    pub radius: Option<gpui::Pixels>,
     /// Availability and work state.
     pub state: ControlState,
     /// Optional decorative leading glyph.
@@ -122,6 +128,8 @@ impl Button {
             variant: ButtonVariant::Secondary,
             tone: ButtonTone::Normal,
             size: ControlSize::Medium,
+            width: None,
+            radius: None,
             state: ControlState::Enabled,
             icon: None,
             accessibility_label: None,
@@ -191,6 +199,20 @@ impl RenderOnce for Button {
                     theme.danger_pressed,
                     theme.on_danger,
                 ),
+                (ButtonVariant::Alert, tone) => {
+                    let dark = theme.appearance == crate::Appearance::Dark;
+
+                    (
+                        gpui::rgb_to_hsla(gpui::rgb(if dark { 0x626262 } else { 0xdcdcdc })),
+                        gpui::rgb_to_hsla(gpui::rgb(if dark { 0x6b6b6b } else { 0xd2d2d2 })),
+                        gpui::rgb_to_hsla(gpui::rgb(if dark { 0x707070 } else { 0xc7c7c7 })),
+                        if tone == ButtonTone::Danger {
+                            theme.danger
+                        } else {
+                            theme.ink
+                        },
+                    )
+                }
                 (ButtonVariant::Secondary, tone) => (
                     theme.surface_raised,
                     theme.hover,
@@ -244,10 +266,11 @@ impl RenderOnce for Button {
             <div class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 font-medium border-1"
                 style={|s| s.h(px(self.size.height()))
                     .px(px(if icon_only {0.} else {self.size.padding()}))
-                    .when(icon_only, |s| s.w(px(self.size.height())))}>
+                    .when(icon_only, |s| s.w(px(self.size.height())))
+                    .when_some(self.width, |s, width| s.w(width))}>
                 if glyph.is_some() { <div style={|s| s.size(px(icon_size.pixels())).flex_shrink_0()}/> }
                 if !icon_only {
-                    <p class="text-body min-w-0 font-medium" wrap={false} ellipsis={true}>{self.label.clone()}</p>
+                    <p class={if self.variant==ButtonVariant::Alert {"text-body min-w-0 font-normal"}else{"text-body min-w-0 font-medium"}} wrap={false} ellipsis={true}>{self.label.clone()}</p>
                 }
             </div>
         };
@@ -273,6 +296,7 @@ impl RenderOnce for Button {
                             style={|s| focusable(s).w(dimensions.width).h(dimensions.height)
                                 .px(px(if icon_only {0.} else {self.size.padding()}))
                                 .bg(paint.background).text_color(paint.ink).border_color(paint.border)
+                                .when_some(self.radius, |s,radius|s.rounded(radius))
                                 .opacity(paint.opacity)}
                             on:click={move |event, window, cx| {
                                 cx.stop_propagation();
@@ -283,7 +307,7 @@ impl RenderOnce for Button {
                                     {..Icon::new("glyph", name)}/>
                             }
                             if !icon_only {
-                                <p class="text-body min-w-0 font-medium" wrap={false} ellipsis={true}>{self.label}</p>
+                                <p class={if self.variant==ButtonVariant::Alert {"text-body min-w-0 font-normal"}else{"text-body min-w-0 font-medium"}} wrap={false} ellipsis={true}>{self.label}</p>
                             }
                         </button>
                     }

@@ -136,12 +136,65 @@ impl std::fmt::Debug for DropdownMenu {
     }
 }
 
+/// Reuse dropdown actions and focus handling for a right-click surface.
+/// The owner supplies the existing list/control focus; this adds no tab stop.
+#[derive(IntoElement)]
+pub struct ContextMenu {
+    /// Menu identity, entries and selection callback.
+    pub menu: DropdownMenu,
+    /// Focus to restore when the menu closes.
+    pub focus: gpui::FocusHandle,
+    /// Fill a constrained pane instead of measuring the wrapped content.
+    pub fill: bool,
+    /// Surface receiving right-click and Shift+F10 events.
+    pub children: Vec<gpui::AnyElement>,
+}
+
+impl ContextMenu {
+    /// Wrap content with an accessible context menu using an existing focus owner.
+    #[must_use]
+    pub fn new(menu: DropdownMenu, focus: gpui::FocusHandle) -> Self {
+        Self {
+            menu,
+            focus,
+            fill: false,
+            children: Vec::new(),
+        }
+    }
+}
+
+impl std::fmt::Debug for ContextMenu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContextMenu")
+            .field("menu", &self.menu)
+            .finish_non_exhaustive()
+    }
+}
+
+impl RenderOnce for ContextMenu {
+    fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
+        let content = gpui::div()
+            .w_full()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .when(self.fill, |s| s.h_full())
+            .children(self.children)
+            .into_any_element();
+
+        self.menu
+            .render_menu(Some((content, self.focus, self.fill)), window, cx)
+    }
+}
+
 struct Menu {
     trigger: gpui::FocusHandle,
     focus: gpui::FocusHandle,
     scope: gpui::FocusHandle,
     anchor: overlay::AnchorBounds,
     open: bool,
+    contextual: bool,
+    position: Option<gpui::Point<gpui::Pixels>>,
     active: Option<gpui::ElementId>,
     scroll: gpui::ScrollHandle,
     prefix: String,
@@ -173,6 +226,8 @@ impl Menu {
             scope,
             anchor: Default::default(),
             open: false,
+            contextual: false,
+            position: None,
             active: None,
             scroll: gpui::ScrollHandle::new(),
             prefix: String::new(),
@@ -302,7 +357,14 @@ impl Menu {
         let key = event.keystroke.key.as_str();
 
         if !self.open {
-            if matches!(key, "down" | "up") && self.config.state.is_interactive() {
+            if self.contextual {
+                if (key == "f10" && event.keystroke.modifiers.shift) || key == "menu" {
+                    self.position = None;
+                    self.open(false, window, cx);
+                } else {
+                    return;
+                }
+            } else if matches!(key, "down" | "up") && self.config.state.is_interactive() {
                 self.open(key == "up", window, cx);
             } else {
                 return;
@@ -403,7 +465,7 @@ impl Menu {
         let rest = Surface {
             background: match variant {
                 ButtonVariant::Primary => theme.primary,
-                ButtonVariant::Secondary => theme.surface_raised,
+                ButtonVariant::Secondary | ButtonVariant::Alert => theme.surface_raised,
                 ButtonVariant::Ghost => Theme::transparent(),
             },
             ink: if variant == ButtonVariant::Primary {
@@ -536,14 +598,32 @@ impl Menu {
 
 impl RenderOnce for DropdownMenu {
     fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
+        self.render_menu(None, window, cx)
+    }
+}
+
+impl DropdownMenu {
+    fn render_menu(
+        self,
+        context: Option<(gpui::AnyElement, gpui::FocusHandle, bool)>,
+        window: &mut gpui::Window,
+        cx: &mut gpui::App,
+    ) -> gpui::AnyElement {
         let state = window.use_keyed_state(self.id.clone(), cx, Menu::new);
+
+        let (content, focus, fill) = match context {
+            Some((content, focus, fill)) => (Some(content), Some(focus), fill),
+            None => (None, None, false),
+        };
 
         state.update(cx, |this, cx| {
             this.config = self;
-            this.trigger = this
-                .trigger
-                .clone()
-                .tab_stop(this.config.state.is_interactive());
+            this.contextual = focus.is_some();
+            this.trigger = focus.unwrap_or_else(|| {
+                this.trigger
+                    .clone()
+                    .tab_stop(this.config.state.is_interactive())
+            });
 
             if !this.config.state.is_interactive() {
                 this.close(true, window, cx);
@@ -571,12 +651,44 @@ impl RenderOnce for DropdownMenu {
             let key = cx.entity();
             let overlay_state = cx.entity();
             let scope = this.scope.clone();
-            let trigger = overlay::track(this.trigger(cx), bounds.clone());
+
+            let trigger =
+                overlay::track(content.unwrap_or_else(|| this.trigger(cx)), bounds.clone());
+
+            let contextual = this.contextual;
+            let context_state = cx.entity();
+            let control_context = cx.entity();
 
             gpui::div()
                 .id(root_id)
                 .flex()
                 .track_focus(&scope)
+                .when(fill, |s| s.size_full().min_h_0())
+                .when(contextual, |s| {
+                    s.w_full()
+                        .on_mouse_down(gpui::MouseButton::Right, move |event, window, cx| {
+                            context_state.update(cx, |this, cx| {
+                                this.position = Some(event.position);
+                                this.open(false, window, cx);
+                            });
+                            window.prevent_default();
+                            cx.stop_propagation();
+                        })
+                })
+                .when(contextual, |s| {
+                    let context_state = control_context;
+
+                    s.on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                        if cfg!(target_os = "macos") && event.modifiers.control {
+                            context_state.update(cx, |this, cx| {
+                                this.position = Some(event.position);
+                                this.open(false, window, cx);
+                            });
+                            window.prevent_default();
+                            cx.stop_propagation();
+                        }
+                    })
+                })
                 .capture_key_down(move |event, window, cx| {
                     key.update(cx, |this, cx| this.key(event, window, cx))
                 })
@@ -590,12 +702,16 @@ impl RenderOnce for DropdownMenu {
                                 return gpui::Empty.into_any_element();
                             };
 
-                            let (position, corner) = match this.config.alignment {
-                                MenuAlignment::Start => {
-                                    (anchor.bottom_left(), gpui::Anchor::TopLeft)
-                                }
-                                MenuAlignment::End => {
-                                    (anchor.bottom_right(), gpui::Anchor::TopRight)
+                            let (position, corner) = if let Some(point) = this.position {
+                                (point, gpui::Anchor::TopLeft)
+                            } else {
+                                match this.config.alignment {
+                                    MenuAlignment::Start => {
+                                        (anchor.bottom_left(), gpui::Anchor::TopLeft)
+                                    }
+                                    MenuAlignment::End => {
+                                        (anchor.bottom_right(), gpui::Anchor::TopRight)
+                                    }
                                 }
                             };
 
@@ -609,6 +725,7 @@ impl RenderOnce for DropdownMenu {
                         })
                     }))
                 })
+                .into_any_element()
         })
     }
 }

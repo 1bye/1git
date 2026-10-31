@@ -384,3 +384,71 @@ on the same repository, stash and file; source fixtures provided the row and
 form measurements. Native restart, file-list Up/Down and Tab navigation passed
 with accessibility active. The final source background capture remained a
 Stage Manager thumbnail, so this is not a claim of whole-app pixel parity.
+
+## Discard and restore changes
+
+| Source | Rust |
+| --- | --- |
+| `RepositoryFileActions.canDiscard`, file menu and Changes header | `discard::Selection`, row/keyboard context menus and header actions |
+| `NativeFileMenu.confirm` / `confirm_file_discard` | Cancel-first `discard::Form` using the shared alert dialog host |
+| `RepositoryFileActions.discard`, `discardFiles` | existing disk-backed `Repository::discard_files` plus scoped `discard_reviewed` |
+| Session-owned `undoDiscard` | `restore_discard` and captured recovery actions |
+| Workspace mutation refresh | `tabs/discard_actions.rs`, separate reads per related worktree |
+
+A single-file discard removes both staged and unstaged edits to that path, rather
+than just the side currently displayed. Snapshot paths are deduplicated before
+confirmation and remain frozen with the branch/HEAD. Whole-list actions use the
+complete snapshot even when files are filtered. Renames/copies, type changes,
+submodules, conflicts and unfinished operations are not silently skipped.
+
+The requested tracked/untracked split is deliberate: unlike the original mixed
+“Discard all changes” action, “Discard all tracked changes…” leaves new files
+alone. “Delete all untracked files…” has its own confirmation and rejects a path
+that became tracked. Scope is checked inside the existing shared mutation guard,
+before backup and again before application. Reviewed restore also checks branch,
+HEAD and operation state under that guard. External writers remain possible;
+checked patch application provides the existing non-forcing boundary.
+
+Recovery patches, manifest and instructions are durably captured before writes
+under the Rust app's private application-state recovery directory. Staged and
+working data restore separately. The session-owned token expires after 15 seconds,
+is single-use and is never serialized. Older notification actions retain their
+exact recovery token. Expiry, failed operations and restart do not delete backups.
+Errors retain backup paths and compensation failures; nothing retries automatically.
+After any outcome, each related root is reread independently. Failed refreshes keep
+the previous view and block more writes until reviewed. Drafts, surviving selections,
+filters, diff modes and pane sizes stay local to each tab.
+
+The source's native alert was captured with `docs/guides/models.md` selected, then
+cancelled without accepting a write. The Rust alert follows its compact 260-pixel
+width, app icon, 13/16 typography, neutral stacked actions and initial Cancel focus.
+The embedded icon is a static AppKit rendering of the existing installed app icon.
+The Rust host supplies modal focus/input isolation and a 140 ms gpui-ce-motion
+opacity/height transition. Reduced motion snaps; settled alerts request no frames.
+Right-click/Control-click and Shift+F10 reuse the dropdown's navigation, clipping,
+disabled-action and focus-restoration behavior without adding file-row tab stops.
+
+Tests map the original whole-list/filter/unsupported guards to selection and
+workspace discard tests, native confirmation and close protection to form and
+pointer/keyboard tests, and index/working/Undo/backup failures to the existing Git
+discard suites plus `discard_reviewed.rs`. The new category and stale-restore cases
+cover the requested separation. The original app's 18 backend discard tests pass.
+Its component suite requires a rebuilt GPUIX addon, unavailable in this checkout;
+the installed app supplies the live confirmation reference instead.
+
+Validation: all 554 workspace tests pass (138 app, 315 Git and 101 UI/gallery).
+Strict all-target/all-feature Clippy, rustfmt, rustdoc, the normal app build and
+workspace spacing checks pass; spacing also covers Windows/Linux Git code.
+The development app bundle passes strict signature verification. CI was not run.
+
+The matching source and Rust single-file confirmations were inspected on
+`docs/guides/models.md`. The final fresh-process capture confirms the corrected
+16-pixel corners, 52-pixel icon and stacked actions. Native paragraph wrapping
+still differs slightly; this is not a claim of whole-app pixel parity. Live
+confirmations for all 10 tracked files and all 11 untracked files were also opened
+and cancelled. No live repository write was accepted. Existing HEADs, index,
+tracked changes, existing untracked bytes and commit drafts match the baseline.
+Eight additional onbot untracked files appeared during concurrent external work.
+
+No changeset is needed: the changed Rust crates are unpublished, and no TypeScript
+release package is changed.

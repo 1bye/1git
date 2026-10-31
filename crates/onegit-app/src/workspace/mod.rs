@@ -1,6 +1,7 @@
 //! Repository workspace; Git reads and serialized writes run outside the UI thread.
 mod branches;
 mod chrome;
+mod discard;
 mod history;
 mod home;
 mod native;
@@ -89,6 +90,8 @@ pub(crate) struct RepositoryWorkspace {
     home_visible: bool,
     history: gpui::Entity<history::HistoryWorkspace>,
     stashes: gpui::Entity<stashes::Stashes>,
+    discard: gpui::Entity<discard::Form>,
+    discard_host: Option<onegit_ui::DialogHostState>,
     selected: Option<ChangeKey>,
     preview: PreviewState,
     diff_state: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
@@ -166,7 +169,35 @@ impl RepositoryWorkspace {
 
         let stashes = cx.new(|cx| stashes::Stashes::new(host, window, cx));
 
+        let discard_host = host.is_none().then(|| onegit_ui::DialogHostState::new(cx));
+
+        let discard = cx.new(|cx| {
+            discard::Form::new(
+                host.or(discard_host.as_ref()).expect("dialog host"),
+                window,
+                cx,
+            )
+        });
+
         let mut subscriptions = vec![
+            cx.subscribe_in(
+                &discard,
+                window,
+                |this: &mut Self, _, event: &discard::Submit, window, cx| {
+                    if this.hosted {
+                        cx.emit(discard::Submit(event.0.clone()));
+                    } else {
+                        this.start_write(
+                            write::Operation::Discard {
+                                action: event.0.clone(),
+                                peers: Vec::new(),
+                            },
+                            window,
+                            cx,
+                        );
+                    }
+                },
+            ),
             cx.subscribe(&stashes, |_: &mut Self, _, event: &stashes::Submit, cx| {
                 cx.emit(stashes::Submit(event.0.clone()))
             }),
@@ -238,6 +269,8 @@ impl RepositoryWorkspace {
             home_visible: true,
             history,
             stashes,
+            discard,
+            discard_host,
             selected: None,
             preview: PreviewState::Empty,
             diff_state: None,
@@ -602,6 +635,7 @@ impl RepositoryWorkspace {
         }
 
         let stash_completion = outcome.stash_completion;
+        let discard_completion = outcome.discard_completion;
 
         let branch_completion = outcome.branch_action.then(|| branches::Completed {
             root: path.clone(),
@@ -609,7 +643,7 @@ impl RepositoryWorkspace {
             result: outcome.result.as_ref().map(|_| ()).map_err(Clone::clone),
         });
 
-        let feedback = match outcome.result {
+        let mut feedback = match outcome.result {
             Ok(detail) => Toast {
                 description: Some(detail.into()),
                 ..Toast::new(ToastKind::Success, "Repository updated")
@@ -620,20 +654,48 @@ impl RepositoryWorkspace {
             },
         };
 
+        if let Some(saved) = discard_completion
+            .as_ref()
+            .and_then(|event| event.recovery.as_ref())
+        {
+            let form = self.discard.downgrade();
+            let captured = saved.clone();
+
+            feedback.description = Some(
+                format!(
+                    "{}\nRecovery backup: {}. Restore is available for 15 seconds.",
+                    feedback.description.as_deref().unwrap_or_default(),
+                    saved.backup.directory.display()
+                )
+                .into(),
+            );
+            feedback.lifetime = onegit_ui::ToastLifetime::Persistent;
+
+            if feedback.kind == ToastKind::Success {
+                feedback.action = Some(onegit_ui::ToastAction::new("Restore", move |_, cx| {
+                    let _ = form.update(cx, |form, cx| form.restore_saved(captured.clone(), cx));
+                }));
+            }
+        }
+
         self.toasts.update(cx, |state, cx| {
             // A dismissed progress card stays dismissed while the operation completes.
             let _ = state.update(toast, feedback, window, cx);
         });
 
         match outcome.loaded {
-            Ok(loaded) if outcome.branch_action || stash_completion.is_some() => {
+            Ok(loaded)
+                if outcome.branch_action
+                    || stash_completion.is_some()
+                    || discard_completion.is_some() =>
+            {
                 self.apply_automatic(loaded, cx)
             }
             Ok(loaded) => self.apply_loaded(loaded, preferred, cx),
-            Err(error) if stash_completion.is_some() => {
+            Err(error) if stash_completion.is_some() || discard_completion.is_some() => {
                 self.refresh_blocked = true;
                 self.refresh_error = Some(format!(
-                    "Could not refresh after the stash action: {error}. Refresh before writing again."
+                    "Could not refresh after the file or stash action: {error}. Refresh before writing again."
                 ));
             }
             Err(error) => {
@@ -641,6 +703,19 @@ impl RepositoryWorkspace {
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if let Some(completion) = discard_completion {
+            self.discard.update(cx, |form, cx| {
+                form.finish(
+                    completion.result.clone(),
+                    completion.recovery.clone(),
+                    completion.restored.as_deref(),
+                    window,
+                    cx,
+                )
+            });
+            cx.emit(completion);
         }
 
         if let Some(completion) = stash_completion {

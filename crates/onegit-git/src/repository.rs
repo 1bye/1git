@@ -96,7 +96,8 @@ pub use selected_commit::{
 };
 
 pub use discard::{
-    DiscardError, DiscardFiles, DiscardRecovery, DiscardResult, DiscardUndo, RecoveryBackup,
+    DiscardError, DiscardFiles, DiscardRecovery, DiscardResult, DiscardScope, DiscardUndo,
+    RecoveryBackup,
 };
 
 pub use ignore::{IgnoreFile, IgnoreRule, ignore_extension, ignore_folders, ignore_pattern};

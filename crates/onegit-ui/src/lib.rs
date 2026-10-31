@@ -50,7 +50,10 @@ pub use diff_viewer::{
     DiffViewerState,
 };
 
-pub use dropdown_menu::{DropdownMenu, MenuAlignment, MenuEntry, MenuHandler, MenuItem};
+pub use dropdown_menu::{
+    ContextMenu, DropdownMenu, MenuAlignment, MenuEntry, MenuHandler, MenuItem,
+};
+
 pub use icon::{Icon, IconName, IconSize};
 
 pub use input::{

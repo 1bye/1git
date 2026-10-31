@@ -5,10 +5,10 @@ use super::{
 };
 
 use onegit_ui::{
-    Button, ButtonVariant, CheckState, Checkbox, ControlSize, ControlState, DiffView, DiffViewer,
-    DropdownMenu, IconButton, IconName, InputAvailability, InputVariant, MenuAlignment, MenuEntry,
-    MenuItem, ResizableSplit, SearchField, Text, TextArea, TextInput, TextRole, TextTone, Theme,
-    ToastHost, Tooltip,
+    Button, ButtonTone, ButtonVariant, CheckState, Checkbox, ContextMenu, ControlSize,
+    ControlState, DiffView, DiffViewer, DropdownMenu, IconButton, IconName, InputAvailability,
+    InputVariant, MenuAlignment, MenuEntry, MenuItem, ResizableSplit, SearchField, Text, TextArea,
+    TextInput, TextRole, TextTone, Theme, ToastHost, Tooltip,
 };
 
 use rake::gpui::{self, accesskit, prelude::*, px};
@@ -34,6 +34,60 @@ pub(super) fn notice(
 }
 
 impl RepositoryWorkspace {
+    fn review_discard(
+        &mut self,
+        path: Option<&onegit_git::GitPath>,
+        scope: onegit_git::DiscardScope,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if !self.can_write() {
+            return;
+        }
+
+        let RepositoryState::Ready(source) = &self.state else {
+            return;
+        };
+
+        if let Some(selection) = super::discard::Selection::new(source, path, scope) {
+            self.discard.update(cx, |form, cx| {
+                form.configure(false, cx);
+                form.open(selection, window, cx);
+            });
+        }
+    }
+
+    fn discard_scope(source: &Loaded, path: &onegit_git::GitPath) -> onegit_git::DiscardScope {
+        if source
+            .snapshot
+            .status
+            .files
+            .iter()
+            .any(|file| file.path == *path && file.record_type == onegit_git::RecordType::Untracked)
+        {
+            onegit_git::DiscardScope::Untracked
+        } else {
+            onegit_git::DiscardScope::Tracked
+        }
+    }
+
+    fn discard_item(
+        &self,
+        source: &Loaded,
+        path: Option<&onegit_git::GitPath>,
+        scope: onegit_git::DiscardScope,
+        id: &'static str,
+        label: &'static str,
+    ) -> MenuEntry {
+        MenuItem {
+            disabled: !self.can_write()
+                || super::discard::Selection::new(source, path, scope).is_none(),
+            tone: ButtonTone::Danger,
+            ..MenuItem::new(id, label)
+        }
+        .into()
+    }
+
     fn files(
         &self,
         loaded: Arc<Loaded>,
@@ -63,7 +117,7 @@ impl RepositoryWorkspace {
             this.start_write(write::Operation::File(file.clone()), window, cx)
         }));
 
-        let entries = vec![
+        let mut entries = vec![
             MenuItem {
                 disabled: !writable || staged == total,
                 ..MenuItem::new("stage-all", "Stage all files")
@@ -76,6 +130,109 @@ impl RepositoryWorkspace {
             .into(),
         ];
 
+        entries.push(MenuEntry::Separator);
+        entries.push(self.discard_item(
+            &loaded,
+            None,
+            onegit_git::DiscardScope::Tracked,
+            "discard-tracked",
+            "Discard all tracked changes…",
+        ));
+        entries.push(self.discard_item(
+            &loaded,
+            None,
+            onegit_git::DiscardScope::Untracked,
+            "delete-untracked",
+            "Delete all untracked files…",
+        ));
+        entries.push(
+            MenuItem {
+                disabled: !writable
+                    || !self
+                        .discard
+                        .read(cx)
+                        .recovery
+                        .as_ref()
+                        .is_some_and(super::discard::Recovery::available),
+                ..MenuItem::new("restore-discard", "Restore last discarded changes")
+            }
+            .into(),
+        );
+
+        let context = Rc::new(cx.listener(|this, file: &read::ChangedFile, window, cx| {
+            let scope = match &this.state {
+                RepositoryState::Ready(source) => Self::discard_scope(source, &file.key.path),
+                _ => return,
+            };
+
+            this.review_discard(Some(&file.key.path), scope, window, cx);
+        }));
+
+        let selected_context = selected.as_ref().and_then(|key| loaded.file(key)).cloned();
+
+        let selected_scope = selected_context
+            .as_ref()
+            .map(|file| Self::discard_scope(&loaded, &file.key.path));
+
+        let selected_discard =
+            selected_context
+                .as_ref()
+                .zip(selected_scope)
+                .is_some_and(|(file, scope)| {
+                    writable
+                        && super::discard::Selection::new(&loaded, Some(&file.key.path), scope)
+                            .is_some()
+                });
+
+        let selected_stage = stage.clone();
+        let selected_discard_handler = context.clone();
+
+        let keyboard_menu = DropdownMenu {
+            entries: vec![
+                MenuItem {
+                    disabled: !writable || selected_context.is_none(),
+                    ..MenuItem::new(
+                        "stage",
+                        if selected_context
+                            .as_ref()
+                            .is_some_and(|file| file.key.side == read::Side::Staged)
+                        {
+                            "Unstage file"
+                        } else {
+                            "Stage file"
+                        },
+                    )
+                }
+                .into(),
+                MenuEntry::Separator,
+                MenuItem {
+                    disabled: !selected_discard,
+                    tone: ButtonTone::Danger,
+                    ..MenuItem::new(
+                        "discard",
+                        if selected_scope == Some(onegit_git::DiscardScope::Untracked) {
+                            "Delete untracked file…"
+                        } else {
+                            "Discard Changes…"
+                        },
+                    )
+                }
+                .into(),
+            ],
+            size: ControlSize::Small,
+            on_select: Some(Box::new(move |id, window, cx| {
+                if let Some(file) = &selected_context {
+                    if *id == gpui::ElementId::from("stage") {
+                        selected_stage(file, window, cx);
+                    } else if *id == gpui::ElementId::from("discard") {
+                        selected_discard_handler(file, window, cx);
+                    }
+                }
+            })),
+            ..DropdownMenu::new("selected-file-actions", "Selected file actions")
+        };
+
+        let list_focus = self.files_focus.clone();
         let last_commit = loaded.last_commit.clone();
 
         let list=gpui::uniform_list("files",count,move |range,_,_|range.map(|position| {
@@ -83,6 +240,29 @@ impl RepositoryWorkspace {
             let file=&loaded.files[index];
             let key=file.key.clone();
             let stage_file=file.clone();
+            let menu_file=file.clone();
+            let context=context.clone();
+            let context_stage=stage.clone();
+            let context_stage_file=file.clone();
+            let list_focus=list_focus.clone();
+            let scope=Self::discard_scope(&loaded, &file.key.path);
+            let discardable=writable && super::discard::Selection::new(&loaded,Some(&file.key.path),scope).is_some();
+
+            let menu_entries=vec![
+                MenuItem {disabled: !writable, ..MenuItem::new("stage", if file.key.side==read::Side::Staged {"Unstage file"}else{"Stage file"})}.into(),
+                MenuEntry::Separator,
+                MenuItem {disabled: !discardable, tone: ButtonTone::Danger, ..MenuItem::new("discard", if scope==onegit_git::DiscardScope::Untracked {"Delete untracked file…"}else{"Discard Changes…"})}.into()
+            ];
+
+            let menu=DropdownMenu {
+                size: ControlSize::Small, entries: menu_entries,
+                on_select: Some(Box::new(move |id,window,cx| {
+                    if *id==gpui::ElementId::from("discard") { context(&menu_file,window,cx); }
+                    else if *id==gpui::ElementId::from("stage") { context_stage(&context_stage_file,window,cx); }
+                })),
+                ..DropdownMenu::new(format!("file-actions-{}:{}",file.key.side.label(),file.label),format!("Actions for {}",file.label))
+            };
+
             let row_id=gpui::ElementId::from(gpui::SharedString::from(format!("{}:{}",file.key.side.label(),file.label)));
             let active=selected.as_ref()==Some(&key);
             let theme=Theme::current();
@@ -93,6 +273,7 @@ impl RepositoryWorkspace {
             let staged=file.key.side==read::Side::Staged;
 
             rake::view! {
+                <ContextMenu {..ContextMenu::new(menu,list_focus)}>
                 <div id={row_id} role={accesskit::Role::Row} aria-label={format!("{}, {}",file.label,file.description)}
                     class="w-full h-[28px] min-w-0 flex flex-row items-center gap-2 pl-2 pr-1 rounded-[4px] border-1 overflow-hidden"
                     style={|s|s.bg(if active{theme.selection}else{gpui::transparent_black()}).border_color(if active&&focused{theme.focus_ring}else{gpui::transparent_black()})
@@ -108,6 +289,7 @@ impl RepositoryWorkspace {
                         {..Checkbox::new("stage",format!("{} {}",if staged{"Unstage"}else{"Stage"},file.label))}/>
                     </div>
                 </div>
+                </ContextMenu>
             }.into_any_element()
         }).collect()).size_full().min_w_0().min_h_0().track_scroll(&self.files_scroll).with_sizing_behavior(gpui::ListSizingBehavior::Auto);
 
@@ -124,7 +306,13 @@ impl RepositoryWorkspace {
                 </div>
                 <div class="h-[24px] flex flex-row items-center pl-[5px] pr-[18px] shrink-0">
                     <div class="flex-1 min-w-0"><DropdownMenu size={ControlSize::Small} label_role={TextRole::Caption} show_chevron={false} variant={ButtonVariant::Ghost} entries={entries}
-                        on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,window,cx|this.start_write(if *id==gpui::ElementId::from("stage-all"){write::Operation::StageAll}else{write::Operation::UnstageAll},window,cx))))}
+                        on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,window,cx|{
+                            if *id==gpui::ElementId::from("discard-tracked") { this.review_discard(None,onegit_git::DiscardScope::Tracked,window,cx); }
+                            else if *id==gpui::ElementId::from("delete-untracked") { this.review_discard(None,onegit_git::DiscardScope::Untracked,window,cx); }
+                            else if *id==gpui::ElementId::from("restore-discard") { this.discard.update(cx,|form,cx|form.restore(cx)); }
+                            else if *id==gpui::ElementId::from("stage-all") { this.start_write(write::Operation::StageAll,window,cx); }
+                            else if *id==gpui::ElementId::from("unstage-all") { this.start_write(write::Operation::UnstageAll,window,cx); }
+                        })))}
                         {..DropdownMenu::new("index-actions",format!("{staged} of {total} staged"))}/></div>
                     if self.filter_visible {<Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("shown",format!("{count} shown"))}/>}
                     <div class="shrink-0" style={|s|s.debug_selector(||"workspace-stage-all".into())}>
@@ -133,10 +321,14 @@ impl RepositoryWorkspace {
                         {..Checkbox::new("stage-all","Stage or unstage all changed files")}/>
                     </div>
                 </div>
+                <div class="flex-1 min-h-0 min-w-0 flex">
+                <ContextMenu fill={true} {..ContextMenu::new(keyboard_menu,self.files_focus.clone())}>
                 <div id="file-list" role={accesskit::Role::Grid} aria-label="Changed files" class="flex-1 min-h-0 min-w-0 overflow-hidden pl-1.5 pr-3"
                     style={|s|s.track_focus(&focus).debug_selector(||"workspace-files".into()).on_key_down(cx.listener(|this,event,window,cx|this.navigate_files(event,window,cx)))}>
                     if count==0 && total>0 {<div class="p-3"><Text role={TextRole::Small} tone={TextTone::Muted} {..Text::new("no-matches","No matching files")}/></div>}
                     else {{list}}
+                </div>
+                </ContextMenu>
                 </div>
                 if !allowed {<div class="px-3 py-2"><Text role={TextRole::Caption} tone={TextTone::Danger} {..Text::new("operation-blocked","Finish the current Git operation and resolve conflicts in your editor first.")}/></div>}
                 <div class="h-[140px] p-2 shrink-0 border-t-1 border-hairline flex flex-col" style={|s|s.debug_selector(||"workspace-commit-composer".into())}>
@@ -200,10 +392,31 @@ impl RepositoryWorkspace {
             );
         }
 
+        if let (Some(file), RepositoryState::Ready(source)) = (&selected_file, &self.state) {
+            let scope = Self::discard_scope(source, &file.key.path);
+
+            entries.push(self.discard_item(
+                source,
+                Some(&file.key.path),
+                scope,
+                "discard-file",
+                if scope == onegit_git::DiscardScope::Untracked {
+                    "Delete untracked file…"
+                } else {
+                    "Discard Changes…"
+                },
+            ));
+        }
+
         let menu=rake::view! {
             <DropdownMenu icon_only={true} icon={Some(IconName::Sliders)} alignment={MenuAlignment::End} variant={ButtonVariant::Ghost} size={ControlSize::Small} entries={entries}
                 on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,window,cx|{
-                    if *id==gpui::ElementId::from("stage-file") {
+                    if *id==gpui::ElementId::from("discard-file") {
+                        if let (RepositoryState::Ready(source),Some(key))=(&this.state,&this.selected) {
+                            let path=key.path.clone();let scope=Self::discard_scope(source,&path);
+                            this.review_discard(Some(&path),scope,window,cx);
+                        }
+                    } else if *id==gpui::ElementId::from("stage-file") {
                         let file=match (&this.state,&this.selected){(RepositoryState::Ready(loaded),Some(key))=>loaded.file(key).cloned(),_=>None};
 
                         if let Some(file)=file{this.start_write(write::Operation::File(file),window,cx);}
@@ -264,6 +477,10 @@ impl Render for RepositoryWorkspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
+        let blocked = !self.can_write();
+
+        self.discard
+            .update(cx, |form, cx| form.configure(blocked, cx));
         let grain = chrome::grain();
         let titlebar = self.titlebar(window, cx);
         let rail = self.rail(cx);
@@ -322,7 +539,7 @@ impl Render for RepositoryWorkspace {
             }
         };
 
-        rake::view! {
+        let page = rake::view! {
             <main class="relative size-full min-w-0 min-h-0 flex flex-col bg-chrome text-ink" focus={&self.focus} tab-navigation={true} on:key-down={cx.listener(|this,event: &gpui::KeyDownEvent,window,cx| {
                 if let Some(request) = this.tab_strip.as_ref().and_then(|strip|strip.key(event)) {
                     window.prevent_default(); cx.stop_propagation(); cx.emit(request);
@@ -341,6 +558,12 @@ impl Render for RepositoryWorkspace {
                 </div>
                 <ToastHost {..ToastHost::new("notifications",&self.toasts,&self.focus)}/>
             </main>
+        }.into_any_element();
+
+        if let Some(host) = &self.discard_host {
+            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}</onegit_ui::DialogHost> }.into_any_element()
+        } else {
+            page
         }
     }
 }

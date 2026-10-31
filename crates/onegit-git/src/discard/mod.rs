@@ -20,6 +20,15 @@ use recovery::{Recovery, iso_time, validate_paths, wall_time};
 
 const UNDO_TTL: Duration = Duration::from_secs(15);
 
+/// File category explicitly authorized by a discard confirmation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DiscardScope {
+    /// Restore tracked staged and working changes, leaving untracked files alone.
+    Tracked,
+    /// Delete only files that are still untracked, leaving staged work alone.
+    Untracked,
+}
+
 /// Optional reviewed app guard and durable private recovery destination.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DiscardRecovery {
@@ -130,6 +139,43 @@ impl Repository {
         request: &DiscardFiles,
         cancellation: Option<&Cancellation>,
     ) -> Result<DiscardResult, DiscardError> {
+        self.discard_scoped(request, None, cancellation)
+    }
+
+    /// Discard a reviewed selection only while every path remains in its consented category.
+    ///
+    /// Requires a reviewed recovery destination. Scope is rechecked under the common-directory
+    /// guard before backup and again before applying it; no untracked deletion is implied
+    /// by tracked-file consent. External writers remain subject to checked patch application.
+    ///
+    /// # Errors
+    /// Returns the original failure and any retained recovery files; never retries a write.
+    pub fn discard_reviewed(
+        &self,
+        request: &DiscardFiles,
+        scope: DiscardScope,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<DiscardResult, DiscardError> {
+        if request.recovery.is_none() {
+            return Err(failure(
+                WritePhase::BeforeCommand,
+                RepositoryError::InvalidInput(
+                    "A reviewed discard requires a recovery destination.",
+                ),
+                None,
+                None,
+            ));
+        }
+
+        self.discard_scoped(request, Some(scope), cancellation)
+    }
+
+    fn discard_scoped(
+        &self,
+        request: &DiscardFiles,
+        scope: Option<DiscardScope>,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<DiscardResult, DiscardError> {
         let _write = self.mutations.enter();
         let before_error = |error| failure(WritePhase::BeforeCommand, error, None, None);
 
@@ -142,7 +188,7 @@ impl Repository {
         }
 
         let (before, selected) = self
-            .discard_selection(request, cancellation)
+            .discard_selection(request, scope, cancellation)
             .map_err(before_error)?;
 
         let mut backup =
@@ -151,7 +197,7 @@ impl Repository {
         let info = backup.info();
 
         let prepare = (|| {
-            let (fresh, selection) = self.discard_selection(request, cancellation)?;
+            let (fresh, selection) = self.discard_selection(request, scope, cancellation)?;
 
             if BranchIdentity::from_snapshot(&fresh) != BranchIdentity::from_snapshot(&before)
                 || selection != selected
@@ -225,7 +271,54 @@ impl Repository {
         token: &str,
         cancellation: Option<&Cancellation>,
     ) -> Result<Snapshot, DiscardError> {
+        self.undo_reviewed(token, None, cancellation)
+    }
+
+    /// Restore a session discard only on the reviewed branch/HEAD outside Git operations.
+    ///
+    /// # Errors
+    /// Rejects stale identity, conflicts, expired/used tokens and unsafe patch application.
+    /// Backups remain available on disk after expiry or any failure.
+    pub fn restore_discard(
+        &self,
+        token: &str,
+        expected: &BranchIdentity,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<Snapshot, DiscardError> {
+        self.undo_reviewed(token, Some(expected), cancellation)
+    }
+
+    fn undo_reviewed(
+        &self,
+        token: &str,
+        expected: Option<&BranchIdentity>,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<Snapshot, DiscardError> {
         let _write = self.mutations.enter();
+
+        if let Some(expected) = expected {
+            let snapshot = self
+                .snapshot_uncoordinated(false, cancellation)
+                .map_err(|error| failure(WritePhase::BeforeCommand, error, None, None))?;
+
+            if BranchIdentity::from_snapshot(&snapshot) != *expected
+                || snapshot.operation != OperationState::Normal
+                || snapshot
+                    .status
+                    .files
+                    .iter()
+                    .any(|file| file.record_type == RecordType::Unmerged)
+            {
+                return Err(failure(
+                    WritePhase::BeforeCommand,
+                    RepositoryError::InvalidInput(
+                        "The branch or Git operation changed. Review it before restoring discarded changes.",
+                    ),
+                    None,
+                    None,
+                ));
+            }
+        }
 
         let invalid = || {
             failure(
@@ -287,6 +380,7 @@ impl Repository {
     fn discard_selection(
         &self,
         request: &DiscardFiles,
+        scope: Option<DiscardScope>,
         cancellation: Option<&Cancellation>,
     ) -> Result<(Snapshot, Vec<FileChange>), RepositoryError> {
         validate_paths(&request.paths)?;
@@ -312,6 +406,20 @@ impl Repository {
         if selected.is_empty() {
             return Err(RepositoryError::InvalidInput(
                 "No changed file matches the selected path.",
+            ));
+        }
+
+        if scope.is_some_and(|scope| {
+            selected.iter().any(|file| match scope {
+                DiscardScope::Tracked => matches!(
+                    file.record_type,
+                    RecordType::Untracked | RecordType::Ignored
+                ),
+                DiscardScope::Untracked => file.record_type != RecordType::Untracked,
+            })
+        }) {
+            return Err(RepositoryError::InvalidInput(
+                "The selected files changed category. Review the confirmation again.",
             ));
         }
 

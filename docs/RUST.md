@@ -292,3 +292,29 @@ reduced-motion support and no settled animation loop. Existing text diff renderi
 reports binary or oversized patches explicitly; image previews and tree file
 layout are not part of this pass. Stash deletion safely refuses unsupported Git
 reference storage formats. No automatic retry or force option is offered.
+
+## Discard and restore
+
+Right-click a changed file (Control-click on macOS), or focus the file list and
+press Shift+F10, then choose **Discard Changes…**. The diff display menu offers
+the same action. A single confirmation covers both staged and unstaged edits to
+that exact path. Untracked files instead offer **Delete untracked file…**.
+
+The staged-count menu offers **Discard all tracked changes…** and a separate
+**Delete all untracked files…** action. These use the entire repository snapshot,
+including files hidden by a filter. Each confirmation names the captured path or
+count, explains what is kept, and initially focuses Cancel. Escape or Cancel
+never starts a write. Unsupported paths disable the batch rather than being skipped.
+
+A durable recovery backup is saved before any discard. Use **Restore** on the
+completion notification, or **Restore last discarded changes** in the count menu,
+within 15 seconds. Restore keeps staging and working contents separate and refuses
+a changed branch/HEAD. New writes, expired or consumed tokens, or conflicting edits
+may require manual recovery; the notification/error includes the backup directory.
+Recovery files remain on disk after restart or expiry. Confirmations and short-lived
+restore tokens are never replayed or restored from the workspace session.
+
+Operations show progress and errors and refresh each related open worktree.
+Drafts, surviving file selections, filters, diff modes and pane sizes are retained.
+An uncertain refresh blocks further writes until a successful refresh.
+Confirmations use fast gpui-ce-motion transitions with reduced-motion support.

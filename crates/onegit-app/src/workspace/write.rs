@@ -14,6 +14,10 @@ pub(super) enum Operation {
         request: onegit_git::StashRequest,
         peers: Vec<Arc<onegit_git::Repository>>,
     },
+    Discard {
+        action: super::discard::Action,
+        peers: Vec<Arc<onegit_git::Repository>>,
+    },
     StageAll,
     UnstageAll,
     Commit {
@@ -32,6 +36,11 @@ impl Operation {
             Self::Commit { .. } => "Creating commit…",
             Self::Branch(_) => "Updating branch…",
             Self::Stash { .. } => "Updating saved work…",
+            Self::Discard {
+                action: super::discard::Action::Restore(_),
+                ..
+            } => "Restoring discarded changes…",
+            Self::Discard { .. } => "Discarding changes…",
         }
     }
 
@@ -44,6 +53,7 @@ impl Operation {
             Self::Commit { .. } => "Commit created",
             Self::Branch(_) => "Branch updated",
             Self::Stash { .. } => "Stash updated",
+            Self::Discard { .. } => "Files updated",
         }
     }
 }
@@ -54,6 +64,7 @@ pub(super) struct Outcome {
     pub committed: bool,
     pub branch_action: bool,
     pub stash_completion: Option<super::stashes::Completed>,
+    pub discard_completion: Option<super::discard::Completed>,
 }
 
 pub(super) fn available(loaded: &Loaded) -> bool {
@@ -75,6 +86,10 @@ pub(super) fn staged_count(loaded: &Loaded) -> usize {
 }
 
 pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
+    if let Operation::Discard { action, peers } = &operation {
+        return super::discard::run(loaded, action, peers);
+    }
+
     if let Operation::Stash { request, peers } = &operation {
         return run_stash(loaded, request, peers);
     }
@@ -142,6 +157,9 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                     repository.stage(&paths, None)?
                 }
             }
+            Operation::Discard { .. } => {
+                unreachable!("discard operations use their reviewed write guard")
+            }
             Operation::Stash { .. } => {
                 unreachable!("stash operations use their reviewed write guard")
             }
@@ -188,6 +206,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             committed,
             branch_action: false,
             stash_completion: None,
+            discard_completion: None,
         },
         Err(error) => {
             let boundary = match error.phase {
@@ -214,6 +233,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                 committed: false,
                 branch_action: false,
                 stash_completion: None,
+                discard_completion: None,
             }
         }
     }
@@ -240,6 +260,7 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
                 committed: false,
                 branch_action: true,
                 stash_completion: None,
+                discard_completion: None,
             }
         }
         Err(error) => {
@@ -268,6 +289,7 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
                 committed: false,
                 branch_action: true,
                 stash_completion: None,
+                discard_completion: None,
             }
         }
     }
@@ -353,6 +375,7 @@ fn run_stash(
         result: result.clone().map(|()| message.into()),
         committed: false,
         branch_action: false,
+        discard_completion: None,
         stash_completion: Some(super::stashes::Completed {
             snapshots,
             result,
