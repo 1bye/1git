@@ -5,6 +5,9 @@ mod branch_tests;
 mod motion;
 mod refresh;
 pub(in crate::workspace) mod session;
+mod stash_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod stash_tests;
 #[cfg(all(test, feature = "test-support"))]
 mod sync_tests;
 mod synchronization;
@@ -113,8 +116,15 @@ impl Workspace {
             },
         );
 
-        let welcome = cx
-            .new(|cx| RepositoryWorkspace::for_tab(window, cx, write_scope.clone(), home.clone()));
+        let welcome = cx.new(|cx| {
+            RepositoryWorkspace::for_tab(
+                window,
+                cx,
+                write_scope.clone(),
+                home.clone(),
+                &branch_host,
+            )
+        });
 
         welcome.update(cx, |view, _| view.picker_error = native_error);
         let subscriptions = vec![
@@ -254,7 +264,13 @@ impl Workspace {
 
         self.next_id += 1;
         let workspace = cx.new(|cx| {
-            RepositoryWorkspace::for_tab(window, cx, self.write_scope.clone(), self.home.clone())
+            RepositoryWorkspace::for_tab(
+                window,
+                cx,
+                self.write_scope.clone(),
+                self.home.clone(),
+                &self.branch_host,
+            )
         });
 
         workspace.update(cx, |view, _| view.process = self.process.clone());
@@ -266,6 +282,11 @@ impl Workspace {
                 view.history.update(cx, |history, cx| {
                     history.sidebar_width(px(width - 1.), window, cx)
                 });
+                view.stashes
+                    .read(cx)
+                    .sidebar
+                    .clone()
+                    .update(cx, |split, cx| split.resize(px(width - 1.), window, cx));
             });
         }
 
@@ -287,14 +308,34 @@ impl Workspace {
             },
         )];
 
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::stashes::Submit, window, cx| {
+                this.submit_stash(id, event, window, cx)
+            },
+        ));
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::stashes::Completed, window, cx| {
+                this.stash_completed(id, event, window, cx)
+            },
+        ));
+
         let view = workspace.read(cx);
         let history = view.history.clone();
+        let stashes = view.stashes.clone();
+        let stash_sidebar = stashes.read(cx).sidebar.clone();
+        let stash_detail = stashes.read(cx).detail_split.clone();
         let split = view.split.clone();
+
+        state.push(cx.observe(&stashes, |this: &mut Self, _, cx| this.session_changed(cx)));
         let splits = history.read(cx).session_splits();
 
         state.push(cx.observe(&history, |this: &mut Self, _, cx| this.session_changed(cx)));
 
-        for split in [split, splits.0, splits.1] {
+        for split in [split, splits.0, splits.1, stash_sidebar, stash_detail] {
             state.push(cx.observe(&split, |this: &mut Self, _, cx| this.session_changed(cx)));
         }
 
@@ -487,7 +528,7 @@ impl Workspace {
 
     fn busy(&self, root: &std::path::Path, cx: &gpui::App) -> bool {
         self.sync_busy(root, cx)
-            || self.matching(root, cx).iter().any(|tab| {
+            || self.related(root, cx).iter().any(|tab| {
                 let view = tab.read(cx);
 
                 view.write_job.is_some() || view.load_job.is_some()
@@ -511,6 +552,10 @@ impl Workspace {
             let busy = root.is_some_and(|root| self.busy(&root, cx));
 
             tab.workspace.update(cx, |view, cx| {
+                let blocked=busy||view.refresh_blocked||!matches!(&view.state,RepositoryState::Ready(source) if super::write::available(source));
+
+                view.stashes.update(cx,|stashes,cx|stashes.configure(blocked,cx));
+
                 if view.repository_busy != busy {
                     view.repository_busy = busy;
                     cx.notify();
@@ -783,6 +828,7 @@ impl gpui::Render for Workspace {
 
         rake::view! {<onegit_ui::DialogHost state={self.branch_host.clone()} body={view.into_any_element()}>
             {self.branches.clone()}
+            for tab in &self.tabs {<div id={("stash-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).stashes.read(cx).form.clone()}</div>}
             for entry in self.syncs.values() {<div id={("sync",entry.state.entity_id())} class="absolute inset-0">{entry.state.clone()}</div>}
         </onegit_ui::DialogHost>}
     }

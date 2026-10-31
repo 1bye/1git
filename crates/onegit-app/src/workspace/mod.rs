@@ -5,6 +5,7 @@ mod history;
 mod home;
 mod native;
 mod read;
+mod stashes;
 mod sync;
 mod tabs;
 #[cfg(test)]
@@ -64,10 +65,11 @@ enum PreviewState {
     Failed(String),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Section {
     Changes,
     History,
+    Stashes,
 }
 
 pub(crate) use tabs::Workspace;
@@ -86,13 +88,14 @@ pub(crate) struct RepositoryWorkspace {
     home: gpui::Entity<home::Home>,
     home_visible: bool,
     history: gpui::Entity<history::HistoryWorkspace>,
+    stashes: gpui::Entity<stashes::Stashes>,
     selected: Option<ChangeKey>,
     preview: PreviewState,
     diff_state: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
     view: DiffView,
     focus: gpui::FocusHandle,
     files_focus: gpui::FocusHandle,
-    section_focus: [gpui::FocusHandle; 2],
+    section_focus: [gpui::FocusHandle; 3],
     filter: gpui::Entity<InputState>,
     filter_visible: bool,
     visible_files: Arc<[usize]>,
@@ -119,7 +122,7 @@ impl RepositoryWorkspace {
         cx: &mut gpui::Context<Self>,
         write_scope: Option<rake::tasks::TaskScope>,
     ) -> Self {
-        Self::build(window, cx, write_scope, None)
+        Self::build(window, cx, write_scope, None, None)
     }
 
     fn for_tab(
@@ -127,8 +130,9 @@ impl RepositoryWorkspace {
         cx: &mut gpui::Context<Self>,
         write_scope: Option<rake::tasks::TaskScope>,
         home: gpui::Entity<home::Home>,
+        host: &onegit_ui::DialogHostState,
     ) -> Self {
-        Self::build(window, cx, write_scope, Some(home))
+        Self::build(window, cx, write_scope, Some(home), Some(host))
     }
 
     fn build(
@@ -136,6 +140,7 @@ impl RepositoryWorkspace {
         cx: &mut gpui::Context<Self>,
         write_scope: Option<rake::tasks::TaskScope>,
         shared_home: Option<gpui::Entity<home::Home>>,
+        host: Option<&onegit_ui::DialogHostState>,
     ) -> Self {
         let hosted = shared_home.is_some();
 
@@ -159,7 +164,15 @@ impl RepositoryWorkspace {
 
         let history = cx.new(|cx| history::HistoryWorkspace::new(window, cx));
 
+        let stashes = cx.new(|cx| stashes::Stashes::new(host, window, cx));
+
         let mut subscriptions = vec![
+            cx.subscribe(&stashes, |_: &mut Self, _, event: &stashes::Submit, cx| {
+                cx.emit(stashes::Submit(event.0.clone()))
+            }),
+            cx.subscribe(&stashes, |this: &mut Self, _, _: &stashes::Refresh, cx| {
+                this.refresh(cx)
+            }),
             cx.subscribe(&history, |this: &mut Self, _, _: &history::Refresh, cx| {
                 this.refresh(cx)
             }),
@@ -199,6 +212,11 @@ impl RepositoryWorkspace {
                             this.history.update(cx, |history, cx| {
                                 history.sidebar_width(px(*width - 1.), window, cx)
                             });
+                            this.stashes
+                                .read(cx)
+                                .sidebar
+                                .clone()
+                                .update(cx, |split, cx| split.resize(px(*width - 1.), window, cx));
                         }
                     }
                 },
@@ -219,13 +237,14 @@ impl RepositoryWorkspace {
             home,
             home_visible: true,
             history,
+            stashes,
             selected: None,
             preview: PreviewState::Empty,
             diff_state: None,
             view: DiffView::Unified,
             focus,
             files_focus: cx.focus_handle(),
-            section_focus: [cx.focus_handle(), cx.focus_handle()],
+            section_focus: [cx.focus_handle(), cx.focus_handle(), cx.focus_handle()],
             filter,
             filter_visible: false,
             visible_files: Arc::from([]),
@@ -305,6 +324,7 @@ impl RepositoryWorkspace {
         self.diff_job = None;
         self.history
             .update(cx, |history, cx| history.set_source(None, cx));
+        self.stashes.update(cx, |stashes, cx| stashes.suspend(cx));
         self.selected = None;
         self.preview = PreviewState::Empty;
         self.picker_error = None;
@@ -431,6 +451,17 @@ impl RepositoryWorkspace {
 
             if self.section == Section::History {
                 history.activate(cx);
+            }
+        });
+        self.stashes.update(cx, |stashes, cx| {
+            stashes.source(Some(loaded.clone()), cx);
+            stashes.configure(
+                self.repository_busy || self.refresh_blocked || !write::available(&loaded),
+                cx,
+            );
+
+            if self.section == Section::Stashes {
+                stashes.activate(cx);
             }
         });
         self.state = RepositoryState::Ready(loaded);
@@ -570,6 +601,8 @@ impl RepositoryWorkspace {
                 .update(cx, |input, cx| input.set_text("", cx));
         }
 
+        let stash_completion = outcome.stash_completion;
+
         let branch_completion = outcome.branch_action.then(|| branches::Completed {
             root: path.clone(),
             loaded: outcome.loaded.clone(),
@@ -593,13 +626,33 @@ impl RepositoryWorkspace {
         });
 
         match outcome.loaded {
-            Ok(loaded) if outcome.branch_action => self.apply_automatic(loaded, cx),
+            Ok(loaded) if outcome.branch_action || stash_completion.is_some() => {
+                self.apply_automatic(loaded, cx)
+            }
             Ok(loaded) => self.apply_loaded(loaded, preferred, cx),
+            Err(error) if stash_completion.is_some() => {
+                self.refresh_blocked = true;
+                self.refresh_error = Some(format!(
+                    "Could not refresh after the stash action: {error}. Refresh before writing again."
+                ));
+            }
             Err(error) => {
                 self.selected = None;
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if let Some(completion) = stash_completion {
+            self.stashes.update(cx, |stashes, cx| {
+                stashes.finish(completion.result.clone(), window, cx)
+            });
+
+            if completion.applied && completion.result.is_ok() {
+                self.section = Section::Changes;
+            }
+
+            cx.emit(completion);
         }
 
         if let Some(completion) = branch_completion {
@@ -676,13 +729,21 @@ impl RepositoryWorkspace {
             return;
         }
 
+        let current = match self.section {
+            Section::Changes => 0usize,
+            Section::History => 1,
+            Section::Stashes => 2,
+        };
+
         let next = match event.keystroke.key.as_str() {
-            "up" | "left" | "home" => 0,
-            "down" | "right" | "end" => 1,
+            "up" | "left" => current.saturating_sub(1),
+            "down" | "right" => (current + 1).min(2),
+            "home" => 0,
+            "end" => 2,
             _ => return,
         };
 
-        let id = gpui::ElementId::from(if next == 0 { "changes" } else { "history" });
+        let id = gpui::ElementId::from(["changes", "history", "stashes"][next]);
 
         window.prevent_default();
         cx.stop_propagation();
@@ -693,9 +754,15 @@ impl RepositoryWorkspace {
     fn change_section(&mut self, id: &gpui::ElementId, cx: &mut gpui::Context<Self>) {
         self.section = if *id == gpui::ElementId::from("history") {
             Section::History
+        } else if *id == gpui::ElementId::from("stashes") {
+            Section::Stashes
         } else {
             Section::Changes
         };
+
+        if self.section == Section::Stashes {
+            self.stashes.update(cx, |stashes, cx| stashes.activate(cx));
+        }
 
         if self.section == Section::History {
             self.history.update(cx, |history, cx| history.activate(cx));
@@ -731,6 +798,17 @@ impl RepositoryWorkspace {
 
             if self.section == Section::History {
                 history.activate(cx);
+            }
+        });
+        self.stashes.update(cx, |stashes, cx| {
+            stashes.source(Some(loaded.clone()), cx);
+            stashes.configure(
+                self.repository_busy || self.refresh_blocked || !write::available(&loaded),
+                cx,
+            );
+
+            if self.section == Section::Stashes {
+                stashes.activate(cx);
             }
         });
         self.state = RepositoryState::Ready(loaded);

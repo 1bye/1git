@@ -263,3 +263,32 @@ controls and fast gpui-ce-motion width/height/opacity transitions. Its phase-loc
 rail gauge is painted as native GPU paths. Progress updates repaint only the small
 retained rail/panel views. Reduced motion snaps transitions and stops the unknown
 progress sweep; settled views do not request animation frames.
+
+## Stashes
+
+Open **Stashes** in the repository rail to inspect saved work without changing the
+working tree. The resizable sidebar shows newest stashes first and the selected
+stash's files below it. Select a file to preview its immutable saved diff, including
+saved untracked files. Unified/split diff modes, selection and pane sizes survive
+app restarts independently in each tab.
+
+Use **+ New stash** to save tracked edits with an optional message. Enable
+**Include untracked files** explicitly to save new files too; ignored files stay
+in place. Commit message/description drafts are retained. **Apply** restores the
+selected stash and keeps its saved copy. **More stash actions → Pop stash** applies
+and removes the exact saved entry after successful application. Apply/Pop require
+a clean worktree; conflicts keep the stash and show Git's refreshed result.
+
+**More stash actions → Delete stash…** opens a confirmation with Cancel focused.
+Deletion removes the saved entry, without replacing working files. Requests retain
+the reviewed branch/HEAD and stash OID, so branch switches or stash renumbering
+cannot silently retarget a form. Close/cancel never submits a write. Accepted
+operations show progress and errors, refresh related worktree tabs separately and
+preserve their drafts and navigation. An unconfirmed refresh blocks further writes
+until a fresh read. Pending operations and deletion consent are never restored.
+
+The source-style anchored forms use gpui-ce-motion with fast transitions,
+reduced-motion support and no settled animation loop. Existing text diff rendering
+reports binary or oversized patches explicitly; image previews and tree file
+layout are not part of this pass. Stash deletion safely refuses unsupported Git
+reference storage formats. No automatic retry or force option is offered.

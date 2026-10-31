@@ -10,6 +10,10 @@ use std::sync::Arc;
 pub(super) enum Operation {
     File(ChangedFile),
     Branch(onegit_git::BranchRequest),
+    Stash {
+        request: onegit_git::StashRequest,
+        peers: Vec<Arc<onegit_git::Repository>>,
+    },
     StageAll,
     UnstageAll,
     Commit {
@@ -27,6 +31,7 @@ impl Operation {
             Self::UnstageAll => "Unstaging all changes…",
             Self::Commit { .. } => "Creating commit…",
             Self::Branch(_) => "Updating branch…",
+            Self::Stash { .. } => "Updating saved work…",
         }
     }
 
@@ -38,6 +43,7 @@ impl Operation {
             Self::UnstageAll => "Changes unstaged",
             Self::Commit { .. } => "Commit created",
             Self::Branch(_) => "Branch updated",
+            Self::Stash { .. } => "Stash updated",
         }
     }
 }
@@ -47,6 +53,7 @@ pub(super) struct Outcome {
     pub result: Result<String, String>,
     pub committed: bool,
     pub branch_action: bool,
+    pub stash_completion: Option<super::stashes::Completed>,
 }
 
 pub(super) fn available(loaded: &Loaded) -> bool {
@@ -68,6 +75,10 @@ pub(super) fn staged_count(loaded: &Loaded) -> usize {
 }
 
 pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
+    if let Operation::Stash { request, peers } = &operation {
+        return run_stash(loaded, request, peers);
+    }
+
     if let Operation::Branch(request) = &operation {
         return run_branch(loaded, request);
     }
@@ -131,6 +142,9 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                     repository.stage(&paths, None)?
                 }
             }
+            Operation::Stash { .. } => {
+                unreachable!("stash operations use their reviewed write guard")
+            }
             Operation::Branch(_) => {
                 unreachable!("branch operations use their reviewed write guard")
             }
@@ -173,6 +187,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             result: Ok(detail),
             committed,
             branch_action: false,
+            stash_completion: None,
         },
         Err(error) => {
             let boundary = match error.phase {
@@ -198,6 +213,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                 result: Err(detail),
                 committed: false,
                 branch_action: false,
+                stash_completion: None,
             }
         }
     }
@@ -223,6 +239,7 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
                 result: Ok(detail),
                 committed: false,
                 branch_action: true,
+                stash_completion: None,
             }
         }
         Err(error) => {
@@ -250,7 +267,96 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
                 result: Err(detail),
                 committed: false,
                 branch_action: true,
+                stash_completion: None,
             }
         }
+    }
+}
+
+fn run_stash(
+    loaded: Arc<Loaded>,
+    request: &onegit_git::StashRequest,
+    peers: &[Arc<onegit_git::Repository>],
+) -> Outcome {
+    use onegit_git::{Failure, StashAction};
+    let operation = match request.action {
+        StashAction::Save { .. } => onegit_git::Operation::Stash,
+        StashAction::Apply(_) => onegit_git::Operation::ApplyStash,
+        StashAction::Pop(_) => onegit_git::Operation::PopStash,
+        StashAction::Delete(_) => onegit_git::Operation::DropStash,
+    };
+
+    let result=loaded.repository.change_stash(request,None).map(|_|()).map_err(|error|{
+        let failure=Failure::from_repository(operation,&error.error);
+        let boundary=match error.phase{WritePhase::BeforeCommand=>"The stash action did not start.",WritePhase::Command=>"Git may have made partial changes. Review the refreshed files and saved stashes before trying again.",WritePhase::Refresh=>"Saved work may already have changed. Refresh and review before submitting again."};
+
+        format!("{}\n{}\n{boundary}",failure.message,failure.details.unwrap_or_default())
+    });
+
+    // Status reads reveal partial effects; the accepted action is never repeated.
+    let mut repositories = peers.to_vec();
+
+    if !repositories
+        .iter()
+        .any(|repo| repo.info().root == loaded.snapshot.repository.root)
+    {
+        repositories.push(loaded.repository.clone());
+    }
+
+    let snapshots: Vec<_> = repositories
+        .into_iter()
+        .map(|repo| {
+            let root = repo.info().root.clone();
+
+            let snapshot = repo
+                .snapshot(false, None)
+                .map(|snapshot| read::from_snapshot(repo, snapshot))
+                .map_err(|error| {
+                    let failure =
+                        Failure::from_repository(onegit_git::Operation::GetSnapshot, &error);
+
+                    format!(
+                        "{} {}",
+                        failure.message,
+                        failure.details.unwrap_or_default()
+                    )
+                });
+
+            (root, snapshot)
+        })
+        .collect();
+
+    let refreshed = snapshots
+        .iter()
+        .find(|(root, _)| *root == loaded.snapshot.repository.root)
+        .expect("origin refresh exists")
+        .1
+        .clone();
+
+    let result = if result.is_ok() && snapshots.iter().any(|(_, snapshot)| snapshot.is_err()) {
+        Err("Git completed the stash action, but a related repository could not be refreshed. Review it before writing again.".into())
+    } else {
+        result
+    };
+
+    let applied = matches!(request.action, StashAction::Apply(_) | StashAction::Pop(_));
+
+    let message = match request.action {
+        StashAction::Save { .. } => "Changes saved to stash",
+        StashAction::Apply(_) => "Stash applied; saved copy kept",
+        StashAction::Pop(_) => "Stash applied and removed",
+        StashAction::Delete(_) => "Stash deleted",
+    };
+
+    Outcome {
+        loaded: refreshed,
+        result: result.clone().map(|()| message.into()),
+        committed: false,
+        branch_action: false,
+        stash_completion: Some(super::stashes::Completed {
+            snapshots,
+            result,
+            applied,
+        }),
     }
 }

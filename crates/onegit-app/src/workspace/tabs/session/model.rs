@@ -29,6 +29,8 @@ pub(in crate::workspace) struct SavedTab {
     pub filter_visible: bool,
     pub sidebar: f32,
     pub history: History,
+    #[serde(default)]
+    pub stashes: Option<StashView>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,6 +38,16 @@ pub(in crate::workspace) struct History {
     pub commit: Option<String>,
     pub file: Option<Vec<u8>>,
     pub rows: usize,
+    pub split_diff: bool,
+    pub sidebar: f32,
+    pub detail_fraction: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(in crate::workspace) struct StashView {
+    pub visible: bool,
+    pub selected: Option<String>,
+    pub file: Option<(String, Vec<u8>)>,
     pub split_diff: bool,
     pub sidebar: f32,
     pub detail_fraction: f32,
@@ -116,6 +128,31 @@ impl Document {
 
         for tab in &self.tabs {
             tab.root.path()?;
+
+            if let Some(saved) = &tab.stashes {
+                for oid in saved
+                    .selected
+                    .iter()
+                    .chain(saved.file.iter().map(|(oid, _)| oid))
+                {
+                    if !matches!(oid.len(), 40 | 64) || !oid.bytes().all(|b| b.is_ascii_hexdigit())
+                    {
+                        return Err("Session contains an invalid stash identity".into());
+                    }
+                }
+
+                if let Some((_, path)) = &saved.file {
+                    GitPath::new(path).map_err(|e| e.to_string())?;
+                }
+
+                if !saved.sidebar.is_finite()
+                    || !(0.0..=100_000.).contains(&saved.sidebar)
+                    || !saved.detail_fraction.is_finite()
+                    || !(0.0..=1.0).contains(&saved.detail_fraction)
+                {
+                    return Err("Session contains invalid stash pane sizes".into());
+                }
+            }
 
             if let Some(change) = &tab.selected {
                 GitPath::new(&change.path).map_err(|e| e.to_string())?;

@@ -450,3 +450,69 @@ fn removed_nested_git_directory_does_not_attach_draft_to_parent_repository() {
         assert!(matches!(&view.state,RepositoryState::Failed{error,..}if error.contains("same repository root")));assert_eq!(view.summary.read(cx).text(),"Nested draft");}).unwrap();
     close(&mut cx, view);
 }
+
+#[test]
+fn restart_restores_stash_navigation_and_drafts_without_restoring_pending_actions() {
+    let f = Fixture::new();
+
+    f.write("a.txt", "base\n");
+    f.commit();
+    f.write("a.txt", "saved\n");
+    f.git(&["stash", "push", "-m", "Saved"]);
+    let before = contents(&f.root);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("workspace.json");
+    let (mut cx, view) = setup(&f);
+
+    enable(view, &mut cx, &path);
+    let tab = open(&mut cx, view, &f.root);
+
+    tab.update(&mut cx, |tab, cx| {
+        tab.summary
+            .update(cx, |input, cx| input.set_text("Draft kept", cx));
+        tab.description
+            .update(cx, |input, cx| input.set_text("Body kept", cx));
+        tab.change_section(&gpui::ElementId::from("stashes"), cx);
+    });
+    draw(&mut cx, view);
+    view.update(&mut cx, |_, window, cx| {
+        tab.update(cx, |tab, cx| {
+            tab.stashes.update(cx, |stashes, cx| {
+                let mut saved = stashes.session(cx);
+
+                saved.split_diff = true;
+                saved.sidebar = 375.;
+                saved.detail_fraction = 0.62;
+                stashes.restore(&saved, window, cx);
+            });
+        })
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    let expected = view
+        .read_with(&cx, |workspace, cx| workspace.capture_session(cx))
+        .unwrap();
+
+    close(&mut cx, view);
+    assert_eq!(Store::load(&path).unwrap(), Some(expected.clone()));
+    let (mut next, restored) = restart(&f, &path);
+
+    let actual = restored
+        .read_with(&next, |workspace, cx| {
+            assert_eq!(workspace.tabs.len(), 1);
+            let tab = workspace.tabs[0].workspace.read(cx);
+
+            assert_eq!(tab.section, Section::Stashes);
+            assert!(tab.write_job.is_none());
+            assert!(!workspace.branch_host.is_open(cx));
+            assert_eq!(tab.summary.read(cx).text(), "Draft kept");
+            assert_eq!(tab.description.read(cx).text(), "Body kept");
+
+            workspace.capture_session(cx)
+        })
+        .unwrap();
+
+    assert_eq!(actual, expected);
+    close(&mut next, restored);
+    assert_eq!(contents(&f.root), before);
+}

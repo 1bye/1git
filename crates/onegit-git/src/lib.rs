@@ -48,10 +48,10 @@ pub use repository::{
     ReorderCommits, ReplayCommit, Repository, RepositoryCoordinator, RepositoryError,
     RepositoryInfo, ResetCommit, ResetCommitPlan, ResetCommitResult, ResetMode, ResetOptions,
     ResolveConflict, RestoreOptions, RevertOptions, SavedBranchChanges, SetRemoteUrl, Snapshot,
-    SquashCommits, Stash, StashOptions, StashReference, SyncBranch, SyncKind, SyncOperation,
-    SyncResult, Tag, TagKind, TagPushResult, UndoCommitResult, Worktree, WorktreeBranch,
-    WorktreeMutation, WorktreeRequest, WriteError, WritePhase, ignore_extension, ignore_folders,
-    ignore_pattern, select_hunk_patch,
+    SquashCommits, Stash, StashAction, StashOptions, StashReference, StashRequest, SyncBranch,
+    SyncKind, SyncOperation, SyncResult, Tag, TagKind, TagPushResult, UndoCommitResult, Worktree,
+    WorktreeBranch, WorktreeMutation, WorktreeRequest, WriteError, WritePhase, ignore_extension,
+    ignore_folders, ignore_pattern, select_hunk_patch,
 };
 
 pub use status::{

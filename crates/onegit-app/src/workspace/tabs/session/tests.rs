@@ -12,6 +12,7 @@ fn document(path: &std::path::Path) -> Document {
 
 fn tab(path: &std::path::Path, summary: &str) -> SavedTab {
     SavedTab {
+        stashes: None,
         root: Root::capture(path),
         summary: summary.into(),
         description: "Details ✨\nKeep whitespace  ".into(),
@@ -147,4 +148,36 @@ fn preserves_non_utf8_repository_roots_and_private_permissions() {
         fs::metadata(path).unwrap().permissions().mode() & 0o777,
         0o600
     );
+}
+
+#[test]
+fn older_sessions_load_without_stashes_and_invalid_saved_stash_intent_is_rejected() {
+    let temporary = tempfile::tempdir().unwrap();
+    let expected = document(temporary.path());
+    let mut value = serde_json::to_value(&expected).unwrap();
+
+    for tab in value["tabs"].as_array_mut().unwrap() {
+        tab.as_object_mut().unwrap().remove("stashes");
+    }
+
+    let mut loaded: Document = serde_json::from_value(value).unwrap();
+
+    assert_eq!(loaded, expected);
+    loaded.tabs[0].stashes = Some(StashView {
+        visible: true,
+        selected: Some("a".repeat(40)),
+        file: Some(("b".repeat(40), b"a.txt".to_vec())),
+        split_diff: true,
+        sidebar: 310.,
+        detail_fraction: 0.5,
+    });
+    loaded.validate().unwrap();
+    loaded.tabs[0].stashes.as_mut().unwrap().selected = Some("invalid".into());
+    assert!(loaded.validate().is_err());
+    loaded.tabs[0].stashes.as_mut().unwrap().selected = None;
+    loaded.tabs[0].stashes.as_mut().unwrap().file = Some(("b".repeat(40), b"../outside".to_vec()));
+    assert!(loaded.validate().is_err());
+    loaded.tabs[0].stashes.as_mut().unwrap().file = None;
+    loaded.tabs[0].stashes.as_mut().unwrap().sidebar = f32::NAN;
+    assert!(loaded.validate().is_err());
 }

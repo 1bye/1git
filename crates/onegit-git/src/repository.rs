@@ -51,6 +51,11 @@ pub use sequences::{
     CherryPickCommit, CommitIndex, IndexCommitResult, ReplayCommit, RevertOptions,
 };
 
+#[path = "stash.rs"]
+mod stash;
+
+pub use stash::{StashAction, StashRequest};
+
 #[path = "metadata_writes.rs"]
 mod metadata_writes;
 

@@ -43,8 +43,14 @@ pub enum DialogPresentation {
         /// Preferred content height in logical pixels, constrained to the viewport.
         height: gpui::Pixels,
     },
-    /// Compact attached surface whose content supplies its own padding and visible heading.
-    /// The origin and animated height are logical pixels, constrained to the viewport.
+    /// Anchored modal popover with caller-owned content and a dimmed dismissal layer.
+    Popover {
+        /// Preferred top-left point in window coordinates.
+        origin: gpui::Point<gpui::Pixels>,
+        /// Preferred animated content height.
+        height: gpui::Pixels,
+    },
+    /// Compact attached surface with caller-owned content.
     Attached {
         /// Preferred top-left point in the window.
         origin: gpui::Point<gpui::Pixels>,
@@ -214,11 +220,13 @@ impl Dialog {
         let close = self.state.clone();
 
         let attached = matches!(self.presentation, DialogPresentation::Attached { .. });
+        let popover = matches!(self.presentation, DialogPresentation::Popover { .. });
         let compact = !matches!(self.presentation, DialogPresentation::Standard);
 
         let height = match self.presentation {
             DialogPresentation::Attached { height, .. }
-            | DialogPresentation::Compact { height } => Some(height),
+            | DialogPresentation::Compact { height }
+            | DialogPresentation::Popover { height, .. } => Some(height),
             DialogPresentation::Standard => None,
         };
 
@@ -274,7 +282,7 @@ impl Dialog {
                     .id("backdrop")
                     .absolute()
                     .inset_0()
-                    .bg(gpui::rgba(if attached {
+                    .bg(gpui::rgba(if popover || attached {
                         0x00000066
                     } else if compact {
                         0x0000005c
@@ -297,7 +305,8 @@ impl Dialog {
                     .items_center()
                     .justify_center()
                     .child(panel),
-                DialogPresentation::Attached { origin, height } => {
+                DialogPresentation::Attached { origin, height }
+                | DialogPresentation::Popover { origin, height } => {
                     let width = self.width.min((viewport.width - px(16.)).max(px(1.)));
                     let height = height.min((viewport.height - px(16.)).max(px(1.)));
 

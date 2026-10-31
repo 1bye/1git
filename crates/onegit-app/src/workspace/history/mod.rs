@@ -1,5 +1,5 @@
 //! App-owned commit history and selection, independent from uncommitted changes.
-mod read;
+pub(super) mod read;
 mod session;
 #[cfg(test)]
 mod tests;

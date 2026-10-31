@@ -261,7 +261,7 @@ impl RepositoryWorkspace {
                 </div></Tooltip>
                 <div class="w-5 h-[1px] bg-line"/>
                 <div role={accesskit::Role::TabList} aria-label="Repository views" class="flex flex-col gap-1">
-                    for (index,(section,id,label,icon)) in [(Section::Changes,"changes","Changes",IconName::Changes),(Section::History,"history","History",IconName::History)].into_iter().enumerate() {
+                    for (index,(section,id,label,icon)) in [(Section::Changes,"changes","Changes",IconName::Changes),(Section::History,"history","History",IconName::History),(Section::Stashes,"stashes","Stashes",IconName::Stashes)].into_iter().enumerate() {
                         <Tooltip id={format!("rail-tip-{id}").into()} {..Tooltip::new("section-tip",label)}>
                             <button id={id} focus={&self.section_focus[index]} tabindex={if self.section==section {0}else{-1}} disabled={!ready} aria-label={label} class="size-[32px] flex items-center justify-center rounded-[6px] border-1 focus-visible:border-focus-ring"
                                 style={|s|s.border_color(gpui::transparent_black()).role(accesskit::Role::Tab).aria_selected(self.section==section).bg(if self.section==section && ready {theme.hairline}else{gpui::transparent_black()}).text_color(if self.section==section {theme.ink}else{theme.muted_ink}).hover(|s|s.bg(theme.hairline)).debug_selector(move ||format!("tab-{id}"))
@@ -272,7 +272,6 @@ impl RepositoryWorkspace {
                         </Tooltip>
                     }
                 </div>
-                <Tooltip {..Tooltip::new("stashes-unavailable","Stashes are not ported to Rust yet")}><div class="size-[32px] flex items-center justify-center text-muted-ink"><Icon size={IconSize::Navigation} label={Some("Stashes unavailable".into())} {..Icon::new("stashes",IconName::Stashes)}/></div></Tooltip>
                 <Tooltip {..Tooltip::new("graph-unavailable","Graph is not ported to Rust yet")}><div class="size-[32px] flex items-center justify-center text-muted-ink"><Icon size={IconSize::Navigation} label={Some("Graph unavailable".into())} {..Icon::new("graph",IconName::Graph)}/></div></Tooltip>
                 }
                 <div class="flex-1 w-full" style={|s|s.on_mouse_down(gpui::MouseButton::Left,|_,window,_|window.start_window_move())}/>

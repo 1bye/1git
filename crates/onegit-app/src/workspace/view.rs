@@ -293,6 +293,14 @@ impl Render for RepositoryWorkspace {
 
                     rake::view!{<div class="size-full flex flex-col"><div class="flex-1 min-h-0">{message}</div><div class="p-7"><Button on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.refresh(cx))))} {..Button::new("retry-repository","Retry")}/></div></div>}.into_any_element()
                 }
+                RepositoryState::Ready(_) if self.section == Section::Stashes => {
+                    let blocked = !self.can_write();
+
+                    self.stashes
+                        .update(cx, |stashes, cx| stashes.configure(blocked, cx));
+
+                    self.stashes.clone().into_any_element()
+                }
                 RepositoryState::Ready(_) if self.section == Section::History => {
                     self.history.clone().into_any_element()
                 }

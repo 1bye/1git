@@ -113,7 +113,7 @@ pub(super) fn page_with_limit(
     })
 }
 
-pub(super) fn patch(
+pub(in crate::workspace) fn patch(
     repository: &Repository,
     oid: &str,
     file: &CommitFile,

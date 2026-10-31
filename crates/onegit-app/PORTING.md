@@ -296,3 +296,91 @@ FETCH_HEAD and ref digests in the existing onbot/pkgs repositories remained exac
 The persisted workspace document also matched the pre-check document. The rebuilt,
 signed app bundle is installed and running; operations/consent are not restored.
 No changeset is needed for these unpublished Rust crates.
+
+## Stash management
+
+| Source | Rust |
+| --- | --- |
+| `RepositoryStashes.read/entry`, lazy `useRepositoryStashes` | `workspace/stashes::{Stashes, view}` |
+| `RepositoryStashes.readFiles`, saved revision diff reads | `stashes/read.rs`, shared immutable `history::read::patch` |
+| `RepositoryStashActions` create/delete popovers and Apply row | `stashes/{form,view}.rs`, shared window `DialogHost` |
+| `RepositoryStashes.write`, `StashDeletion.run` | reviewed `Repository::change_stash`, `onegit-git/src/stash.rs` |
+| Shared stash mutation refresh and per-tab intent | `tabs/stash_actions.rs`, `write::run_stash`, optional session `StashView` |
+
+The source `state.unit.test.ts` OID-renumbering/removal/cache/late-read contracts map
+to `reads_lazily_selects_first_files_keeps_immutable_selection_and_patch_after_renumbering`
+and `repository_replacement_cancels_obsolete_list_and_file_reads`.
+The source `stashes.integration.test.ts` create/apply/identity/conflict cases map
+to the corresponding `stashes/tests.rs` real-Git tests. Saved tracked and third-parent
+untracked previews include separate immutable revisions when paths coincide.
+The source deletion race/packed-ref cases map to
+`git_stash_lock_excludes_an_external_writer_during_reviewed_identity_lookup`,
+`final_ref_cleanup_keeps_a_new_stash_inserted_by_an_external_client`,
+`packed_last_stash_deletion_preserves_head_index_and_working_files`, and the
+renumbering, middle-entry and duplicate-ID/corrupt-reflog/foreign-lock tests.
+
+Source `actions.component.test.tsx` confirmation, cancellation, captured request,
+busy guard, failure/retry and layout cases map to `stashes/form_tests.rs`, native
+stash state tests and `tabs/stash_tests.rs`. Source lazy read, automatic preview,
+cache and tab-retention cases map to the native stash tests. The full source suite
+passes 25 tests. Native modal tests check Cancel focus for deletion, narrow-window
+placement above the trigger, animated error height, reduced motion and settled
+animation values. The restart test uses real serialized workspace state and a new
+window; older version-1 documents without the optional stash field still load.
+
+Save includes all tracked changes and optionally untracked files; ignored files
+remain untouched. Apply preserves the saved copy and requires a clean worktree.
+Pop is the requested extension to the source UI: apply the exact OID first, then
+remove only that OID after success. Conflicts keep saved work. Failure to delete
+an already-applied Pop is reported as partial completion, never as an unstarted
+write. Destructive deletion always requires the captured confirmation and rejects
+ambiguous duplicate OIDs. The files reference backend uses Git's stash ref lock
+through OID lookup and reflog replacement; final packed/loose ref cleanup uses
+compare-and-delete, preserving concurrent inserts. Other ref backends fail safely.
+No operation is replayed automatically.
+
+Related worktrees share busy guards. Accepted work stays busy through fresh
+reads of each distinct open ready worktree; each exact-root tab gets its own
+worktree's snapshot, keeping drafts, filters, file selection and panes. Failed
+refreshes retain the last view and block writes until a fresh read. Successful
+Apply/Pop opens Changes only in the originating tab. Stash list/file selection,
+diff mode and pane sizes are saved per tab; pending actions and confirmation are
+never serialized. The immutable preview/cache survives renumbering and refresh.
+
+The Stashes view uses the source 48-pixel saved rows, 28-pixel file rows, stacked
+resizable sidebar, action row, footer, original static empty-state vectors and
+anchored create/delete forms. Buttons, menus and toasts reuse the existing motion
+components. The forms use a fast 140 ms gpui-ce-motion opacity/height transition;
+reduced motion snaps, and settled forms request no animation frames. Binary and
+oversized patches retain the existing Rust notice behavior; source raster-image
+previews and tree file layout are separate remaining renderer features.
+
+Validation: 128 app tests, 312 Git tests and 101 UI/gallery tests pass. All 25
+original stash tests pass. Strict workspace all-target/all-feature Clippy,
+workspace spacing (including Windows/Linux Git code), rustfmt and app/UI/Git
+rustdoc pass. Native layout tests compare the source action-row measurements at
+wide/narrow widths, including stable panes under modal forms. Actual GUI writes
+were restricted to disposable fixtures; the real repositories are inspected
+read-only. The final native comparison is recorded below.
+No changeset is required for these unpublished Rust crates.
+
+The create form preserves a cancelled message across other stash operations and
+retains the untracked checkbox after a successful save, matching the source's
+separate create/selection form state. Only an accepted successful Save clears its
+message. Commit drafts remain independent throughout.
+
+Native accessibility activation exposed a focus-ownership bug that the fake test
+platform does not activate: both selected lists claimed an active descendant while
+the workspace ancestor had focus. Rows now use History's non-button list semantics
+and only the focused list marks its selected descendant. Repeated OIDs mark only
+one row, while writes remain safely rejected as ambiguous. Pane keyboard focus
+and tab navigation have regression coverage; final native startup is checked
+with the OS accessibility adapter active.
+
+The final foreground Rust capture shows the corrected left-aligned stash title
+and date, visible Apply/More/New stash controls, 93 saved files and the selected
+`.dockerignore` unified preview (+39/-0) in pkgs. The source app was inspected
+on the same repository, stash and file; source fixtures provided the row and
+form measurements. Native restart, file-list Up/Down and Tab navigation passed
+with accessibility active. The final source background capture remained a
+Stage Manager thumbnail, so this is not a claim of whole-app pixel parity.
