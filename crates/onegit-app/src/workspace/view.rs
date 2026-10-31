@@ -284,11 +284,15 @@ impl Render for RepositoryWorkspace {
                 RepositoryState::Loading(path) => {
                     notice("opening", "Opening repository…", path.display().to_string())
                 }
-                RepositoryState::Failed { error, .. } => notice(
-                    "repository-error",
-                    "Could not open this repository",
-                    error.clone(),
-                ),
+                RepositoryState::Failed { error, .. } => {
+                    let message = notice(
+                        "repository-error",
+                        "Could not open this repository",
+                        format!("{error} Your saved draft and view settings are kept."),
+                    );
+
+                    rake::view!{<div class="size-full flex flex-col"><div class="flex-1 min-h-0">{message}</div><div class="p-7"><Button on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.refresh(cx))))} {..Button::new("retry-repository","Retry")}/></div></div>}.into_any_element()
+                }
                 RepositoryState::Ready(_) if self.section == Section::History => {
                     self.history.clone().into_any_element()
                 }
@@ -321,6 +325,7 @@ impl Render for RepositoryWorkspace {
                 <div class="flex-1 min-w-0 min-h-0 flex flex-row">
                     {rail}
                     <div class="flex-1 min-w-0 min-h-0 mr-1.5 mb-1.5 rounded-[14px] bg-surface overflow-hidden flex flex-col" style={|s|s.debug_selector(||"workspace-surface".into())}>
+                        if let Some(error)=&self.session_error{<div class="px-4 py-2"><Text tone={TextTone::Danger} {..Text::new("session-error",error.clone())}/></div>}
                         if let Some(error)=&self.picker_error{<div class="px-4 py-2"><Text tone={TextTone::Danger} {..Text::new("picker-error",error.clone())}/></div>}
                         if let Some(error)=&self.refresh_error {<div class="px-4 py-2 flex items-center gap-2"><div class="flex-1"><Text tone={TextTone::Danger} {..Text::new("refresh-error",error.clone())}/></div><Button size={ControlSize::Small} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.refresh(cx))))} {..Button::new("retry-refresh","Refresh")}/></div>}
                         <div class="flex-1 min-h-0 min-w-0">{body}</div>

@@ -1,5 +1,5 @@
 //! Searchable Home library; browsing preserves the mounted repository and its commit draft.
-mod library;
+pub(in crate::workspace) mod library;
 #[cfg(test)]
 mod tests;
 mod view;

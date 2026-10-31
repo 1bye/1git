@@ -15,10 +15,21 @@ pub(super) struct Page {
     pub total: Option<u64>,
 }
 
+#[cfg(test)]
 pub(super) fn page(
     source: &Loaded,
     offset: u64,
     previous: CommitListData,
+    cancel: &Cancellation,
+) -> Result<Page, String> {
+    page_with_limit(source, offset, previous, 50, cancel)
+}
+
+pub(super) fn page_with_limit(
+    source: &Loaded,
+    offset: u64,
+    previous: CommitListData,
+    limit: usize,
     cancel: &Cancellation,
 ) -> Result<Page, String> {
     let page = match source.snapshot.status.head.oid.as_deref() {
@@ -26,7 +37,7 @@ pub(super) fn page(
             .repository
             .history(
                 HistoryOptions {
-                    limit: 50,
+                    limit,
                     offset,
                     revision: Some(tip),
                     ..Default::default()

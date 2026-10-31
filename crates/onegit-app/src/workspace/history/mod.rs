@@ -1,5 +1,6 @@
 //! App-owned commit history and selection, independent from uncommitted changes.
 mod read;
+mod session;
 #[cfg(test)]
 mod tests;
 mod view;
@@ -32,6 +33,8 @@ pub(super) struct HistoryWorkspace {
     list_state: gpui::Entity<onegit_ui::CommitListState>,
     commits: HashMap<gpui::SharedString, Arc<CommitInfo>>,
     page_loaded: bool,
+    restore_rows: Option<usize>,
+    restoring_file: Option<GitPath>,
     total: Option<u64>,
     next_offset: Option<u64>,
     page_error: Option<String>,
@@ -86,6 +89,8 @@ impl HistoryWorkspace {
             list_state: cx.new(onegit_ui::CommitListState::new),
             commits: HashMap::new(),
             page_loaded: false,
+            restore_rows: None,
+            restoring_file: None,
             total: None,
             next_offset: None,
             page_error: None,
@@ -131,6 +136,8 @@ impl HistoryWorkspace {
             return;
         }
 
+        self.restore_rows = None;
+        self.restoring_file = None;
         self.page_job = None;
         self.detail_job = None;
         self.patch_job = None;
@@ -204,9 +211,11 @@ impl HistoryWorkspace {
         let previous = self.data.clone();
 
         self.page_error = None;
+        let limit = self.restore_rows.unwrap_or(50).max(50);
+
         self.page_job = Some(spawn_read(
             cx,
-            move |cancel| read::page(&source, offset, previous, &cancel),
+            move |cancel| read::page_with_limit(&source, offset, previous, limit, &cancel),
             |this, result, cx| {
                 this.page_job = None;
 
@@ -218,6 +227,7 @@ impl HistoryWorkspace {
                                 .map(|commit| (commit.oid.clone().into(), Arc::new(commit))),
                         );
                         this.data = page.data;
+                        this.restore_rows = None;
 
                         if page.total.is_some() {
                             this.total = page.total;
@@ -242,56 +252,9 @@ impl HistoryWorkspace {
     }
 
     fn select_commit(&mut self, oid: gpui::SharedString, cx: &mut gpui::Context<Self>) {
-        let Some(source) = &self.source else {
-            return;
-        };
-
-        let Some(commit) = self.commits.get(&oid).cloned() else {
-            return;
-        };
-
-        let repository = source.repository.clone();
-
-        self.detail_job = None;
-        self.patch_job = None;
-        self.selected = Some(oid);
-        self.detail = DetailState::Loading;
-        self.file = None;
-        self.preview = PreviewState::Empty;
-        self.files_scroll
-            .0
-            .borrow()
-            .base_handle
-            .set_offset(gpui::point(px(0.), px(0.)));
-        self.detail_job = Some(spawn_read(
-            cx,
-            move |cancel| {
-                let files = repository
-                    .commit_files(&commit.oid, Some(&cancel))
-                    .map_err(super::read::message)?;
-
-                Ok(Arc::new(Details { commit, files }))
-            },
-            |this, result, cx| {
-                this.detail_job = None;
-
-                match result {
-                    Ok(details) => {
-                        let first = details.files.first().map(|file| file.path.clone());
-
-                        this.detail = DetailState::Ready(details);
-
-                        if let Some(path) = first {
-                            this.select_file(path, cx);
-                        }
-                    }
-                    Err(error) => this.detail = DetailState::Failed(error),
-                }
-
-                cx.notify();
-            },
-        ));
-        cx.notify();
+        if let Some(commit) = self.commits.get(&oid).cloned() {
+            self.load_commit(oid, Some(commit), None, cx);
+        }
     }
 
     fn select_file(&mut self, path: GitPath, cx: &mut gpui::Context<Self>) {

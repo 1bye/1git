@@ -66,7 +66,7 @@ pub(super) struct Overview {
     pub avatar: Option<Arc<gpui::Image>>,
 }
 
-pub(super) fn data_directory(name: &str) -> Option<PathBuf> {
+pub(in crate::workspace) fn data_directory(name: &str) -> Option<PathBuf> {
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
 
     let root = if cfg!(target_os = "macos") {

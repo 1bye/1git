@@ -1,6 +1,7 @@
 //! Window-owned tabs retain independent workspaces; filesystem reads are shared by canonical root.
 mod motion;
 mod refresh;
+pub(in crate::workspace) mod session;
 #[cfg(all(test, feature = "test-support"))]
 mod tests;
 mod view;
@@ -49,6 +50,7 @@ struct Tab {
     close_focus: gpui::FocusHandle,
     _observe: gpui::Subscription,
     _events: gpui::Subscription,
+    _state: Vec<gpui::Subscription>,
 }
 
 struct Monitor {
@@ -73,6 +75,9 @@ pub(crate) struct Workspace {
     presentation: motion::Shared,
     write_scope: Option<rake::tasks::TaskScope>,
     process: onegit_git::GitProcess,
+    session: Option<session::Session>,
+    session_load: Option<gpui::Task<()>>,
+    session_error: Option<String>,
     _subscriptions: Vec<gpui::Subscription>,
 }
 
@@ -125,7 +130,7 @@ impl Workspace {
             }),
         ];
 
-        Self {
+        let mut workspace = Self {
             home,
             welcome,
             tabs: Vec::new(),
@@ -140,12 +145,20 @@ impl Workspace {
             ))),
             write_scope,
             process: read::process(),
+            session: None,
+            session_load: None,
+            session_error: None,
             _subscriptions: subscriptions,
-        }
+        };
+
+        workspace.session_subscriptions(window, cx);
+
+        workspace
     }
 
     pub fn load_home(&mut self, cx: &mut gpui::Context<Self>) {
         self.home.update(cx, |home, cx| home.load(cx));
+        self.load_session(cx);
     }
 
     fn request(
@@ -181,10 +194,21 @@ impl Workspace {
             }
         }
 
+        self.session_changed(cx);
         cx.notify();
     }
 
     fn open(&mut self, path: PathBuf, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
+        self.add_tab(path, None, window, cx);
+    }
+
+    fn add_tab(
+        &mut self,
+        path: PathBuf,
+        saved: Option<session::SavedTab>,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         let id = self.next_id;
 
         self.next_id += 1;
@@ -204,8 +228,32 @@ impl Workspace {
             });
         }
 
+        let restoring = saved.is_some();
+
+        if let Some(saved) = saved {
+            workspace.update(cx, |view, cx| {
+                view.state = RepositoryState::Loading(path.clone());
+                view.home_visible = false;
+                saved.install(view, window, cx);
+            });
+        }
+
+        let mut state = Vec::new();
+        let view = workspace.read(cx);
+        let history = view.history.clone();
+        let split = view.split.clone();
+        let splits = history.read(cx).session_splits();
+
+        state.push(cx.observe(&history, |this: &mut Self, _, cx| this.session_changed(cx)));
+
+        for split in [split, splits.0, splits.1] {
+            state.push(cx.observe(&split, |this: &mut Self, _, cx| this.session_changed(cx)));
+        }
+
         let observe = cx.observe(&workspace, |this: &mut Self, _, cx| {
             this.reconcile(cx);
+            this.pump_restore(cx);
+            this.session_changed(cx);
             cx.notify();
         });
 
@@ -222,17 +270,24 @@ impl Workspace {
             close_focus: cx.focus_handle(),
             _observe: observe,
             _events: events,
+            _state: state,
         });
         self.active = Some(id);
-        workspace.update(cx, |view, cx| view.open(path, None, cx));
+
+        if !restoring {
+            workspace.update(cx, |view, cx| view.open(path, None, cx));
+        }
+
         window.focus(&workspace.read(cx).focus.clone(), cx);
         self.reveal_tab(self.tabs.len() - 1, window);
+        self.session_changed(cx);
         cx.notify();
     }
 
     fn activate(&mut self, id: u64, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
         if let Some(index) = self.tabs.iter().position(|tab| tab.id == id) {
             self.active = Some(id);
+            self.session_changed(cx);
             window.focus(&self.tabs[index].workspace.read(cx).focus.clone(), cx);
 
             if !self.presentation.borrow().dragging() {
@@ -644,7 +699,10 @@ impl gpui::Render for Workspace {
             scroll: self.scroll.clone(),
         };
 
-        view.update(cx, |view, _| view.tab_strip = Some(strip));
+        view.update(cx, |view, _| {
+            view.tab_strip = Some(strip);
+            view.session_error = self.session_error.clone();
+        });
 
         view
     }

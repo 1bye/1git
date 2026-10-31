@@ -72,8 +72,7 @@ failure cases map to `tabs/tests.rs`. `watch.rs` additionally exercises real nes
 file changes, external shared refs and watcher teardown for a linked worktree.
 Shared UI viewport state is explicitly retained outside the render tree.
 
-Tab/draft session restoration after relaunch remains separate future work; this
-step retains state while the window is open. As in the source watcher, ignored
+As in the source watcher, ignored
 worktree build-output changes can invalidate status. File-watch availability
 still depends on the filesystem; failures retain manual and focus refresh.
 
@@ -113,3 +112,48 @@ workspace spacing checks and the native build. The running app was exercised wit
 `onbot` and `pkgs` using tab switching and keyboard reordering; the timing and
 pointer preview/cancellation assertions use clock-controlled native frames rather
 than relying on delayed screen captures.
+
+
+## Workspace session restoration
+
+| Source | Rust |
+| --- | --- |
+| `WorkspaceSession.capture/parse/restore` | `tabs/session/model.rs`, `SavedTab::capture/install`, `Workspace::restore_session` |
+| `WorkspaceSessionStore.load/save` | `tabs/session/store.rs` |
+| `useWorkspaceSession` debounce/exit flush | `Workspace::session_changed`, quit/release subscriptions |
+
+Source tests for ordered duplicate-root tabs/drafts, Home selection, and malformed
+/future/path documents map to `round_trips_tab_order_separate_drafts_home_and_exact_paths_without_git_state`,
+`home_and_intentionally_empty_session_survive_restart`, and
+`malformed_future_oversized_and_invalid_paths_are_rejected_without_losing_saved_bytes`.
+`restart_restores_order_duplicate_root_drafts_selections_modes_filters_and_panes`
+exercises real Git reads through fresh native windows. Additional tests cover
+missing repositories, close before the debounce, latest-write ordering, save retry,
+unchanged-render write suppression, and non-UTF-8 roots/private permissions.
+
+The Rust document is separate from the original session and Home library. It saves
+per-tab filters, diff modes and panes rather than the source's global view settings.
+Exact Git path bytes and native non-Unicode roots round-trip without escaped-label
+identity. As in the source, Home and an intentionally empty workspace stay empty,
+invalid data blocks saving, and only navigation/drafts are persisted. No snapshots,
+credentials or pending operations are saved or replayed. History rereads the exact
+immutable commit, including a selection outside the first 50 rows; previously loaded
+rows are restored up to the source's 10,000-row budget. Startup repository reads are
+bounded to four. Deliberate limits are 128 tabs and 8 MiB (source: 1 MiB), with explicit
+errors rather than draft truncation. Restart scroll offsets remain outside this pass.
+
+Validation: `cargo test -p onegit-app --features test-support --lib` passed 70 tests;
+`cargo test -p onegit-ui --all-targets --features test-support` passed 101 tests
+including the gallery. The original `session.unit.test.ts` passed 24 tests.
+Workspace Clippy with all targets/features and warnings denied, rustfmt, app/UI
+rustdoc with warnings denied, native app build and logical spacing checks passed.
+The spacing check also compiles Windows/Linux Git code; native restart tests ran
+on macOS. No changeset is needed for these unpublished Rust crates.
+
+A real bundle quit/relaunch restored `onbot` and `pkgs` in order, the active History
+tab and immutable commit/file, two independent drafts (including a multiline body),
+the Changes `models` filter and selection, split diff and pane preferences. The
+entire saved document matched before and after relaunch. Temporary drafts were
+cleared afterward. Both existing repositories retained their HEAD/index bytes.
+The freshly signed bundle initially needed the native folder picker to complete
+macOS folder access; the subsequent restart restored without another picker.

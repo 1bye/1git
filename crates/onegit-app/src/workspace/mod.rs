@@ -74,6 +74,8 @@ pub(crate) struct RepositoryWorkspace {
     hosted: bool,
     tab_strip: Option<tabs::TabStrip>,
     refresh_error: Option<String>,
+    session_error: Option<String>,
+    pending_session: Option<tabs::session::SavedTab>,
     state: RepositoryState,
     section: Section,
     home: gpui::Entity<home::Home>,
@@ -202,6 +204,8 @@ impl RepositoryWorkspace {
             hosted,
             tab_strip: None,
             refresh_error: None,
+            session_error: None,
+            pending_session: None,
             state: RepositoryState::Welcome,
             section: Section::Changes,
             home,
@@ -309,10 +313,17 @@ impl RepositoryWorkspace {
         let completion_cancel = cancel.clone();
         let process = self.process.clone();
         let worker_path = path.clone();
+        let restoring = self.pending_session.is_some();
 
-        let worker = cx
-            .background_executor()
-            .spawn(async move { read::load(&worker_path, process, &worker_cancel) });
+        let worker = cx.background_executor().spawn(async move {
+            let loaded = read::load(&worker_path, process, &worker_cancel)?;
+
+            if restoring && std::fs::canonicalize(&worker_path).ok().as_ref() != Some(&loaded.snapshot.repository.root) {
+                return Err("The saved folder is no longer the same repository root. Restore the folder and retry, or open its new location.".into());
+            }
+
+            Ok(loaded)
+        });
 
         let task = cx.spawn(async move |this, cx| {
             let result = worker.await;
@@ -364,6 +375,17 @@ impl RepositoryWorkspace {
         self.home
             .update(cx, |home, cx| home.remember(root.clone(), cx));
 
+        let restored = self.pending_session.take();
+
+        let preferred = restored
+            .as_ref()
+            .and_then(|saved| saved.selection())
+            .or(preferred);
+
+        if restored.is_some() {
+            self.draft_root = Some(root.clone());
+        }
+
         if self.draft_root.as_ref() != Some(&root) {
             self.summary.update(cx, |input, cx| input.set_text("", cx));
             self.description
@@ -392,6 +414,10 @@ impl RepositoryWorkspace {
         self.preview = PreviewState::Empty;
         self.history.update(cx, |history, cx| {
             history.set_source(Some(loaded.clone()), cx);
+
+            if let Some(saved) = &restored {
+                history.restore_selection(&saved.history, cx);
+            }
 
             if self.section == Section::History {
                 history.activate(cx);

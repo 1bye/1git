@@ -9,7 +9,7 @@ use crate::workspace::{
 use onegit_git::GitPath;
 use std::{fs, time::Duration};
 
-fn setup(f: &Fixture) -> (gpui::TestAppContext, gpui::WindowHandle<Workspace>) {
+pub(super) fn setup(f: &Fixture) -> (gpui::TestAppContext, gpui::WindowHandle<Workspace>) {
     let mut cx = gpui::TestAppContext::single();
 
     cx.update(|cx| Theme::light().install(cx));
@@ -26,7 +26,7 @@ fn setup(f: &Fixture) -> (gpui::TestAppContext, gpui::WindowHandle<Workspace>) {
     (cx, view)
 }
 
-fn draw(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>) {
+pub(super) fn draw(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>) {
     for _ in 0..3 {
         cx.run_until_parked();
         cx.update_window(view.into(), |_, window, cx| window.draw(cx).clear(cx))
@@ -36,7 +36,7 @@ fn draw(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>) {
     cx.run_until_parked();
 }
 
-fn open(
+pub(super) fn open(
     cx: &mut gpui::TestAppContext,
     view: gpui::WindowHandle<Workspace>,
     path: &std::path::Path,

@@ -117,6 +117,18 @@ impl SplitState {
         self.actual
     }
 
+    /// Preferred logical-pixel size before viewport constraints. Suitable for session persistence.
+    #[must_use]
+    pub fn preferred_size(&self) -> gpui::Pixels {
+        self.preferred
+    }
+
+    /// Preferred proportion for proportional splits, independent of the current viewport.
+    #[must_use]
+    pub fn fraction(&self) -> Option<f32> {
+        self.fraction
+    }
+
     /// Change the first-pane size and emit `Resized` when it changes. Nonfinite/negative values become zero.
     ///
     /// # Panics

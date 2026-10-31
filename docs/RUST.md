@@ -38,8 +38,19 @@ or Command+W (Ctrl+W elsewhere). Closing a busy tab is disabled. Closing the act
 tab selects its right neighbor, then its left, then Home. Command+O/Command+T
 (Ctrl elsewhere) open the native picker; Ctrl+Tab/Ctrl+Shift+Tab cycle tabs, and
 Command+1–9 (Ctrl elsewhere) select a tab. Arrow keys navigate the focused tab strip; Shift+Left/Right reorder its tab.
-Tab state is retained for the current window; restoring tabs/drafts after relaunch
-is not part of this step. **Open from disk** uses the native folder picker; **Add folder** discovers
+Workspace sessions restore after relaunch: tab order and active tab (including Home),
+independent summary/description drafts, Changes path and staged/unstaged side,
+History commit/file, per-view diff modes, file filter and visibility, sidebar widths
+and the History detail proportion. The app rereads Git; it never replays operations.
+Missing repositories retain their draft and navigation with a Retry action.
+The Rust session is saved separately at `1git-rust/workspace.json` under the platform
+application-state directory; the current app’s session is untouched. Saves coalesce
+for 250 ms and use private, atomic file replacement, with a final flush on ordinary
+window close or quit. Unsupported, corrupt or oversized sessions are preserved
+and saving stays disabled with an error until repaired and restarted. The limit is
+128 tabs and 8 MiB, without silently truncating drafts. `ONEGIT_SESSION_PATH` can
+select a disposable session for development. Scroll offsets are retained while the
+window is open; restart restoration covers navigation and sizes. **Open from disk** uses the native folder picker; **Add folder** discovers
 repositories under a chosen directory without following descendant symlinks.
 
 Git must be available on `PATH`. Choose **Open from disk** and select a local

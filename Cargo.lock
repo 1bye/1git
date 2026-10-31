@@ -4008,6 +4008,7 @@ dependencies = [
  "onegit-ui",
  "rake",
  "raw-window-handle",
+ "serde",
  "serde_json",
  "sha2",
  "tempfile",
