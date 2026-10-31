@@ -4,9 +4,11 @@ mod history;
 mod home;
 mod native;
 mod read;
+mod tabs;
 #[cfg(test)]
 mod tests;
 mod view;
+mod watch;
 mod write;
 
 use onegit_git::{Cancellation, GitProcess};
@@ -66,7 +68,12 @@ enum Section {
     History,
 }
 
+pub(crate) use tabs::Workspace;
+
 pub(crate) struct RepositoryWorkspace {
+    hosted: bool,
+    tab_strip: Option<tabs::TabStrip>,
+    refresh_error: Option<String>,
     state: RepositoryState,
     section: Section,
     home: gpui::Entity<home::Home>,
@@ -74,6 +81,7 @@ pub(crate) struct RepositoryWorkspace {
     history: gpui::Entity<history::HistoryWorkspace>,
     selected: Option<ChangeKey>,
     preview: PreviewState,
+    diff_state: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
     view: DiffView,
     focus: gpui::FocusHandle,
     files_focus: gpui::FocusHandle,
@@ -98,12 +106,38 @@ pub(crate) struct RepositoryWorkspace {
 }
 
 impl RepositoryWorkspace {
+    #[cfg(test)]
     pub fn new(
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
         write_scope: Option<rake::tasks::TaskScope>,
     ) -> Self {
-        let native_error = native::install(window, onegit_ui::Theme::current().appearance).err();
+        Self::build(window, cx, write_scope, None)
+    }
+
+    fn for_tab(
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+        write_scope: Option<rake::tasks::TaskScope>,
+        home: gpui::Entity<home::Home>,
+    ) -> Self {
+        Self::build(window, cx, write_scope, Some(home))
+    }
+
+    fn build(
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+        write_scope: Option<rake::tasks::TaskScope>,
+        shared_home: Option<gpui::Entity<home::Home>>,
+    ) -> Self {
+        let hosted = shared_home.is_some();
+
+        let native_error = if hosted {
+            None
+        } else {
+            native::install(window, onegit_ui::Theme::current().appearance).err()
+        };
+
         let focus = cx.focus_handle();
 
         window.focus(&focus, cx);
@@ -113,32 +147,15 @@ impl RepositoryWorkspace {
         let description = cx.new(|cx| InputState::new("", window, cx));
         let filter = cx.new(|cx| InputState::new("", window, cx));
 
-        let home = cx.new(|cx| home::Home::new(window, cx, write_scope.clone()));
+        let home = shared_home
+            .unwrap_or_else(|| cx.new(|cx| home::Home::new(window, cx, write_scope.clone())));
 
         let history = cx.new(|cx| history::HistoryWorkspace::new(window, cx));
 
-        let subscriptions = vec![
+        let mut subscriptions = vec![
             cx.subscribe(&history, |this: &mut Self, _, _: &history::Refresh, cx| {
                 this.refresh(cx)
             }),
-            cx.subscribe_in(
-                &home,
-                window,
-                |this: &mut Self, _, event, window, cx| match event {
-                    home::HomeEvent::Open(path) => this.open(path.clone(), None, cx),
-                    home::HomeEvent::Pick => this.choose_repository(cx),
-                    home::HomeEvent::Restored(width) => {
-                        if let Some(width) = width {
-                            // GPUIX includes the hairline in its sidebar width; SplitState reserves it separately.
-                            this.split
-                                .update(cx, |split, cx| split.resize(px(*width - 1.), window, cx));
-                            this.history.update(cx, |history, cx| {
-                                history.sidebar_width(px(*width - 1.), window, cx)
-                            });
-                        }
-                    }
-                },
-            ),
             cx.subscribe(&filter, |this: &mut Self, _, _, cx| this.update_filter(cx)),
             cx.subscribe_in(&summary, window, |this: &mut Self, _, event, window, cx| {
                 if *event == InputEvent::Submitted {
@@ -160,7 +177,31 @@ impl RepositoryWorkspace {
             ),
         ];
 
+        if !hosted {
+            subscriptions.push(cx.subscribe_in(
+                &home,
+                window,
+                |this: &mut Self, _, event, window, cx| match event {
+                    home::HomeEvent::Open(path) => this.open(path.clone(), None, cx),
+                    home::HomeEvent::Pick => this.choose_repository(cx),
+                    home::HomeEvent::Restored(width) => {
+                        if let Some(width) = width {
+                            // GPUIX includes the hairline in its sidebar width; SplitState reserves it separately.
+                            this.split
+                                .update(cx, |split, cx| split.resize(px(*width - 1.), window, cx));
+                            this.history.update(cx, |history, cx| {
+                                history.sidebar_width(px(*width - 1.), window, cx)
+                            });
+                        }
+                    }
+                },
+            ));
+        }
+
         Self {
+            hosted,
+            tab_strip: None,
+            refresh_error: None,
             state: RepositoryState::Welcome,
             section: Section::Changes,
             home,
@@ -168,6 +209,7 @@ impl RepositoryWorkspace {
             history,
             selected: None,
             preview: PreviewState::Empty,
+            diff_state: None,
             view: DiffView::Unified,
             focus,
             files_focus: cx.focus_handle(),
@@ -192,11 +234,13 @@ impl RepositoryWorkspace {
         }
     }
 
-    pub fn load_home(&mut self, cx: &mut gpui::Context<Self>) {
-        self.home.update(cx, |home, cx| home.load(cx));
-    }
-
     fn choose_repository(&mut self, cx: &mut gpui::Context<Self>) {
+        if self.hosted {
+            cx.emit(tabs::Request::Pick);
+
+            return;
+        }
+
         if self.picker.is_some() || self.write_job.is_some() {
             return;
         }
@@ -252,6 +296,7 @@ impl RepositoryWorkspace {
         self.selected = None;
         self.preview = PreviewState::Empty;
         self.picker_error = None;
+        self.refresh_error = None;
         self.home_visible = false;
         self.state = RepositoryState::Loading(path.clone());
         self.files_scroll
@@ -610,6 +655,63 @@ impl RepositoryWorkspace {
         cx.notify();
     }
 
+    fn show_home(&mut self, cx: &mut gpui::Context<Self>) {
+        if self.hosted {
+            cx.emit(tabs::Request::Home);
+        } else {
+            self.home_visible = true;
+            cx.notify();
+        }
+    }
+
+    fn apply_automatic(&mut self, loaded: Arc<Loaded>, cx: &mut gpui::Context<Self>) {
+        if self.write_job.is_some() || self.load_job.is_some() {
+            return;
+        }
+
+        self.refresh_error = None;
+        let preferred = self.selected.clone();
+
+        let same = preferred
+            .as_ref()
+            .is_some_and(|key| loaded.file(key).is_some());
+
+        self.history.update(cx, |history, cx| {
+            history.refresh_source(loaded.clone(), cx);
+
+            if self.section == Section::History {
+                history.activate(cx);
+            }
+        });
+        self.state = RepositoryState::Ready(loaded);
+        self.rebuild_filter(cx);
+
+        if same {
+            // Keep the mounted viewer and its scroll anchor while its new patch is read.
+            if let Some(key) = preferred {
+                self.read_preview(key, cx);
+            }
+        } else {
+            self.selected = None;
+            self.preview = PreviewState::Empty;
+            let replacement = match &self.state {
+                RepositoryState::Ready(loaded) => preferred
+                    .as_ref()
+                    .and_then(|key| loaded.files.iter().find(|file| file.key.path == key.path))
+                    .map(|file| file.key.clone()),
+                _ => None,
+            };
+
+            if let Some(key) = replacement {
+                self.select(key, cx);
+            } else {
+                self.select_first_visible(cx);
+            }
+        }
+
+        cx.notify();
+    }
+
     fn refresh(&mut self, cx: &mut gpui::Context<Self>) {
         let path = match &self.state {
             RepositoryState::Ready(loaded) => loaded.snapshot.repository.root.clone(),
@@ -625,6 +727,15 @@ impl RepositoryWorkspace {
             return;
         }
 
+        if self.selected.as_ref() != Some(&key) {
+            self.diff_state = None;
+        }
+
+        self.preview = PreviewState::Loading;
+        self.read_preview(key, cx);
+    }
+
+    fn read_preview(&mut self, key: ChangeKey, cx: &mut gpui::Context<Self>) {
         let RepositoryState::Ready(loaded) = &self.state else {
             return;
         };
@@ -638,7 +749,6 @@ impl RepositoryWorkspace {
 
         self.diff_job = None;
         self.selected = Some(key.clone());
-        self.preview = PreviewState::Loading;
 
         if let Some(position) = self
             .visible_files
@@ -686,6 +796,18 @@ impl RepositoryWorkspace {
         }
 
         self.diff_job = None;
+
+        if let Ok(Preview::Patch(document)) = &result {
+            let compact = document.without_file_metadata();
+
+            if let Some(state) = &self.diff_state {
+                state.update(cx, |state, _| state.refresh(compact, self.view));
+            } else {
+                self.diff_state =
+                    Some(cx.new(|cx| onegit_ui::DiffViewerState::new(compact, self.view, cx)));
+            }
+        }
+
         self.preview = match result {
             Ok(preview) => PreviewState::Ready(preview),
             Err(error) => PreviewState::Failed(error),

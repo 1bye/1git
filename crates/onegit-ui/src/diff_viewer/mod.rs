@@ -7,6 +7,7 @@ mod words;
 use crate::{Text, TextRole, TextTone, Theme, focusable};
 pub use document::{DiffDocument, DiffLine, DiffLineKind, DiffParseError, DiffView};
 use rake::gpui::{self, accesskit, prelude::*, px};
+pub use state::Scroll as DiffViewerState;
 
 /// Placement and highlighting of the line-number gutters.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -33,6 +34,8 @@ pub struct DiffViewer {
     pub show_header: bool,
     /// Line-number presentation; inset gutters align with working-tree inclusion controls.
     pub gutter_style: DiffGutterStyle,
+    /// Optional owner-retained state for tabbed viewers; otherwise state lasts while mounted.
+    pub state: Option<gpui::Entity<DiffViewerState>>,
 }
 
 impl DiffViewer {
@@ -50,14 +53,21 @@ impl DiffViewer {
             view: DiffView::Unified,
             show_header: true,
             gutter_style: DiffGutterStyle::Continuous,
+            state: None,
         }
     }
 }
 
 impl RenderOnce for DiffViewer {
     fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
-        let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| {
-            state::Scroll::new(self.document.clone(), self.view, cx)
+        if let Some(state) = &self.state {
+            crate::retained::observe(&self.id, state, window, cx);
+        }
+
+        let state = self.state.unwrap_or_else(|| {
+            window.use_keyed_state(self.id.clone(), cx, |_, cx| {
+                state::Scroll::new(self.document.clone(), self.view, cx)
+            })
         });
 
         state.update(cx, |state, _| {

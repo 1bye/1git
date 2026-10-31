@@ -13,9 +13,12 @@ path = "src/main.rs"
 [dependencies]
 onegit-git.workspace = true
 onegit-ui.workspace = true
+gpui-ce-motion.workspace = true
 rake.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+notify = "=8.2.0"
+async-channel = "=2.5.0"
 chrono = {workspace = true, features = ["clock"]}
 
 [features]

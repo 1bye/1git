@@ -69,6 +69,40 @@ impl Drop for Home {
 }
 
 impl Home {
+    pub(super) fn refresh_overview(
+        &mut self,
+        snapshot: &onegit_git::Snapshot,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if let Some(Ok(overview)) = self.overview.get_mut(&snapshot.repository.root) {
+            let head = &snapshot.status.head;
+
+            overview.branch = head.branch.clone().unwrap_or_else(|| {
+                format!(
+                    "detached {}",
+                    head.oid
+                        .as_deref()
+                        .unwrap_or("HEAD")
+                        .chars()
+                        .take(7)
+                        .collect::<String>()
+                )
+            });
+            overview.changes = snapshot
+                .status
+                .files
+                .iter()
+                .filter(|file| file.record_type != onegit_git::RecordType::Ignored)
+                .count();
+            overview.tracking = if head.upstream.is_some() {
+                format!("↓{} ↑{}", head.behind, head.ahead)
+            } else {
+                "No upstream".into()
+            };
+            cx.notify();
+        }
+    }
+
     pub fn new(
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,

@@ -1,15 +1,17 @@
 use super::{DiffDocument, DiffView};
 use rake::gpui::{self, px};
 
-pub(super) struct Scroll {
-    pub document: DiffDocument,
-    pub view: DiffView,
-    pub focus: gpui::FocusHandle,
-    pub handle: gpui::ListState,
-    pub horizontal: gpui::ScrollHandle,
+/// Retained scroll and focus state for a viewer that can leave the render tree.
+pub struct Scroll {
+    pub(super) document: DiffDocument,
+    pub(super) view: DiffView,
+    pub(super) focus: gpui::FocusHandle,
+    pub(super) handle: gpui::ListState,
+    pub(super) horizontal: gpui::ScrollHandle,
 }
 
 impl Scroll {
+    /// Create state for a parsed document and presentation.
     pub fn new(document: DiffDocument, view: DiffView, cx: &mut gpui::Context<Self>) -> Self {
         Self {
             document: document.clone(),
@@ -24,11 +26,26 @@ impl Scroll {
         }
     }
 
+    /// Replace a refreshed version of the same file while retaining the viewport.
+    pub fn refresh(&mut self, document: DiffDocument, view: DiffView) {
+        let offset = self.handle.logical_scroll_top();
+        let horizontal = self.horizontal.offset();
+
+        self.configure(document, view);
+        self.handle.scroll_to(gpui::ListOffset {
+            item_ix: offset
+                .item_ix
+                .min(self.document.rows(view).len().saturating_sub(1)),
+            offset_in_item: offset.offset_in_item,
+        });
+        self.horizontal.set_offset(horizontal);
+    }
+
     fn top(&self) -> usize {
         self.handle.logical_scroll_top().item_ix
     }
 
-    pub fn configure(&mut self, document: DiffDocument, view: DiffView) {
+    pub(super) fn configure(&mut self, document: DiffDocument, view: DiffView) {
         if !self.document.same(&document) {
             self.handle.reset(document.rows(view).len());
             self.horizontal.set_offset(gpui::point(px(0.), px(0.)));
@@ -61,7 +78,7 @@ impl Scroll {
         self.view = view;
     }
 
-    pub fn key(
+    pub(super) fn key(
         &mut self,
         event: &gpui::KeyDownEvent,
         window: &mut gpui::Window,

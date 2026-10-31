@@ -20,7 +20,7 @@ impl HistoryWorkspace {
         rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
                 <div class="flex-1 min-w-0 min-h-0 pl-1.5 pr-3">
-                    <CommitList type_badges={true} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
+                    <CommitList state={Some(self.list_state.clone())} type_badges={true} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
                         on_select={Some(Box::new(cx.listener(|this,oid:&gpui::SharedString,_,cx|this.select_commit(oid.clone(),cx))))}
                         {..CommitList::new("history-commits","Repository commit history",self.data.clone())}/>
                 </div>
@@ -145,7 +145,7 @@ impl HistoryWorkspace {
             PreviewState::Ready(Preview::Patch(document)) => {
                 let title = self.file.as_ref().map(read::path_label).unwrap_or_default();
 
-                rake::view!{<DiffViewer show_header={false} view={self.view} {..DiffViewer::new("history-diff",title,document.without_file_metadata())}/>}.into_any_element()
+                rake::view!{<DiffViewer state={self.diff_state.clone()} show_header={false} view={self.view} {..DiffViewer::new("history-diff",title,document.without_file_metadata())}/>}.into_any_element()
             }
         };
 

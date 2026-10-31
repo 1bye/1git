@@ -8,13 +8,15 @@ struct Preview {
     root: gpui::FocusHandle,
     document: DiffDocument,
     mode: DiffView,
+    retained: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
+    visible: bool,
 }
 
 impl Render for Preview {
     fn render(&mut self, _: &mut gpui::Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
         rake::view! {
             <div class="size-full" focus={&self.root} tab-navigation={true}>
-                <DiffViewer view={self.mode} {..DiffViewer::new("diff", "theme.rs", self.document.clone())}/>
+                if self.visible {<DiffViewer state={self.retained.clone()} view={self.mode} {..DiffViewer::new("diff", "theme.rs", self.document.clone())}/>}
             </div>
         }
     }
@@ -46,6 +48,8 @@ fn setup(mode: DiffView) -> (gpui::TestAppContext, gpui::WindowHandle<Preview>) 
             root,
             document,
             mode,
+            retained: None,
+            visible: true,
         }
     });
 
@@ -296,4 +300,49 @@ fn short_rows_cover_the_full_viewport_in_each_mode() {
             assert!(row.size.width >= pane.size.width);
         }
     }
+}
+
+#[test]
+fn retained_viewport_survives_hidden_tabs_and_same_file_refresh() {
+    let (mut cx, v) = setup(DiffView::Unified);
+
+    v.update(&mut cx, |v, _, cx| {
+        v.retained =
+            Some(cx.new(|cx| onegit_ui::DiffViewerState::new(v.document.clone(), v.mode, cx)));
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    key(&mut cx, v, "tab");
+
+    for _ in 0..6 {
+        key(&mut cx, v, "down");
+    }
+
+    let top = bounds(&cx, v, "diff-before").unwrap().top();
+    let before = bounds(&cx, v, "diff-old-6").unwrap().top();
+
+    v.update(&mut cx, |v, _, cx| {
+        v.visible = false;
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    assert!(bounds(&cx, v, "diff-old-6").is_none());
+    v.update(&mut cx, |v, _, cx| {
+        v.visible = true;
+        let document =
+            DiffDocument::parse(&v.document.patch().replace("new 2", "updated 2")).unwrap();
+
+        v.retained
+            .as_ref()
+            .unwrap()
+            .update(cx, |state, _| state.refresh(document.clone(), v.mode));
+        v.document = document;
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    assert_eq!(bounds(&cx, v, "diff-old-6").unwrap().top(), before);
+    assert_eq!(before, top);
 }

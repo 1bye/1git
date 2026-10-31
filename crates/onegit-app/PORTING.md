@@ -39,11 +39,77 @@ spacing checks described in `docs/RUST.md`.
 ## Intentional differences
 
 Rust retains index staging rather than the source app's selected-file inclusion
-workflow. It retains a single mounted repository and explicit page loading in
-History. Unported workspace network, branch-switching, AI, amend/undo, stash,
+workflow. It retains explicit page loading in History. Unported workspace network, branch-switching, AI, amend/undo, stash,
 graph, account and SSH actions are unavailable. Read-only diffs do not include
 hunk staging, context expansion, syntax highlighting or text selection.
 These are behavior gaps, not a claim that the full original application is ported.
 Only persisted source library/cache entries are imported; unsaved source runtime
 state can differ. Repository contents, refs and the source session are not written
 by import or preview operations.
+
+## Multiple tabs and automatic refresh
+
+`workspace-tabs-model.ts` maps to `workspace/tabs.rs`: window-owned repository
+entities retain each draft, file/side, History commit/file, filter, view mode and
+pane sizes. The original close order (right, left, Home), busy-close guard and
+reorder identity are preserved. Duplicate-root tabs are supported with independent
+state and a shared monitor/read queue. Home navigation does not dispose tabs.
+`RepositoryRefresh` maps to `tabs/refresh.rs`; `RepositoryWatcher.watch` maps to
+`watch.rs` using notify's native backend. Native setup/teardown and Git reads run
+off the UI thread. Worktree, git-directory and common-directory subscriptions
+cover linked worktrees; metadata filtering excludes locks/objects/logs and access
+noise. The original 250 ms trailing debounce / one-second maximum, in-flight
+invalidation, write pause/cancellation, window-activation refresh and disposal
+are preserved. Automatic refresh keeps the old snapshot on errors and preserves
+immutable selected History detail when HEAD changes.
+
+Test mappings: `workspace-tabs.unit.test.ts` close/Home/reorder cases map to
+`multiple_tabs_home_reordering_and_closing_keep_independent_drafts_and_selections`
+and `closes_right_then_left_keeps_active_on_inactive_close_and_rejects_busy_close`.
+The source refresh timing tests map to the deterministic queue test; source
+`auto-refresh.component.test.tsx` sharing, same-status patches, History, pause and
+failure cases map to `tabs/tests.rs`. `watch.rs` additionally exercises real nested
+file changes, external shared refs and watcher teardown for a linked worktree.
+Shared UI viewport state is explicitly retained outside the render tree.
+
+Tab/draft session restoration after relaunch remains separate future work; this
+step retains state while the window is open. As in the source watcher, ignored
+worktree build-output changes can invalidate status. File-watch availability
+still depends on the filesystem; failures retain manual and focus refresh.
+
+Native verification used two disposable repositories: distinct drafts, a retained
+`b.txt` selection, Home round trips, keyboard reordering, background badge updates
+from an external edit, and a retained History commit/file. The live two-tab Changes
+capture was compared with the original app's two-tab Changes capture; inactive
+label ink and badge size/opacity were corrected to the source styles. A native
+pointer-event regression also verifies drag/drop ordering without replacing views.
+
+The final matching-screen capture used `onbot / master` and `pkgs / development`
+in both apps, with `docs/guides/models.md` selected in Changes (+2/−0). The runnable
+Rust bundle is left on that two-tab workspace; verification did not stage, commit,
+or change refs in either real repository.
+
+## Tab motion and gestures
+
+The initial tab port retained repository state but used static selection surfaces
+and native drag images. `tabs/motion.rs` now owns `gpui-ce-motion` values at window
+scope so switching repository entities cannot restart selection motion. Its shared
+connected surface and tab reflow use the source 240 ms `(0.22, 1, 0.36, 1)` curve.
+A captured eight-pixel-threshold gesture moves the tab in place, previews adjacent
+slots, commits order on release and returns on Escape/window deactivation. Edge
+scrolling uses elapsed time rather than the display's frame rate. Native layout
+and hit targets use the same presented coordinates; no second GPUI renderer or
+native motion adapter is enabled.
+
+Overflowing labels use source timings: 320 ms hover/focus delay, 48 px/s bounded
+to 700–2200 ms, and a 220 ms return. Hover/close feedback uses a short 80 ms tween.
+Motion samples request frames only until settled, and reduced motion snaps.
+Tests check intermediate native selection/neighbor bounds, interrupted transitions,
+preview-versus-committed drag order, Escape, label delays/return and idle frames.
+Branch switching from the active tab remains part of the unported branch workflow.
+
+The motion pass passes 58 app tests, strict all-target Clippy, rustfmt, rustdoc,
+workspace spacing checks and the native build. The running app was exercised with
+`onbot` and `pkgs` using tab switching and keyboard reordering; the timing and
+pointer preview/cancellation assertions use clock-controlled native frames rather
+than relying on delayed screen captures.

@@ -27,8 +27,19 @@ change library metadata, never repository files. Create/clone require a new abso
 destination and refuse existing folders. Remote machines and hosting accounts are
 explicitly marked as not yet ported; no credentials are imported.
 
-Home preserves the mounted repository, selected patch and draft. Click its tab to
-return. **Open from disk** uses the native folder picker; **Add folder** discovers
+Each repository tab retains its summary/description draft, selected Changes file
+and side, History commit/file, filters, diff mode, viewport and pane sizes while
+another tab or Home is active. Open from Home or the titlebar's plus button to add
+a tab. The connected selection and tab positions use `gpui-ce-motion` with the original
+240 ms easing. Dragging previews the new order in place; Escape cancels it.
+Overflowing labels reveal on hover/focus, and settled tabs stop requesting frames.
+Reduced motion snaps to the destination. Tabs can be dragged to reorder; close via the hover button, middle click,
+or Command+W (Ctrl+W elsewhere). Closing a busy tab is disabled. Closing the active
+tab selects its right neighbor, then its left, then Home. Command+O/Command+T
+(Ctrl elsewhere) open the native picker; Ctrl+Tab/Ctrl+Shift+Tab cycle tabs, and
+Command+1–9 (Ctrl elsewhere) select a tab. Arrow keys navigate the focused tab strip; Shift+Left/Right reorder its tab.
+Tab state is retained for the current window; restoring tabs/drafts after relaunch
+is not part of this step. **Open from disk** uses the native folder picker; **Add folder** discovers
 repositories under a chosen directory without following descendant symlinks.
 
 Git must be available on `PATH`. Choose **Open from disk** and select a local
@@ -41,7 +52,16 @@ The changed-file list supports Up/Down and Home/End navigation and virtualizes r
 **Refresh** reads a fresh snapshot and retains the selected path/side when it
 still exists. Removed selections fall back to the same path on its other side,
 then the first remaining change; a clean worktree has an explicit empty state.
-Changes made outside the app require a manual refresh. Open/read failures have
+Native filesystem notifications automatically refresh open repositories, including
+background tabs. Each canonical root shares one subscription/read queue across
+its tabs; linked worktrees also watch their external Git/common directories.
+Events debounce for 250 ms, with a one-second ceiling during continuous writes.
+Refresh pauses during explicit reads or accepted writes, cancels stale reads and
+drains one pending update afterward. Refocusing the window also invalidates status.
+Automatic refresh retains the current snapshot/patch while reading, including
+same-status content edits, and preserves drafts and surviving selections. Missing
+file selections fall back to the same path's other side, then a visible change.
+Watcher/read failures appear as a notice with manual refresh available. Open/read failures have
 retry controls and are never presented as a clean repository.
 
 Git reads and patch parsing run on GPUI's background executor. Superseded reads
@@ -70,8 +90,8 @@ description submits. Git's configured hooks and signing settings are respected.
 One write runs at a time in the background. Controls are disabled until completion,
 then status and the selected patch refresh. Progress toasts become success/error
 notifications. Successful commits clear the form; failures retain the draft and
-refresh status to expose partial effects, without replaying the write. Changing
-repositories clears the draft; manual refresh retains it. A write accepted before
+refresh status to expose partial effects, without replaying the write. Opening another repository creates an independent draft; switching tabs and manual
+refresh retain drafts. A write accepted before
 window closure continues while the application is running. Writes are registered
 as application-owned Rake tasks, so normal application quit waits for them.
 Writes require a normal repository state without conflicts; finish merge/rebase
@@ -97,7 +117,7 @@ selection. Git reads and patch parsing run in the background with cancellation;
 failed pages retain existing rows and can be retried. Switching tabs preserves the
 commit draft and history selection. History never stages or changes files.
 
-Hunk staging, discard, background file watching, remote machines, account management
+Hunk staging, discard, remote machines, account management
 and network operations in repository workspaces remain future app work.
 Loading status and previews does not mutate repository contents.
 The component gallery remains available with

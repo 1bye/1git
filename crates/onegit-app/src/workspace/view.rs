@@ -244,7 +244,7 @@ impl RepositoryWorkspace {
                     .map(|key| format!("{} · {}", read::path_label(&key.path), key.side.label()))
                     .unwrap_or_default();
 
-                rake::view!{<DiffViewer gutter_style={onegit_ui::DiffGutterStyle::Inset} show_header={false} view={self.view} {..DiffViewer::new("diff",title,document.without_file_metadata())}/>}.into_any_element()
+                rake::view!{<DiffViewer state={self.diff_state.clone()} gutter_style={onegit_ui::DiffGutterStyle::Inset} show_header={false} view={self.view} {..DiffViewer::new("diff",title,document.without_file_metadata())}/>}.into_any_element()
             }
         };
 
@@ -265,7 +265,7 @@ impl Render for RepositoryWorkspace {
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
         let grain = chrome::grain();
-        let titlebar = self.titlebar(cx);
+        let titlebar = self.titlebar(window, cx);
         let rail = self.rail(cx);
 
         let body = if self.home_visible {
@@ -311,13 +311,18 @@ impl Render for RepositoryWorkspace {
         };
 
         rake::view! {
-            <main class="relative size-full min-w-0 min-h-0 flex flex-col bg-chrome text-ink" focus={&self.focus} tab-navigation={true}>
+            <main class="relative size-full min-w-0 min-h-0 flex flex-col bg-chrome text-ink" focus={&self.focus} tab-navigation={true} on:key-down={cx.listener(|this,event: &gpui::KeyDownEvent,window,cx| {
+                if let Some(request) = this.tab_strip.as_ref().and_then(|strip|strip.key(event)) {
+                    window.prevent_default(); cx.stop_propagation(); cx.emit(request);
+                }
+            })}>
                 {grain}
                 {titlebar}
                 <div class="flex-1 min-w-0 min-h-0 flex flex-row">
                     {rail}
                     <div class="flex-1 min-w-0 min-h-0 mr-1.5 mb-1.5 rounded-[14px] bg-surface overflow-hidden flex flex-col" style={|s|s.debug_selector(||"workspace-surface".into())}>
                         if let Some(error)=&self.picker_error{<div class="px-4 py-2"><Text tone={TextTone::Danger} {..Text::new("picker-error",error.clone())}/></div>}
+                        if let Some(error)=&self.refresh_error {<div class="px-4 py-2 flex items-center gap-2"><div class="flex-1"><Text tone={TextTone::Danger} {..Text::new("refresh-error",error.clone())}/></div><Button size={ControlSize::Small} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.refresh(cx))))} {..Button::new("retry-refresh","Refresh")}/></div>}
                         <div class="flex-1 min-h-0 min-w-0">{body}</div>
                     </div>
                 </div>

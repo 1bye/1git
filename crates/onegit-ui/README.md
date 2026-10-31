@@ -670,3 +670,9 @@ whole-file staging and committing, and paginated history with committed file pat
 See [the Rust guide](../../docs/RUST.md) for the working app flow.
 No changeset is needed for this unreleased Rust crate
 (`publish = false`).
+
+Tabbed hosts can retain `DiffViewerState` and `CommitListState` entities and pass
+`state` to each component to preserve viewports while unmounted. For a refreshed
+version of the same selected file, call `DiffViewerState::refresh` before supplying
+the new document; changing selection can use fresh state. Omitting `state` keeps
+the existing behavior for continuously mounted components.

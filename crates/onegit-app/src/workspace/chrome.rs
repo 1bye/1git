@@ -68,7 +68,7 @@ pub(super) fn age(timestamp: &str) -> String {
     format!("{count} {unit}{} ago", if count == 1 { "" } else { "s" })
 }
 
-fn tab_surface() -> gpui::AnyElement {
+pub(super) fn tab_surface() -> gpui::AnyElement {
     let color = Theme::current().surface;
 
     gpui::canvas(
@@ -161,7 +161,15 @@ pub(super) fn patch_toolbar(
 }
 
 impl RepositoryWorkspace {
-    pub(super) fn titlebar(&self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
+    pub(super) fn titlebar(
+        &self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> gpui::AnyElement {
+        if let Some(strip) = &self.tab_strip {
+            return strip.render(&self.home, window, cx);
+        }
+
         let (name, branch, count) = match &self.state {
             RepositoryState::Ready(loaded) => {
                 let root = &loaded.snapshot.repository.root;
@@ -206,7 +214,7 @@ impl RepositoryWorkspace {
             <div class="h-[42px] shrink-0 flex flex-row items-end pr-1.5" style={|s|s.pl(px(if cfg!(target_os="macos"){86.}else{12.})).debug_selector(||"workspace-titlebar".into())}>
                 <div class="relative w-[24px] h-[32px] mb-1 mr-2.5" style={|s|s.debug_selector(||"workspace-home".into())}><div class="absolute top-0 left-0 size-[32px] rounded-[6px]" style={|s|s.when(self.home_visible,|s|s.bg(theme.hairline))}>
                     <Tooltip {..Tooltip::new("open-tip","Home")}>
-                        <IconButton size={ControlSize::Rail} state={open_state} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.home_visible=true;cx.notify();})))} {..IconButton::new("open",IconName::Home,"Home")}/>
+                        <IconButton size={ControlSize::Rail} state={open_state} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.show_home(cx);})))} {..IconButton::new("open",IconName::Home,"Home")}/>
                     </Tooltip>
                 </div></div>
                 if !matches!(self.state,RepositoryState::Welcome) {<div role={accesskit::Role::Tab} aria-label={format!("{name} / {branch}")} class="relative w-[210px] h-[36px] flex flex-row items-center gap-2 px-3 pb-2 min-w-0"

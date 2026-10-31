@@ -20,6 +20,7 @@ mod motion;
 mod overlay;
 mod pane;
 mod resizable_split;
+mod retained;
 mod tabs;
 mod text;
 mod theme;
@@ -40,12 +41,13 @@ pub use dialog::{
 };
 
 pub use commit_list::{
-    CommitItem, CommitList, CommitListData, CommitListDataError, CommitListDensity, CommitRef,
-    CommitRefKind, CommitSelectionHandler, CommitStatus,
+    CommitItem, CommitList, CommitListData, CommitListDataError, CommitListDensity,
+    CommitListState, CommitRef, CommitRefKind, CommitSelectionHandler, CommitStatus,
 };
 
 pub use diff_viewer::{
     DiffDocument, DiffGutterStyle, DiffLine, DiffLineKind, DiffParseError, DiffView, DiffViewer,
+    DiffViewerState,
 };
 
 pub use dropdown_menu::{DropdownMenu, MenuAlignment, MenuEntry, MenuHandler, MenuItem};

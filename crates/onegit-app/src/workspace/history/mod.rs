@@ -4,7 +4,7 @@ mod read;
 mod tests;
 mod view;
 
-use super::{PreviewState, ReadJob, read::Loaded};
+use super::{Preview, PreviewState, ReadJob, read::Loaded};
 use onegit_git::{Cancellation, CommitFile, CommitInfo, GitPath};
 use onegit_ui::{CommitListData, DiffView, SplitState};
 use rake::gpui::{self, AppContext, px};
@@ -29,15 +29,17 @@ impl gpui::EventEmitter<Refresh> for HistoryWorkspace {}
 pub(super) struct HistoryWorkspace {
     source: Option<Arc<Loaded>>,
     data: CommitListData,
+    list_state: gpui::Entity<onegit_ui::CommitListState>,
     commits: HashMap<gpui::SharedString, Arc<CommitInfo>>,
     page_loaded: bool,
     total: Option<u64>,
     next_offset: Option<u64>,
     page_error: Option<String>,
-    selected: Option<gpui::SharedString>,
+    pub(super) selected: Option<gpui::SharedString>,
     detail: DetailState,
     file: Option<GitPath>,
     preview: PreviewState,
+    diff_state: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
     view: DiffView,
     files_focus: gpui::FocusHandle,
     files_scroll: gpui::UniformListScrollHandle,
@@ -81,6 +83,7 @@ impl HistoryWorkspace {
         Self {
             source: None,
             data: CommitListData::default(),
+            list_state: cx.new(onegit_ui::CommitListState::new),
             commits: HashMap::new(),
             page_loaded: false,
             total: None,
@@ -90,6 +93,7 @@ impl HistoryWorkspace {
             detail: DetailState::Empty,
             file: None,
             preview: PreviewState::Empty,
+            diff_state: None,
             view: DiffView::Unified,
             files_focus: cx.focus_handle(),
             files_scroll: gpui::UniformListScrollHandle::new(),
@@ -140,6 +144,35 @@ impl HistoryWorkspace {
         self.detail = DetailState::Empty;
         self.file = None;
         self.preview = PreviewState::Empty;
+        cx.notify();
+    }
+
+    pub fn refresh_source(&mut self, source: Arc<Loaded>, cx: &mut gpui::Context<Self>) {
+        let new_head = self
+            .source
+            .as_ref()
+            .is_none_or(|old| old.snapshot.status.head != source.snapshot.status.head);
+
+        self.source = Some(source);
+
+        if new_head {
+            let activated = self.page_loaded || self.page_job.is_some() || self.selected.is_some();
+
+            self.commits
+                .retain(|oid, _| self.selected.as_ref() == Some(oid));
+            self.page_job = None;
+            self.data = CommitListData::default();
+            self.page_loaded = false;
+            self.total = None;
+            self.next_offset = None;
+            self.page_error = None;
+
+            // The chosen commit and file are immutable; retain their detail/patch.
+            if activated {
+                self.load_page(cx);
+            }
+        }
+
         cx.notify();
     }
 
@@ -279,6 +312,7 @@ impl HistoryWorkspace {
         let repository = source.repository.clone();
 
         self.patch_job = None;
+        self.diff_state = None;
         self.file = Some(path);
         self.preview = PreviewState::Loading;
         self.files_scroll
@@ -288,6 +322,17 @@ impl HistoryWorkspace {
             move |cancel| read::patch(&repository, &oid, &file, &cancel),
             |this, result, cx| {
                 this.patch_job = None;
+
+                if let Ok(Preview::Patch(document)) = &result {
+                    this.diff_state = Some(cx.new(|cx| {
+                        onegit_ui::DiffViewerState::new(
+                            document.without_file_metadata(),
+                            this.view,
+                            cx,
+                        )
+                    }));
+                }
+
                 this.preview = match result {
                     Ok(preview) => PreviewState::Ready(preview),
                     Err(error) => PreviewState::Failed(error),

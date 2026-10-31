@@ -2,6 +2,8 @@
 mod data;
 mod state;
 
+pub use state::ListFocus as CommitListState;
+
 use crate::{
     Text, TextRole, TextTone, Theme, focusable,
     motion::{self, Surface},
@@ -50,6 +52,8 @@ pub struct CommitList {
     pub data: CommitListData,
     /// Caller-controlled selected ID; absent or missing IDs select no entry.
     pub selected: Option<gpui::SharedString>,
+    /// Optional owner-retained focus and viewport for lists that leave the render tree.
+    pub state: Option<gpui::Entity<CommitListState>>,
     /// Compact or comfortable two-line rows.
     pub density: CommitListDensity,
     /// Visible text when the snapshot is empty.
@@ -72,6 +76,7 @@ impl CommitList {
             label: label.into(),
             data,
             selected: None,
+            state: None,
             density: CommitListDensity::default(),
             empty_message: "No commits to display.".into(),
             on_select: None,
@@ -118,7 +123,14 @@ fn describe(item: &CommitItem) -> String {
 
 impl RenderOnce for CommitList {
     fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
-        let state = window.use_keyed_state(self.id.clone(), cx, |_, cx| state::ListFocus::new(cx));
+        if let Some(state) = &self.state {
+            crate::retained::observe(&self.id, state, window, cx);
+        }
+
+        let state = self.state.unwrap_or_else(|| {
+            window.use_keyed_state(self.id.clone(), cx, |_, cx| state::ListFocus::new(cx))
+        });
+
         let selected = self.selected.filter(|id| self.data.find(id).is_some());
 
         state.update(cx, |state, _| {

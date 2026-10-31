@@ -3,7 +3,7 @@ use rake::gpui::{AnyView, Window};
 use rake::prelude::*;
 use rake::router::MountError;
 
-use crate::workspace::RepositoryWorkspace;
+use crate::workspace::Workspace;
 use onegit_ui::Theme;
 
 /// Every screen the application can open in a tab.
@@ -39,8 +39,7 @@ impl RouteViews<Destination> for AppRoutes {
         match destination {
             Destination::Home => Ok(cx
                 .new(|cx| {
-                    let mut workspace =
-                        RepositoryWorkspace::new(window, cx, Some(page.app().tasks()));
+                    let mut workspace = Workspace::new(window, cx, Some(page.app().tasks()));
 
                     workspace.load_home(cx);
 

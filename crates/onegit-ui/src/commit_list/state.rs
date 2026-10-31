@@ -1,16 +1,18 @@
 use super::{CommitListData, CommitListDensity};
 use rake::gpui::{self, px};
 
-pub(super) struct ListFocus {
-    pub data: CommitListData,
-    pub cursor: Option<gpui::SharedString>,
+/// Owner-retained focus and viewport for a commit list in a tabbed workspace.
+pub struct ListFocus {
+    pub(super) data: CommitListData,
+    pub(super) cursor: Option<gpui::SharedString>,
     selected: Option<gpui::SharedString>,
     density: CommitListDensity,
-    pub focus: gpui::FocusHandle,
-    pub scroll: gpui::UniformListScrollHandle,
+    pub(super) focus: gpui::FocusHandle,
+    pub(super) scroll: gpui::UniformListScrollHandle,
 }
 
 impl ListFocus {
+    /// Create an empty list viewport; rendering reconciles its data and selection.
     pub fn new(cx: &mut gpui::Context<Self>) -> Self {
         Self {
             data: CommitListData::default(),
@@ -22,7 +24,7 @@ impl ListFocus {
         }
     }
 
-    pub fn reconcile(
+    pub(super) fn reconcile(
         &mut self,
         data: CommitListData,
         selected: Option<gpui::SharedString>,
@@ -82,7 +84,7 @@ impl ListFocus {
         self.density = density;
     }
 
-    pub fn choose(&mut self, id: &gpui::SharedString, cx: &mut gpui::Context<Self>) {
+    pub(super) fn choose(&mut self, id: &gpui::SharedString, cx: &mut gpui::Context<Self>) {
         if let Some(index) = self.data.position(id) {
             self.cursor = Some(id.clone());
             self.scroll
@@ -91,7 +93,7 @@ impl ListFocus {
         }
     }
 
-    pub fn key(
+    pub(super) fn key(
         &mut self,
         event: &gpui::KeyDownEvent,
         window: &mut gpui::Window,
