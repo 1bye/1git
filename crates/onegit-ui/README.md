@@ -533,8 +533,8 @@ the application. Pass a stable viewer ID and a parent with bounded height.
 use onegit_ui::{DiffDocument, DiffParseError, DiffView, DiffViewer};
 use rake::gpui::IntoElement;
 
-fn load_patch(patch: &str) -> Result<DiffDocument, DiffParseError> {
-    DiffDocument::parse(patch)
+fn load_patch(patch: &str, full_patch: Option<&str>) -> Result<DiffDocument, DiffParseError> {
+    Ok(DiffDocument::parse(patch)?.with_source("theme.rs", "theme.rs", full_patch))
 }
 
 fn preview(document: &DiffDocument, view: DiffView) -> impl IntoElement {
@@ -577,7 +577,24 @@ Budgets are 16 MiB per patch, 200,000 patch lines and 64 KiB per line. Binary pa
 are retained in `patch()` but are not displayed as text. Pass files separately and
 show parse errors in the surrounding application UI.
 
-The gallery's **Diffs** section covers unequal replacements, multiple hunks,
+Call `with_source(old_path, new_path, full_patch)` on a background worker to prepare
+syntax and optional unchanged context. Paths select independent old/new grammars;
+they are language hints, never filesystem inputs. Mismatched full context is
+ignored. Tree-sitter queries and spans are reused during scroll/theme changes.
+JavaScript/JSX, TypeScript/TSX, Rust, Python, Go, JSON, CSS, HTML, Bash and C are
+bundled; other paths stay plain text. Full context restores multiline parser
+state; without it, each continuous source fragment starts fresh.
+
+Hunk separators and the trailing control reveal up to 20 unchanged lines. E
+expands the first remaining gap, then trailing context. Expansion preserves the
+source-line viewport and horizontal scroll, merges adjacent hunks and stops at
+known EOF. Both split layouts stay synchronized. Growth is limited to 512 KiB,
+2,000 patch lines and 4,000 bytes per line. Syntax uses the same source budgets;
+large hidden sources fall back to visible fragments. New rows use a 100 ms
+gpui-ce-motion fade, honor reduced motion, and stop requesting frames when settled.
+
+The gallery's **Diffs** section includes an expandable TypeScript sample,
+unequal replacements, multiple hunks,
 Unicode/CR/newline markers, 5,000 replacements, binary changes and an empty state.
 The repository layout also uses the same viewer inside its retained file tabs.
 

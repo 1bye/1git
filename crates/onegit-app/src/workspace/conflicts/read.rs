@@ -111,7 +111,7 @@ pub(in crate::workspace) fn preview(
             {
                 result.usable = !super::markers(&text).1;
 
-                match compare(&text, &working.text, cancel) {
+                match compare_named(&text, &working.text, path.to_str().unwrap_or(""), cancel) {
                     Ok(document) => {
                         result.notice = document.is_none().then(|| "The working result matches this version. Review it before marking it resolved.".into());
                         result.document = document;
@@ -172,9 +172,19 @@ pub(in crate::workspace) fn preview(
     })))
 }
 
+#[cfg(test)]
 pub(super) fn compare(
     source: &str,
     result: &str,
+    cancel: &Cancellation,
+) -> Result<Option<DiffDocument>, String> {
+    compare_named(source, result, "", cancel)
+}
+
+fn compare_named(
+    source: &str,
+    result: &str,
+    path: &str,
     cancel: &Cancellation,
 ) -> Result<Option<DiffDocument>, String> {
     if !bounded(source) || !bounded(result) {
@@ -189,41 +199,48 @@ pub(super) fn compare(
 
     fs::write(directory.path().join("indexed"), source).map_err(|error| error.to_string())?;
     fs::write(directory.path().join("working"), result).map_err(|error| error.to_string())?;
-    let mut command = GitCommand::new(
-        directory.path(),
-        [
-            OsString::from("diff"),
-            "--no-index".into(),
-            "--no-ext-diff".into(),
-            "--no-textconv".into(),
-            "--no-color".into(),
-            "--no-renames".into(),
-            "--src-prefix=a/".into(),
-            "--dst-prefix=b/".into(),
-            "--unified=3".into(),
-            "--".into(),
-            "indexed".into(),
-            "working".into(),
-        ],
-    );
+    let read_patch = |context: &str| -> Result<String, String> {
+        let mut command = GitCommand::new(
+            directory.path(),
+            [
+                OsString::from("diff"),
+                "--no-index".into(),
+                "--no-ext-diff".into(),
+                "--no-textconv".into(),
+                "--no-color".into(),
+                "--no-renames".into(),
+                "--src-prefix=a/".into(),
+                "--dst-prefix=b/".into(),
+                format!("--unified={context}").into(),
+                "--".into(),
+                "indexed".into(),
+                "working".into(),
+            ],
+        );
 
-    command.cancellation = Some(cancel);
-    command.timeout = Some(Duration::from_secs(2));
-    command.max_output_bytes = Some(1024 * 1024);
-    let output = match read::process().run(command) {
-        Ok(output) => output,
-        Err(GitError::CommandFailed { output, status }) if status.code() == Some(1) => output,
-        Err(error) => {
-            return Err(format!(
-                "Could not compare the indexed and working versions: {error}"
-            ));
-        }
+        command.cancellation = Some(cancel);
+        command.timeout = Some(Duration::from_secs(2));
+        command.max_output_bytes = Some(1024 * 1024);
+        let output = match read::process().run(command) {
+            Ok(output) => output,
+            Err(GitError::CommandFailed { output, status }) if status.code() == Some(1) => output,
+            Err(error) => {
+                return Err(format!(
+                    "Could not compare the indexed and working versions: {error}"
+                ));
+            }
+        };
+
+        let patch = std::str::from_utf8(&output.stdout).map_err(|error| error.to_string())?;
+
+        Ok(patch.to_owned())
     };
 
-    let patch = std::str::from_utf8(&output.stdout).map_err(|error| error.to_string())?;
+    let patch = read_patch("3")?;
+    let full = read_patch("2147483647").ok();
 
-    DiffDocument::parse(patch)
-        .map(Some)
+    DiffDocument::parse(&patch)
+        .map(|document| Some(document.with_source(path, path, full.as_deref())))
         .map_err(|error| error.to_string())
 }
 

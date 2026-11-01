@@ -42,11 +42,12 @@ pub(super) struct Layout {
     pub style: DiffGutterStyle,
 }
 
-fn cell(
+fn plain_cell(
     document: &DiffDocument,
     index: Option<usize>,
     position: usize,
     layout: Layout,
+    hunk_background: Option<gpui::Hsla>,
 ) -> gpui::AnyElement {
     let Layout {
         view,
@@ -72,8 +73,12 @@ fn cell(
     let (background, ink, marker) = match kind {
         DiffLineKind::Added => (theme.diff_added, theme.diff_ink, "+"),
         DiffLineKind::Deleted => (theme.diff_deleted, theme.diff_ink, "−"),
-        DiffLineKind::Hunk => (theme.diff_hunk, theme.muted_ink, " "),
-        DiffLineKind::Metadata => (theme.diff_hunk, theme.muted_ink, "·"),
+        DiffLineKind::Hunk => (
+            hunk_background.unwrap_or(theme.diff_hunk),
+            theme.diff_muted_ink,
+            " ",
+        ),
+        DiffLineKind::Metadata => (theme.diff_hunk, theme.diff_muted_ink, "·"),
         DiffLineKind::Context => (theme.surface, theme.diff_ink, " "),
     };
 
@@ -91,23 +96,59 @@ fn cell(
         |line| describe(line, view, side),
     );
 
-    let text = gpui::StyledText::new(text).with_highlights(
-        index
-            .into_iter()
-            .flat_map(|index| document.word_ranges(index).iter())
-            .map(|range| {
-                (
-                    range.clone(),
-                    gpui::HighlightStyle {
-                        background_color: Some(match kind {
-                            DiffLineKind::Added => theme.diff_added_word,
-                            _ => theme.diff_deleted_word,
-                        }),
-                        ..Default::default()
-                    },
-                )
-            }),
-    );
+    let spans = index.map(|index| {
+        &document.0.syntax[index][match side {
+            Side::Old if kind != DiffLineKind::Added => 0,
+            _ => 1,
+        }]
+    });
+
+    let words = index.map(|i| document.word_ranges(i)).unwrap_or_default();
+    // GPUI expects non-overlapping ranges. Compose syntax foreground and word backgrounds.
+    let mut boundaries = vec![0, text.len()];
+
+    if let Some(spans) = spans {
+        for span in spans {
+            boundaries.extend([span.range.start, span.range.end]);
+        }
+    }
+
+    for word in words {
+        boundaries.extend([word.start, word.end]);
+    }
+
+    boundaries.sort_unstable();
+    boundaries.dedup();
+    let text =
+        gpui::StyledText::new(text).with_highlights(boundaries.windows(2).filter_map(|range| {
+            let range = range[0]..range[1];
+
+            let color = spans
+                .and_then(|spans| {
+                    spans
+                        .iter()
+                        .find(|span| span.range.start <= range.start && span.range.end >= range.end)
+                })
+                .map(|span| super::syntax::color(span.kind, &theme));
+
+            let background_color = words
+                .iter()
+                .any(|word| word.start <= range.start && word.end >= range.end)
+                .then_some(if kind == DiffLineKind::Added {
+                    theme.diff_added_word
+                } else {
+                    theme.diff_deleted_word
+                });
+
+            (color.is_some() || background_color.is_some()).then_some((
+                range,
+                gpui::HighlightStyle {
+                    color,
+                    background_color,
+                    ..Default::default()
+                },
+            ))
+        }));
 
     let total = document.rows(view).len();
 
@@ -235,6 +276,139 @@ fn cell(
     .into_any_element()
 }
 
+fn cell(
+    state: &gpui::Entity<Scroll>,
+    document: &DiffDocument,
+    index: Option<usize>,
+    position: usize,
+    layout: Layout,
+    cx: &gpui::App,
+) -> gpui::AnyElement {
+    let opacity = index
+        .map(|i| state.read(cx).line_opacity(&document.lines()[i]))
+        .unwrap_or(1.);
+
+    let cell = gpui::div()
+        .opacity(opacity)
+        .child(plain_cell(document, index, position, layout, None))
+        .into_any_element();
+
+    let Some(request) = index
+        .filter(|&i| document.lines()[i].kind == DiffLineKind::Hunk)
+        .and_then(|i| document.request(Some(i), false))
+    else {
+        return cell;
+    };
+
+    let state = state.clone();
+    let document = document.clone();
+    let theme = Theme::current();
+
+    crate::motion::surface(
+        gpui::ElementId::Name(
+            format!(
+                "context-{}-{position}",
+                if matches!(layout.side, Side::Old) {
+                    "old"
+                } else {
+                    "new"
+                }
+            )
+            .into(),
+        ),
+        crate::motion::Surface::new(theme.diff_hunk),
+        crate::motion::Surface::new(theme.hover),
+        crate::motion::Surface::new(theme.pressed),
+        true,
+        move |surface| {
+            gpui::div()
+                .id("expand-context")
+                .debug_selector(move || format!("diff-expand-{position}"))
+                .w_full()
+                .relative()
+                .bg(surface.background)
+                .cursor_pointer()
+                .role(accesskit::Role::Button)
+                .aria_label(format!(
+                    "Expand {} unchanged lines above. Press E to expand context.",
+                    request.count
+                ))
+                .on_click(move |_, window, cx| {
+                    state.update(cx, |state, cx| {
+                        window.focus(&state.focus, cx);
+                        state.expand(request, cx);
+                    })
+                })
+                .child(plain_cell(
+                    &document,
+                    index,
+                    position,
+                    layout,
+                    Some(surface.background),
+                ))
+                .child(
+                    gpui::div()
+                        .absolute()
+                        .left(px(8.))
+                        .top(px(3.))
+                        .text_color(surface.ink)
+                        .child("↕"),
+                )
+        },
+    )
+    .into_any_element()
+}
+
+fn after(state: &gpui::Entity<Scroll>, document: &DiffDocument, blank: bool) -> gpui::AnyElement {
+    let Some(request) = document.request(None, true) else {
+        return gpui::Empty.into_any_element();
+    };
+
+    let theme = Theme::current();
+    let state = state.clone();
+
+    crate::motion::surface(
+        "expand-after".into(),
+        crate::motion::Surface::new(theme.diff_hunk),
+        crate::motion::Surface::new(theme.hover),
+        crate::motion::Surface::new(theme.pressed),
+        !blank,
+        move |surface| {
+            gpui::div()
+                .id("expand-after-control")
+                .debug_selector(move || {
+                    if blank {
+                        "diff-context-end-blank".into()
+                    } else {
+                        "diff-expand-after".into()
+                    }
+                })
+                .h(px(26.))
+                .w_full()
+                .bg(surface.background)
+                .text_color(theme.diff_muted_ink)
+                .font_family(theme.mono)
+                .text_size(theme.code.size)
+                .flex()
+                .items_center()
+                .pl(px(8.))
+                .when(!blank, |d| {
+                    d.cursor_pointer()
+                        .role(accesskit::Role::Button)
+                        .aria_label(format!("Expand {} unchanged lines below", request.count))
+                        .on_click(move |_, window, cx| {
+                            state.update(cx, |state, cx| {
+                                window.focus(&state.focus, cx);
+                                state.expand(request, cx);
+                            })
+                        })
+                        .child("↕   Expand unchanged lines")
+                })
+        },
+    )
+    .into_any_element()
+}
+
 fn describe(line: &DiffLine, view: DiffView, side: Side) -> String {
     let kind = match line.kind {
         DiffLineKind::Added => "Added",
@@ -292,7 +466,13 @@ pub(super) fn list(
         Side::New => "after",
     };
 
-    let list = gpui::list(handle, move |position, _, _| {
+    let retained = state.clone();
+
+    let list = gpui::list(handle, move |position, _, cx| {
+        if position == document.rows(view).len() {
+            return after(&retained, &document, matches!(side, Side::New));
+        }
+
         let source = match document.rows(view)[position] {
             Row::Single(index) => Some(index),
             Row::Pair { old, new } => match side {
@@ -301,7 +481,7 @@ pub(super) fn list(
             },
         };
 
-        cell(&document, source, position, layout)
+        cell(&retained, &document, source, position, layout, cx)
     })
     .h_full()
     .w_full()
@@ -335,9 +515,16 @@ pub(super) fn aligned_list(
     let offset = state.read(cx).horizontal.offset().x;
     let width = layout.width;
 
-    let list = gpui::list(handle, move |position, _, _| {
+    let retained = state.clone();
+
+    let list = gpui::list(handle, move |position, _, cx| {
+        if position == document.rows(DiffView::Split).len() {
+            return after(&retained, &document, false);
+        }
+
         match document.rows(DiffView::Split)[position] {
             Row::Single(index) => cell(
+                &retained,
                 &document,
                 Some(index),
                 position,
@@ -345,6 +532,7 @@ pub(super) fn aligned_list(
                     width: px(0.),
                     ..layout
                 },
+                cx,
             ),
             Row::Pair { old, new } => gpui::div()
                 .w_full()
@@ -357,6 +545,7 @@ pub(super) fn aligned_list(
                         .min_w_0()
                         .overflow_hidden()
                         .child(gpui::div().relative().left(offset).child(cell(
+                            &retained,
                             &document,
                             old,
                             position,
@@ -364,6 +553,7 @@ pub(super) fn aligned_list(
                                 side: Side::Old,
                                 ..layout
                             },
+                            cx,
                         ))),
                 )
                 .child(
@@ -380,6 +570,7 @@ pub(super) fn aligned_list(
                         .min_w_0()
                         .overflow_hidden()
                         .child(gpui::div().relative().left(offset).child(cell(
+                            &retained,
                             &document,
                             new,
                             position,
@@ -387,6 +578,7 @@ pub(super) fn aligned_list(
                                 side: Side::New,
                                 ..layout
                             },
+                            cx,
                         ))),
                 )
                 .into_any_element(),

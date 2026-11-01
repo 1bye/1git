@@ -1,16 +1,19 @@
 //! Patch fixtures prepared once, independent of Git and render frequency.
 use onegit_ui::DiffDocument;
 
-pub const LABELS: [&str; 5] = [
+pub const LABELS: [&str; 6] = [
     "Rust changes",
     "Unicode & newlines",
     "Large patch",
     "Binary change",
     "No changes",
+    "Expandable context",
 ];
 
 fn parse(patch: &str) -> DiffDocument {
-    DiffDocument::parse(patch).expect("valid gallery patch")
+    DiffDocument::parse(patch)
+        .expect("valid gallery patch")
+        .with_source("theme.rs", "theme.rs", None)
 }
 
 pub fn samples() -> Vec<DiffDocument> {
@@ -35,6 +38,7 @@ pub fn samples() -> Vec<DiffDocument> {
             "diff --git a/icon.png b/icon.png\nindex 1234567..abcdef0 100644\nBinary files a/icon.png and b/icon.png differ\n",
         ),
         parse(""),
+        context(),
     ]
 }
 
@@ -44,4 +48,29 @@ pub fn repository() -> Vec<DiffDocument> {
         "@@ -18,3 +18,3 @@ Button {\n     variant: Secondary,\n-    border: visible,\n+    border: none,\n }\n",
         "@@ -1 +1,2 @@\n-A component gallery.\n+A reusable repository workspace.\n+Built with native controls.\n",
     ].into_iter().map(parse).collect()
+}
+
+fn context() -> DiffDocument {
+    let header = "--- a/context.ts\n+++ b/context.ts\n";
+
+    let visible = format!(
+        "{header}@@ -37,7 +37,7 @@\n export const row_37 = 37;\n export const row_38 = 38;\n export const row_39 = 39;\n-export const row_40 = \"before\";\n+export const row_40 = \"after\";\n export const row_41 = 41;\n export const row_42 = 42;\n export const row_43 = 43;\n"
+    );
+
+    let mut full = format!("{header}@@ -1,90 +1,90 @@\n");
+
+    for n in 1..=90 {
+        if n == 40 {
+            full.push_str(
+                "-export const row_40 = \"before\";\n+export const row_40 = \"after\";\n",
+            );
+        } else {
+            full.push_str(&format!(" export const row_{n} = {n};\n"));
+        }
+    }
+
+    DiffDocument::parse(&visible)
+        .expect("valid context patch")
+        .with_source("context.ts", "context.ts", Some(&full))
+        .without_file_metadata()
 }

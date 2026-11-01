@@ -504,7 +504,7 @@ mod native {
         draw(&mut cx, v);
         assert!(
             gpui::VisualTestContext::from_window(v.into(), &cx)
-                .debug_bounds("diff-after")
+                .debug_bounds("diff-aligned")
                 .is_some()
         );
     }

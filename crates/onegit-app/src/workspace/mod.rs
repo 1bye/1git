@@ -98,6 +98,7 @@ pub(crate) struct RepositoryWorkspace {
     selected: Option<ChangeKey>,
     preview: PreviewState,
     diff_state: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
+    conflict_diff_states: [Option<gpui::Entity<onegit_ui::DiffViewerState>>; 2],
     view: DiffView,
     focus: gpui::FocusHandle,
     files_focus: gpui::FocusHandle,
@@ -302,6 +303,7 @@ impl RepositoryWorkspace {
             selected: None,
             preview: PreviewState::Empty,
             diff_state: None,
+            conflict_diff_states: Default::default(),
             view: DiffView::Unified,
             focus,
             files_focus: cx.focus_handle(),
@@ -985,6 +987,7 @@ impl RepositoryWorkspace {
 
         if self.selected.as_ref() != Some(&key) {
             self.diff_state = None;
+            self.conflict_diff_states = Default::default();
         }
 
         self.preview = PreviewState::Loading;
@@ -1077,6 +1080,24 @@ impl RepositoryWorkspace {
             } else {
                 self.diff_state =
                     Some(cx.new(|cx| onegit_ui::DiffViewerState::new(compact, self.view, cx)));
+            }
+        }
+
+        if let Ok(Preview::Conflict(preview)) = &result {
+            for (index, version) in [&preview.ours, &preview.theirs].into_iter().enumerate() {
+                if let Some(document) = &version.document {
+                    let compact = document.without_file_metadata();
+
+                    if let Some(state) = &self.conflict_diff_states[index] {
+                        state.update(cx, |state, _| state.refresh(compact, DiffView::Split));
+                    } else {
+                        self.conflict_diff_states[index] = Some(cx.new(|cx| {
+                            onegit_ui::DiffViewerState::new(compact, DiffView::Split, cx)
+                        }));
+                    }
+                } else {
+                    self.conflict_diff_states[index] = None;
+                }
             }
         }
 

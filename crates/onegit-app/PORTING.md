@@ -39,9 +39,9 @@ spacing checks described in `docs/RUST.md`.
 ## Intentional differences
 
 Rust retains index staging rather than the source app's selected-file inclusion
-workflow. It retains explicit page loading in History. Unported AI, amend/undo, stash,
+workflow. It retains explicit page loading in History. Unported AI, amend/undo,
 graph, account and SSH actions are unavailable. Read-only diffs do not include
-hunk staging, context expansion, syntax highlighting or text selection.
+hunk staging or text selection.
 These are behavior gaps, not a claim that the full original application is ported.
 Only persisted source library/cache entries are imported; unsaved source runtime
 state can differ. Repository contents, refs and the source session are not written
@@ -514,8 +514,7 @@ reduced-motion geometry.
 
 Differences: the source's external-editor preference has not been ported;
 "Open editor" uses macOS's default text editor after validating a regular
-canonical path inside the repository; other platforms show manual-editor guidance. Interactive hunk context expansion and
-syntax highlighting remain shared diff-renderer gaps. Cherry-pick/revert and
+canonical path inside the repository; other platforms show manual-editor guidance. Shared context expansion and syntax highlighting are described below. Cherry-pick/revert and
 squash operation controls remain outside this merge/rebase slice.
 
 No changeset is required: these Rust crates are unpublished and no TypeScript
@@ -541,3 +540,74 @@ bringing coverage to 568 tests total. Strict workspace all-target/all-feature
 Clippy, rustfmt, rustdoc, the normal app build and workspace spacing (including
 Windows/Linux Git code) pass. The development bundle passes strict signature
 verification. CI was not run.
+
+## Diff syntax and unchanged context
+
+| Original implementation | Rust implementation |
+| --- | --- |
+| `DiffContext` request/expand and unit cases | `onegit-ui/src/diff_viewer/context.rs` |
+| `RepositoryDiff.readText` optional syntax context | `workspace/read::document`, shared Changes/History/Stashes worker reads |
+| Conflict indexed/working comparisons | `conflicts/read::compare_named`, using the actual GitPath as a language hint |
+| Native syntax cache and token palette | `diff_viewer/syntax.rs`, cached Tree-sitter queries and prepared per-side spans |
+| Native expansion, keyboard and virtual scrolling | `diff_viewer/rows.rs`, `state.rs`, `onegit-ui/tests/diffs.rs` |
+
+All four repository views use the same immutable prepared document. Hidden context
+is optional and read on the existing background preview worker. Exact headers,
+edits, source coordinates, newline markers and visible context must match before
+it is attached. A failed, oversized or racing full read leaves the ordinary
+preview available. Context is never used as staging or resolution input.
+
+Click a hunk separator or the trailing control to reveal up to 20 unchanged
+lines. E expands the first remaining gap and then trailing context. Adjacent
+hunks merge only when both source coordinates meet; known EOF removes the final
+control. Expanded previews retain the source's 512 KiB/2,000-line/4,000-byte-line
+budget and explain when that budget is reached. The immutable hidden patch uses
+the existing bounded Git reader and parser (16 MiB and 200,000 patch rows).
+
+Highlighting prepares separate old/new streams with the source app's light/dark
+token palette. Bundled grammars cover JavaScript/JSX, TypeScript/TSX, Rust,
+Python, Go, JSON, CSS, HTML, Bash and C. Other extensions remain plain text.
+Multiline comments and strings use omitted context without displaying it.
+Fragment fallback resets parser state across gaps. Syntax parsing is bounded to
+512 KiB, 2,000 source lines and 4,000 bytes per line; oversized sources fall back
+to visible fragments. UTF-8 offsets are mapped through visible tabs and controls.
+Foreground syntax and changed-word backgrounds are composed without overlap.
+No parsing runs during scrolling, theme changes or ordinary rendering.
+
+Expansion preserves the source-line anchor, offset within its row and horizontal
+scroll, clamped by the available content extent. Both split layouts share scroll
+state. Repository screens use fixed aligned panes and one shared hunk header,
+without the gallery's optional Before/After captions. Unchanged refreshes and tab unmounts retain expansion; changed snapshots
+retain the viewport while rebuilding context. Conflict source sides now own
+separate retained viewers. Drafts and file selections are unchanged.
+
+Expansion controls use the existing 80 ms gpui-ce-motion hover/press treatment;
+newly revealed rows fade in over 100 ms without moving existing hit targets or
+animating scroll. Reduced motion snaps and settled viewers schedule no frames.
+The gallery includes an expandable TypeScript sample.
+
+Tests characterize 20-line steps, per-gap isolation, hunk merging, EOF/missing
+newline, CRLF/Unicode, stale headers/edits/context, display limits, multiline
+syntax, independent rename languages, gap resets and unsupported/large-source
+fallback. Native interactions cover exact viewport retention in unified and both
+split layouts, E/pointer expansion, mode changes, hidden tabs, same-file refresh,
+shared scrolling and settled motion.
+
+Native QA has verified expansion controls in Changes, History and Stashes and
+highlighted TypeScript in the running development bundle. The matching reference
+screen comparison is pending: reads of the installed original application's
+window currently time out, and background captures can return stale frames or
+Stage Manager thumbnails. An earlier attempt reported the Mac was locked. After resuming, Rust accessibility
+works again, but the installed reference app still fails screen capture. This is not a claim of completed visual parity.
+
+No changeset is required: the Rust crates are unpublished and no TypeScript
+release package changed.
+
+Validation: the full workspace run passed 575 tests. Final UI and app reruns pass
+112 and 150 tests respectively; the final UI suite includes three additional
+syntax/scroll cases, bringing combined coverage to 578 tests. After the final
+context-index optimization, all 34 UI library and nine diff interaction tests pass.
+Strict all-target/all-feature workspace Clippy, rustdoc with warnings denied,
+rustfmt, Git whitespace checks and workspace spacing (including Windows/Linux Git
+code) pass. The normal app build succeeds, and its signed development bundle is
+running. CI was not run. Matching-screen visual verification remains pending.

@@ -6,7 +6,7 @@ use onegit_git::{
     Repository,
 };
 
-use onegit_ui::{CommitItem, CommitListData, DiffDocument};
+use onegit_ui::{CommitItem, CommitListData};
 
 pub(super) struct Page {
     pub commits: Vec<CommitInfo>,
@@ -132,7 +132,7 @@ pub(in crate::workspace) fn patch(
 
     options.paths = Some(&paths);
     let diff = repository
-        .diff(options, Some(cancel))
+        .diff(options.clone(), Some(cancel))
         .map_err(read::message)?;
 
     if diff.stats.iter().any(|stat| stat.path != file.path) {
@@ -155,7 +155,13 @@ pub(in crate::workspace) fn patch(
         });
     }
 
-    DiffDocument::parse(&diff.patch)
-        .map(Preview::Patch)
-        .map_err(|error| format!("Could not display this patch: {error}"))
+    read::document(
+        repository,
+        options,
+        &diff.patch,
+        &file.path,
+        file.original_path.as_ref(),
+        cancel,
+    )
+    .map(Preview::Patch)
 }

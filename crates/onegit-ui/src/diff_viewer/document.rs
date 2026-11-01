@@ -65,22 +65,19 @@ impl Row {
                 .expect("paired diff rows contain at least one source line"),
         }
     }
-
-    pub fn contains(self, source: usize) -> bool {
-        match self {
-            Self::Single(index) => source == index,
-            Self::Pair { old, new } => old == Some(source) || new == Some(source),
-        }
-    }
 }
 
-#[derive(Debug)]
-struct Document {
+#[derive(Clone, Debug)]
+pub(super) struct Document {
     patch: String,
+    pub(super) paths: [String; 2],
     lines: Vec<DiffLine>,
     unified: Vec<Row>,
     split: Vec<Row>,
     words: Vec<Vec<std::ops::Range<usize>>>,
+    pub(super) syntax: Vec<super::syntax::Spans>,
+    pub(super) requests: Vec<(Option<usize>, super::context::Request)>,
+    pub(super) context: Option<Arc<super::context::Source>>,
     compact_unified: Vec<Row>,
     compact_split: Vec<Row>,
     added: usize,
@@ -92,7 +89,7 @@ struct Document {
 
 /// Cheaply cloned, immutable single-file diff, parsed once outside render. Contains no Git or filesystem access.
 #[derive(Clone, Debug)]
-pub struct DiffDocument(Arc<Document>, bool);
+pub struct DiffDocument(pub(super) Arc<Document>, pub(super) bool);
 
 /// Invalid, unsupported or over-budget input; source coordinates are never invented for malformed patches.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -125,14 +122,18 @@ fn error(line: usize, reason: &'static str) -> DiffParseError {
     DiffParseError { line, reason }
 }
 
-struct Cursor {
-    old: u64,
-    new: u64,
+pub(super) struct Cursor {
+    pub(super) old: u64,
+    pub(super) new: u64,
     old_left: u64,
     new_left: u64,
 }
 
 impl Cursor {
+    pub(super) fn end(&self) -> (u64, u64) {
+        (self.old + self.old_left, self.new + self.new_left)
+    }
+
     fn complete(&self) -> bool {
         self.old_left == 0 && self.new_left == 0
     }
@@ -162,7 +163,7 @@ fn range(text: &str, line: usize) -> Result<(u64, u64), DiffParseError> {
     Ok((start, count))
 }
 
-fn hunk(text: &str, line: usize) -> Result<Cursor, DiffParseError> {
+pub(super) fn hunk(text: &str, line: usize) -> Result<Cursor, DiffParseError> {
     let body = text
         .strip_prefix("@@ -")
         .ok_or_else(|| error(line, "invalid hunk header"))?;
@@ -186,7 +187,7 @@ fn hunk(text: &str, line: usize) -> Result<Cursor, DiffParseError> {
     })
 }
 
-fn display(text: &str) -> SharedString {
+pub(super) fn display(text: &str) -> SharedString {
     let mut result = String::with_capacity(text.len());
 
     for character in text.chars() {
@@ -491,12 +492,18 @@ impl DiffDocument {
         let compact_unified = compact(&unified);
         let compact_split = compact(&split);
 
+        let syntax = vec![[Vec::new(), Vec::new()]; lines.len()];
+
         Ok(Self(
             Arc::new(Document {
                 patch: patch.to_owned(),
+                paths: Default::default(),
                 lines,
                 unified,
                 split,
+                syntax,
+                context: None,
+                requests: Vec::new(),
                 words,
                 compact_unified,
                 compact_split,
@@ -565,8 +572,21 @@ impl DiffDocument {
         }
     }
 
+    pub(super) fn same_source(&self, other: &Self) -> bool {
+        self.same(other)
+            || (self.1 == other.1
+                && self.patch() == other.patch()
+                && self.0.paths == other.0.paths
+                && self.0.context.as_ref().map(|s| s.full.patch())
+                    == other.0.context.as_ref().map(|s| s.full.patch()))
+    }
+
     pub(super) fn same(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0) && self.1 == other.1
+    }
+
+    pub(super) fn row_count(&self, view: DiffView) -> usize {
+        self.rows(view).len() + usize::from(self.request(None, true).is_some())
     }
 
     pub(super) fn columns(&self) -> usize {
@@ -594,6 +614,7 @@ mod tests {
         assert_eq!(compact.rows(DiffView::Split).len(), 2);
         assert_eq!((compact.added_lines(), compact.deleted_lines()), (1, 1));
         assert!(!document.same(&compact));
+        assert!(!document.same_source(&compact));
         assert!(compact.same(&compact.without_file_metadata()));
         let metadata =
             DiffDocument::parse("diff --git a/a b/a\nBinary files a/a and b/a differ\n").unwrap();

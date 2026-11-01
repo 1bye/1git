@@ -227,7 +227,7 @@ impl RepositoryWorkspace {
 
         let content = if let Some(document) = &source.document {
             rake::view! {
-                <DiffViewer gutter_style={onegit_ui::DiffGutterStyle::Continuous} split_layout={onegit_ui::DiffSplitLayout::Aligned} show_header={false} view={DiffView::Split}
+                <DiffViewer state={self.conflict_diff_states[if side == ConflictSide::Ours {0} else {1}].clone()} gutter_style={onegit_ui::DiffGutterStyle::Continuous} split_layout={onegit_ui::DiffSplitLayout::Aligned} show_header={false} view={DiffView::Split}
                     {..DiffViewer::new("conflict-diff","Indexed version compared with working result",document.without_file_metadata())}/>
             }.into_any_element()
         } else {

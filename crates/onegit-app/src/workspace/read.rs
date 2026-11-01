@@ -258,7 +258,9 @@ pub(super) fn preview(
     let mut options = DiffOptions::new(file.key.side.target());
 
     options.paths = Some(&paths);
-    let diff = repository.diff(options, Some(cancel)).map_err(message)?;
+    let diff = repository
+        .diff(options.clone(), Some(cancel))
+        .map_err(message)?;
 
     if diff.stats.iter().any(|stat| stat.path != file.key.path) {
         return Err(
@@ -285,8 +287,46 @@ pub(super) fn preview(
         });
     }
 
-    let document = DiffDocument::parse(&diff.patch)
-        .map_err(|error| format!("Could not display this patch: {error}"))?;
+    let document = document(
+        repository,
+        options,
+        &diff.patch,
+        &file.key.path,
+        file.original.as_ref(),
+        cancel,
+    )?;
 
     Ok(Preview::Patch(document))
+}
+
+/// Optional full context is read on the existing preview worker, never during layout.
+/// Snapshot validation in DiffDocument prevents races from mixing working-file revisions.
+pub(super) fn document(
+    repository: &Repository,
+    mut options: DiffOptions<'_>,
+    patch: &str,
+    path: &GitPath,
+    original: Option<&GitPath>,
+    cancel: &Cancellation,
+) -> Result<DiffDocument, String> {
+    let document = DiffDocument::parse(patch)
+        .map_err(|error| format!("Could not display this patch: {error}"))?;
+
+    options.context_lines = i32::MAX as u32;
+    let full = document
+        .lines()
+        .iter()
+        .any(|line| line.kind == onegit_ui::DiffLineKind::Hunk)
+        .then(|| repository.diff(options, Some(cancel)).ok())
+        .flatten()
+        .filter(|diff| diff.patch_omitted.is_none());
+
+    let new_path = path.to_str().unwrap_or("");
+    let old_path = original.and_then(GitPath::to_str).unwrap_or(new_path);
+
+    Ok(document.with_source(
+        old_path,
+        new_path,
+        full.as_ref().map(|diff| diff.patch.as_str()),
+    ))
 }

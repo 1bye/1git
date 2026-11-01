@@ -31,6 +31,19 @@ base64 = "=0.22.1"
 url = "=2.5.8"
 chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
 
+# Parser and bundled grammars used by the read-only diff highlighter.
+tree-sitter-highlight = "=0.25.10"
+tree-sitter-typescript = "=0.23.2"
+tree-sitter-javascript = "=0.25.0"
+tree-sitter-rust = "=0.24.2"
+tree-sitter-python = "=0.25.0"
+tree-sitter-go = "=0.25.0"
+tree-sitter-json = "=0.24.8"
+tree-sitter-css = "=0.23.2"
+tree-sitter-html = "=0.23.2"
+tree-sitter-bash = "=0.25.1"
+tree-sitter-c = "=0.24.1"
+
 [workspace.lints.rust]
 missing_docs = "warn"
 unsafe_op_in_unsafe_fn = "deny"

@@ -150,7 +150,7 @@ impl HistoryWorkspace {
             PreviewState::Ready(Preview::Patch(document)) => {
                 let title = self.file.as_ref().map(read::path_label).unwrap_or_default();
 
-                rake::view!{<DiffViewer state={self.diff_state.clone()} show_header={false} view={self.view} {..DiffViewer::new("history-diff",title,document.without_file_metadata())}/>}.into_any_element()
+                rake::view!{<DiffViewer split_layout={onegit_ui::DiffSplitLayout::Aligned} state={self.diff_state.clone()} show_header={false} view={self.view} {..DiffViewer::new("history-diff",title,document.without_file_metadata())}/>}.into_any_element()
             }
         };
 

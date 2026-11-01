@@ -1,7 +1,9 @@
 //! Virtualized read-only diff rows; immutable documents are prepared outside render.
+mod context;
 mod document;
 mod rows;
 mod state;
+mod syntax;
 mod words;
 
 use crate::{Text, TextRole, TextTone, Theme, focusable};
@@ -83,9 +85,11 @@ impl RenderOnce for DiffViewer {
             })
         });
 
-        state.update(cx, |state, _| {
-            state.configure(self.document.clone(), self.view)
+        state.update(cx, |state, cx| {
+            state.configure(self.document.clone(), self.view);
+            state.sample(window, cx);
         });
+        let document = state.read(cx).document.clone();
         let theme = Theme::current();
         let font_size = theme.code.size;
         let font = gpui::font(theme.mono);
@@ -97,9 +101,9 @@ impl RenderOnce for DiffViewer {
             .unwrap_or(font_size)
             .max(px(1.));
 
-        let gutter = (advance * self.document.digits() as f32 + px(14.)).max(px(30.));
+        let gutter = (advance * document.digits() as f32 + px(14.)).max(px(30.));
 
-        let width = advance * self.document.columns() as f32
+        let width = advance * document.columns() as f32
             + gutter
                 * if self.view == DiffView::Unified {
                     2.
@@ -112,28 +116,24 @@ impl RenderOnce for DiffViewer {
             .read(cx)
             .focus
             .clone()
-            .tab_stop(!self.document.lines().is_empty());
+            .tab_stop(!document.lines().is_empty());
 
         let keyboard = state.clone();
         let pointer_focus = focus.clone();
 
-        let summary = if self.document.is_binary() {
+        let summary = if document.is_binary() {
             "Binary change".to_owned()
         } else {
-            format!(
-                "+{} −{}",
-                self.document.added_lines(),
-                self.document.deleted_lines()
-            )
+            format!("+{} −{}", document.added_lines(), document.deleted_lines())
         };
 
-        let content = if self.document.lines().is_empty() {
+        let content = if document.lines().is_empty() {
             rake::view! {<div class="p-3"><Text tone={TextTone::Muted} {..Text::new("empty", "No changes to display.")}/></div>}.into_any_element()
         } else {
             if self.view == DiffView::Split && self.split_layout == DiffSplitLayout::Aligned {
                 rows::aligned_list(
                     &state,
-                    self.document.clone(),
+                    document.clone(),
                     rows::Layout {
                         view: self.view,
                         side: rows::Side::Old,
@@ -146,7 +146,7 @@ impl RenderOnce for DiffViewer {
             } else {
                 let left = rows::list(
                     &state,
-                    self.document.clone(),
+                    document.clone(),
                     rows::Layout {
                         view: self.view,
                         side: rows::Side::Old,
@@ -163,7 +163,7 @@ impl RenderOnce for DiffViewer {
                     // Equal row heights and width budgets give both columns the same scroll extent.
                     let right = rows::list(
                         &state,
-                        self.document.clone(),
+                        document.clone(),
                         rows::Layout {
                             view: self.view,
                             side: rows::Side::New,
@@ -200,6 +200,9 @@ impl RenderOnce for DiffViewer {
                     <div class="shrink-0"><Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("summary", summary)}/></div>
                 </div>}
                 {content}
+                if let Some(error) = state.read(cx).error {
+                    <div class="px-3 py-1"><Text tone={TextTone::Muted} {..Text::new("context-error", error)}/></div>
+                }
             </div>
         }
     }

@@ -480,7 +480,7 @@ impl RepositoryWorkspace {
                     .map(|key| format!("{} · {}", read::path_label(&key.path), key.side.label()))
                     .unwrap_or_default();
 
-                rake::view!{<DiffViewer state={self.diff_state.clone()} gutter_style={onegit_ui::DiffGutterStyle::Inset} show_header={false} view={self.view} {..DiffViewer::new("diff",title,document.without_file_metadata())}/>}.into_any_element()
+                rake::view!{<DiffViewer split_layout={onegit_ui::DiffSplitLayout::Aligned} state={self.diff_state.clone()} gutter_style={onegit_ui::DiffGutterStyle::Inset} show_header={false} view={self.view} {..DiffViewer::new("diff",title,document.without_file_metadata())}/>}.into_any_element()
             }
         };
 

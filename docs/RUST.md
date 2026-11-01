@@ -341,3 +341,24 @@ refreshes it without retrying.
 Accepted actions refresh every related worktree tab while retaining commit drafts,
 surviving selections, filters, diff modes and pane sizes. Consent is never restored
 after restart. Confirmation transitions use gpui-ce-motion and honor reduced motion.
+
+## Syntax and unchanged diff context
+
+Changes (staged and working), History, Stashes and conflict previews share syntax
+highlighting and expandable unchanged lines in unified and split views. Click a
+hunk separator or **Expand unchanged lines**, or focus the diff and press **E**,
+to reveal up to 20 lines. Repeated expansion joins adjacent hunks and stops at EOF.
+
+The viewer preserves the source-line position and horizontal scroll when context
+is inserted. Split columns stay synchronized. Tabs and unchanged refreshes retain
+expanded context; a changed file rebuilds its context from the new snapshot.
+Conflict source sides retain separate viewports. Commit drafts and selections
+are preserved.
+
+Colors match the current app's light/dark syntax and changed-word palettes.
+JavaScript/JSX, TypeScript/TSX, Rust, Python, Go, JSON, CSS, HTML, Bash and C have
+bundled grammars; other files stay plain text. Binary/oversized notices remain.
+Hidden context is optional and snapshot-checked; when it cannot be safely loaded,
+the ordinary preview stays usable. Expansion reports its safe display limit.
+Hover/press feedback and a fast reveal fade use gpui-ce-motion with reduced-motion
+support and no idle animation loop.

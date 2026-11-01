@@ -384,3 +384,143 @@ fn aligned_split_keeps_fixed_columns_shared_hunks_and_scrolls_both_versions_toge
     key(&mut cx, v, "end");
     assert!(bounds(&cx, v, "diff-new-1000").is_some());
 }
+
+fn context_sample() -> DiffDocument {
+    let header = "--- a/context.ts\n+++ b/context.ts\n";
+
+    let patch = format!(
+        "{header}@@ -37,7 +37,7 @@\n line 37\n line 38\n line 39\n-old 40\n+new 40\n line 41\n line 42\n line 43\n@@ -97,7 +97,7 @@\n line 97\n line 98\n line 99\n-old 100\n+new 100\n line 101\n line 102\n line 103\n"
+    );
+
+    let mut full = format!("{header}@@ -1,150 +1,150 @@\n");
+
+    for n in 1..=150 {
+        if n == 40 {
+            full.push_str("-old 40\n+new 40\n")
+        } else if n == 100 {
+            full.push_str("-old 100\n+new 100\n")
+        } else {
+            full.push_str(&format!(" line {n}\n"))
+        }
+    }
+
+    DiffDocument::parse(&patch)
+        .unwrap()
+        .with_source("context.ts", "context.ts", Some(&full))
+        .without_file_metadata()
+}
+
+fn click(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<Preview>, selector: &'static str) {
+    let position = bounds(cx, v, selector).expect(selector).center();
+
+    cx.update_window(v.into(), |_, window, cx| {
+        window.dispatch_event(
+            gpui::MouseDownEvent {
+                button: gpui::MouseButton::Left,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+                first_mouse: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        window.dispatch_event(
+            gpui::MouseUpEvent {
+                button: gpui::MouseButton::Left,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+            }
+            .to_platform_input(),
+            cx,
+        );
+    })
+    .unwrap();
+    draw(cx, v);
+}
+
+#[test]
+fn expansion_preserves_source_pixel_offset_modes_tabs_and_refresh() {
+    for (mode, layout) in [
+        (DiffView::Unified, onegit_ui::DiffSplitLayout::Columns),
+        (DiffView::Split, onegit_ui::DiffSplitLayout::Columns),
+        (DiffView::Split, onegit_ui::DiffSplitLayout::Aligned),
+    ] {
+        let (mut cx, v) = setup(mode);
+
+        v.update(&mut cx, |v, _, cx| {
+            v.document = context_sample();
+            v.layout = layout;
+            v.retained =
+                Some(cx.new(|cx| onegit_ui::DiffViewerState::new(v.document.clone(), mode, cx)));
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        // Click the hunk to reveal 20 lines above. The original first context line stays put.
+        let before = bounds(&cx, v, "diff-old-1").unwrap().top();
+
+        click(&mut cx, v, "diff-expand-0");
+        assert_eq!(
+            bounds(&cx, v, "diff-old-21").unwrap().top(),
+            before,
+            "{mode:?} {layout:?}"
+        );
+
+        if mode == DiffView::Split {
+            assert_eq!(bounds(&cx, v, "diff-new-21").unwrap().top(), before);
+        }
+
+        v.update(&mut cx, |v, _, cx| {
+            v.visible = false;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        v.update(&mut cx, |v, _, cx| {
+            v.visible = true;
+            let document = context_sample();
+
+            v.retained
+                .as_ref()
+                .unwrap()
+                .update(cx, |state, _| state.refresh(document.clone(), mode));
+            v.document = document;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(bounds(&cx, v, "diff-old-21").unwrap().top(), before);
+        // E reveals the final 16 leading lines; Home now reaches file line 1.
+        key(&mut cx, v, "e");
+        key(&mut cx, v, "home");
+        assert!(
+            bounds(&cx, v, "diff-expand-0").is_none(),
+            "leading context is exhausted"
+        );
+        key(&mut cx, v, "end");
+        assert!(bounds(&cx, v, "diff-expand-after").is_some());
+        click(&mut cx, v, "diff-expand-after");
+        key(&mut cx, v, "end");
+        click(&mut cx, v, "diff-expand-after");
+        key(&mut cx, v, "end");
+        click(&mut cx, v, "diff-expand-after");
+        key(&mut cx, v, "end");
+        assert!(
+            bounds(&cx, v, "diff-expand-after").is_none(),
+            "known EOF removes trailing control"
+        );
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(200));
+        cx.update_window(v.into(), |_, w, cx| w.simulate_next_frame(cx))
+            .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(
+            cx.update_window(v.into(), |_, w, cx| w.simulate_next_frame(cx))
+                .unwrap(),
+            0,
+            "settled context requests no idle frames"
+        );
+    }
+}
