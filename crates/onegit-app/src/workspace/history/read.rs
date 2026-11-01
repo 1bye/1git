@@ -163,5 +163,8 @@ pub(in crate::workspace) fn patch(
         file.original_path.as_ref(),
         cancel,
     )
-    .map(Preview::Patch)
+    .map(|document| Preview::Patch {
+        document,
+        line_staging: false,
+    })
 }

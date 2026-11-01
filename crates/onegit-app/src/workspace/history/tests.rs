@@ -18,7 +18,7 @@ fn document(source: &Loaded, oid: &str, path: &str) -> onegit_ui::DiffDocument {
         .unwrap();
 
     match read::patch(&source.repository, oid, file, &Cancellation::default()).unwrap() {
-        Preview::Patch(doc) => doc,
+        Preview::Patch { document: doc, .. } => doc,
         _ => panic!("expected a committed patch"),
     }
 }
@@ -273,7 +273,7 @@ mod native {
 
     fn patch_text(v: gpui::WindowHandle<RepositoryWorkspace>, cx: &gpui::TestAppContext) -> String {
         v.read_with(cx, |view, cx| match &view.history.read(cx).preview {
-            PreviewState::Ready(Preview::Patch(doc)) => doc.patch().into(),
+            PreviewState::Ready(Preview::Patch { document: doc, .. }) => doc.patch().into(),
             _ => panic!("loaded history patch"),
         })
         .unwrap()

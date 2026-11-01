@@ -473,14 +473,48 @@ impl RepositoryWorkspace {
             PreviewState::Ready(Preview::Notice { title, detail }) => {
                 notice("patch-notice", *title, detail.clone())
             }
-            PreviewState::Ready(Preview::Patch(document)) => {
+            PreviewState::Ready(Preview::Patch {
+                document,
+                line_staging,
+            }) => {
                 let title = self
                     .selected
                     .as_ref()
                     .map(|key| format!("{} · {}", read::path_label(&key.path), key.side.label()))
                     .unwrap_or_default();
 
-                rake::view!{<DiffViewer split_layout={onegit_ui::DiffSplitLayout::Aligned} state={self.diff_state.clone()} gutter_style={onegit_ui::DiffGutterStyle::Inset} show_header={false} view={self.view} {..DiffViewer::new("diff",title,document.without_file_metadata())}/>}.into_any_element()
+                let staging = line_staging
+                    .then_some(())
+                    .and(self.selected.as_ref())
+                    .map(|key| {
+                        if key.side == read::Side::Staged {
+                            onegit_ui::DiffStageAction::Unstage
+                        } else {
+                            onegit_ui::DiffStageAction::Stage
+                        }
+                    });
+
+                let expected_key = self.selected.clone();
+
+                let expected = match &self.state {
+                    RepositoryState::Ready(source) => Some((
+                        source.snapshot.repository.root.clone(),
+                        onegit_git::BranchIdentity::from_snapshot(&source.snapshot),
+                    )),
+                    _ => None,
+                };
+
+                let controls = if self.write_job.is_some() {
+                    ControlState::Busy
+                } else if !self.can_write() || self.diff_job.is_some() || self.load_job.is_some() {
+                    ControlState::Disabled
+                } else {
+                    ControlState::Enabled
+                };
+
+                rake::view!{<DiffViewer staging={staging} staging_state={controls} on_stage={Some(Box::new(cx.listener(move |this,request,window,cx|{
+                    if let (Some(key),Some((root,expected)))=(&expected_key,&expected){this.stage_diff(key,root,expected,request,window,cx);}
+                })))} split_layout={onegit_ui::DiffSplitLayout::Aligned} state={self.diff_state.clone()} gutter_style={onegit_ui::DiffGutterStyle::Inset} show_header={false} view={self.view} {..DiffViewer::new("diff",title,document.without_file_metadata())}/>}.into_any_element()
             }
         };
 

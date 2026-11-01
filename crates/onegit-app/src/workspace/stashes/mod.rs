@@ -371,7 +371,7 @@ impl Stashes {
             |this, result, cx| {
                 this.patch_job = None;
 
-                if let Ok(Preview::Patch(document)) = &result {
+                if let Ok(Preview::Patch { document, .. }) = &result {
                     this.diff_state = Some(cx.new(|cx| {
                         onegit_ui::DiffViewerState::new(
                             document.without_file_metadata(),

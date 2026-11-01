@@ -151,8 +151,7 @@ selection. Git reads and patch parsing run in the background with cancellation;
 failed pages retain existing rows and can be retried. Switching tabs preserves the
 commit draft and history selection. History never stages or changes files.
 
-Hunk staging, discard, remote machines, account management
-remain future app work.
+Remote machines and account management remain future app work.
 Loading status and previews does not mutate repository contents.
 The component gallery remains available with
 `cargo run -p onegit-ui --example gallery --locked`.
@@ -362,3 +361,24 @@ Hidden context is optional and snapshot-checked; when it cannot be safely loaded
 the ordinary preview stays usable. Expansion reports its safe display limit.
 Hover/press feedback and a fast reveal fade use gpui-ce-motion with reduced-motion
 support and no idle animation loop.
+
+## Partial staging and diff text selection
+
+Changes supports Stage/Unstage for a line, contiguous change group, whole hunk or
+selected changed lines. Use the two narrow gutters, the hunk action or the floating
+selection toolbar. Tab then Space activates a focused gutter. Renames, binary,
+mode/type and submodule changes use the existing whole-file checkbox.
+
+Actions freeze the reviewed root, branch/HEAD and original patch. A private index
+transaction rechecks them under the repository queue and index lock before atomic
+installation. A changed or outdated diff is rejected; review the refreshed preview
+before retrying. Unselected staging and all working bytes stay intact. Commit
+drafts, file selections and source-line scroll offsets survive, and related tabs
+(including linked worktrees) refresh without replacing their own intent.
+
+All diff views support drag selection, word/line clicks, Shift+arrows,
+Command/Ctrl+A and Command/Ctrl+C. Copy includes raw source only, retaining
+Unicode, tabs and CRLF. Split selection stays in its original column. Escape clears
+it. Dragging beyond the viewport scrolls only while held. History, stash and
+conflict source previews support copying without index actions. Hover/press motion
+uses gpui-ce-motion with reduced-motion support and no idle loop.

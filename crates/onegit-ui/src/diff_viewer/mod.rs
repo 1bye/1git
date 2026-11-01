@@ -2,6 +2,11 @@
 mod context;
 mod document;
 mod rows;
+mod selection;
+mod staging;
+
+pub use staging::{DiffStageAction, DiffStageHandler, DiffStageRequest};
+
 mod state;
 mod syntax;
 mod words;
@@ -32,7 +37,7 @@ pub enum DiffSplitLayout {
 }
 
 /// Read-only diff surface. Give its parent a bounded height; retain its immutable document outside render.
-#[derive(Debug, IntoElement)]
+#[derive(IntoElement)]
 pub struct DiffViewer {
     /// Stable identity retaining scroll and keyboard focus across rerenders/view switches.
     pub id: gpui::ElementId,
@@ -50,6 +55,12 @@ pub struct DiffViewer {
     pub split_layout: DiffSplitLayout,
     /// Optional owner-retained state for tabbed viewers; otherwise state lasts while mounted.
     pub state: Option<gpui::Entity<DiffViewerState>>,
+    /// Optional staging direction; omitted in read-only previews.
+    pub staging: Option<DiffStageAction>,
+    /// Availability of index controls; selection and copying remain available.
+    pub staging_state: crate::ControlState,
+    /// Application-owned handler for frozen source-coordinate requests.
+    pub on_stage: Option<DiffStageHandler>,
 }
 
 impl DiffViewer {
@@ -69,7 +80,21 @@ impl DiffViewer {
             gutter_style: DiffGutterStyle::Continuous,
             split_layout: DiffSplitLayout::Columns,
             state: None,
+            staging: None,
+            staging_state: crate::ControlState::Enabled,
+            on_stage: None,
         }
+    }
+}
+
+impl std::fmt::Debug for DiffViewer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiffViewer")
+            .field("id", &self.id)
+            .field("label", &self.label)
+            .field("view", &self.view)
+            .field("staging", &self.staging)
+            .finish_non_exhaustive()
     }
 }
 
@@ -87,6 +112,9 @@ impl RenderOnce for DiffViewer {
 
         state.update(cx, |state, cx| {
             state.configure(self.document.clone(), self.view);
+            state.staging = self.staging;
+            state.staging_state = self.staging_state;
+            state.on_stage = self.on_stage.map(std::rc::Rc::from);
             state.sample(window, cx);
         });
         let document = state.read(cx).document.clone();
@@ -140,6 +168,7 @@ impl RenderOnce for DiffViewer {
                         gutter,
                         width,
                         style: self.gutter_style,
+                        hunk_background: None,
                     },
                     cx,
                 )
@@ -153,6 +182,7 @@ impl RenderOnce for DiffViewer {
                         gutter,
                         width,
                         style: self.gutter_style,
+                        hunk_background: None,
                     },
                     cx,
                 );
@@ -170,6 +200,7 @@ impl RenderOnce for DiffViewer {
                             gutter,
                             width,
                             style: self.gutter_style,
+                            hunk_background: None,
                         },
                         cx,
                     );
@@ -193,13 +224,16 @@ impl RenderOnce for DiffViewer {
 
         rake::view! {
             <div id={self.id} role={accesskit::Role::Group} aria-label={self.label.clone()}
-                class="size-full flex flex-col min-w-0 min-h-0 text-ink overflow-hidden"
+                aria-description={"Drag to select code, Shift+arrows to extend, and Command/Ctrl+C to copy. Press E to expand context."}
+                class="relative size-full flex flex-col min-w-0 min-h-0 text-ink overflow-hidden"
                 style={|s| focusable(s).bg(if self.show_header { theme.surface } else { Theme::transparent() }).border_color(Theme::transparent()).track_focus(&focus).on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| window.focus(&pointer_focus, cx)).on_key_down(move |event, window, cx| keyboard.update(cx, |state, cx| state.key(event, window, cx)))}>
+                {selection::layer(&state)}
                 if self.show_header {<div class="h-[36px] flex flex-row items-center justify-between gap-3 px-3.5 border-b-1 border-hairline bg-surface shrink-0">
                     <div class="flex-1 min-w-0"><Text max_lines={Some(1)} role={TextRole::Caption} {..Text::new("title", self.label)}/></div>
                     <div class="shrink-0"><Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("summary", summary)}/></div>
                 </div>}
                 {content}
+                {staging::toolbar(&state,cx)}
                 if let Some(error) = state.read(cx).error {
                     <div class="px-3 py-1"><Text tone={TextTone::Muted} {..Text::new("context-error", error)}/></div>
                 }

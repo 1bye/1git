@@ -7,6 +7,7 @@ mod history;
 mod home;
 mod native;
 mod read;
+mod staging;
 mod stashes;
 mod sync;
 mod tabs;
@@ -672,6 +673,7 @@ impl RepositoryWorkspace {
                 .update(cx, |input, cx| input.set_text("", cx));
         }
 
+        let staging_completion = outcome.staging_completion;
         let conflict_completion = outcome.conflict_completion;
         let stash_completion = outcome.stash_completion;
         let discard_completion = outcome.discard_completion;
@@ -727,7 +729,8 @@ impl RepositoryWorkspace {
                 if outcome.branch_action
                     || stash_completion.is_some()
                     || discard_completion.is_some()
-                    || conflict_completion.is_some() =>
+                    || conflict_completion.is_some()
+                    || staging_completion.is_some() =>
             {
                 self.apply_automatic(loaded, cx)
             }
@@ -735,7 +738,8 @@ impl RepositoryWorkspace {
             Err(error)
                 if stash_completion.is_some()
                     || discard_completion.is_some()
-                    || conflict_completion.is_some() =>
+                    || conflict_completion.is_some()
+                    || staging_completion.is_some() =>
             {
                 self.refresh_blocked = true;
                 self.refresh_error = Some(format!(
@@ -747,6 +751,10 @@ impl RepositoryWorkspace {
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if let Some(completion) = staging_completion {
+            cx.emit(completion);
         }
 
         if let Some(completion) = conflict_completion {
@@ -957,7 +965,7 @@ impl RepositoryWorkspace {
             };
 
             if let Some(key) = replacement {
-                self.select(key, cx);
+                self.read_preview(key, cx);
             } else {
                 self.select_first_visible(cx);
             }
@@ -1072,7 +1080,7 @@ impl RepositoryWorkspace {
 
         self.diff_job = None;
 
-        if let Ok(Preview::Patch(document)) = &result {
+        if let Ok(Preview::Patch { document, .. }) = &result {
             let compact = document.without_file_metadata();
 
             if let Some(state) = &self.diff_state {

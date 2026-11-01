@@ -11,6 +11,10 @@ use std::{
 pub struct Scroll {
     pub(super) document: DiffDocument,
     input: DiffDocument,
+    pub(super) text: super::selection::TextSelection,
+    pub(super) staging: Option<super::staging::DiffStageAction>,
+    pub(super) staging_state: crate::ControlState,
+    pub(super) on_stage: Option<super::staging::Handler>,
     revealed: HashSet<(Option<u64>, Option<u64>)>,
     reveal: MotionValue,
     epoch: Instant,
@@ -28,6 +32,10 @@ impl Scroll {
         Self {
             document: document.clone(),
             input: document.clone(),
+            text: Default::default(),
+            staging: None,
+            staging_state: crate::ControlState::Enabled,
+            on_stage: None,
             revealed: HashSet::new(),
             reveal: MotionValue::new(1.),
             epoch: cx.background_executor().now(),
@@ -53,6 +61,10 @@ impl Scroll {
             self.error = None;
             self.replace(document, view, true);
         }
+    }
+
+    pub(super) fn original(&self) -> &DiffDocument {
+        &self.input
     }
 
     fn top(&self) -> usize {
@@ -109,6 +121,29 @@ impl Scroll {
                             })
                         })
                         .or_else(|| {
+                            document.rows(view).iter().position(|row| {
+                                let candidates = match *row {
+                                    super::document::Row::Single(i) => [Some(i), None],
+                                    super::document::Row::Pair { old, new } => [old, new],
+                                };
+
+                                candidates.into_iter().flatten().any(|i| {
+                                    let line = &document.lines()[i];
+
+                                    line.text == anchor.text
+                                        && if self.staging
+                                            == Some(super::staging::DiffStageAction::Unstage)
+                                        {
+                                            anchor.old_line.is_some()
+                                                && line.old_line == anchor.old_line
+                                        } else {
+                                            anchor.new_line.is_some()
+                                                && line.new_line == anchor.new_line
+                                        }
+                                })
+                            })
+                        })
+                        .or_else(|| {
                             // A hunk can move or merge during expansion. Anchor its first source row.
                             let start = self.document.rows(self.view).get(offset.item_ix)?.anchor();
 
@@ -156,6 +191,22 @@ impl Scroll {
         } else {
             gpui::point(px(0.), px(0.))
         });
+        self.text.remap(&self.document, &document);
+
+        if let Some(selection) = &mut self.text.selection {
+            selection.side = if view == DiffView::Unified {
+                super::rows::Side::Old
+            } else if self.view == DiffView::Unified {
+                if document.lines()[selection.anchor.line].kind == super::DiffLineKind::Added {
+                    super::rows::Side::New
+                } else {
+                    super::rows::Side::Old
+                }
+            } else {
+                selection.side
+            };
+        }
+
         self.document = document;
         self.view = view;
     }
@@ -198,6 +249,44 @@ impl Scroll {
     }
 
     pub(super) fn sample(&mut self, window: &mut gpui::Window, cx: &gpui::App) {
+        if self.text.dragging {
+            if !window.is_window_active() {
+                self.text.dragging = false;
+                self.text.pointer = None;
+            } else if let Some(pointer) = self.text.pointer {
+                let viewport = self.handle.viewport_bounds();
+
+                let direction = if pointer.y < viewport.top() {
+                    -1.
+                } else if pointer.y > viewport.bottom() {
+                    1.
+                } else {
+                    0.
+                };
+
+                if direction != 0. {
+                    let before = self.handle.logical_scroll_top();
+
+                    self.handle.scroll_by(px(direction * 12.));
+                    let after = self.handle.logical_scroll_top();
+
+                    if after.item_ix != before.item_ix
+                        || after.offset_in_item != before.offset_in_item
+                    {
+                        if let Some(selection) = self.text.selection
+                            && let Some(head) =
+                                self.text.hit(pointer, selection.side, &self.document)
+                        {
+                            self.text.selection =
+                                Some(super::selection::Selection { head, ..selection });
+                        }
+
+                        window.request_animation_frame();
+                    }
+                }
+            }
+        }
+
         let sample = self.reveal.sample(
             cx.background_executor()
                 .now()
@@ -228,6 +317,13 @@ impl Scroll {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        if self.selection_key(event, window, cx) {
+            window.prevent_default();
+            cx.stop_propagation();
+
+            return;
+        }
+
         if event.keystroke.modifiers.modified() {
             return;
         }
@@ -321,5 +417,49 @@ mod tests {
             assert_eq!(state.horizontal.offset().x, px(-120.));
             assert!(!state.reveal.sample(Duration::ZERO, true).is_animating());
         });
+    }
+
+    #[test]
+    fn partial_index_refresh_preserves_stable_source_pixel_and_horizontal_offsets() {
+        let before =
+            DiffDocument::parse("@@ -95,3 +95,4 @@\n line95\n+insert\n-old96\n+new96\n line97\n")
+                .unwrap();
+
+        for (action, patch, old, new) in [
+            (
+                super::super::DiffStageAction::Stage,
+                "@@ -96,3 +96,3 @@\n insert\n-old96\n+new96\n line97\n",
+                98,
+                98,
+            ),
+            (
+                super::super::DiffStageAction::Unstage,
+                "@@ -95,3 +95,3 @@\n line95\n-old96\n+new96\n line97\n",
+                97,
+                97,
+            ),
+        ] {
+            let mut cx = gpui::TestAppContext::single();
+            let state = cx.new(|cx| Scroll::new(before.clone(), DiffView::Unified, cx));
+
+            state.update(&mut cx, |state, _| {
+                state.staging = Some(action);
+                state.handle.scroll_to(gpui::ListOffset {
+                    item_ix: 5,
+                    offset_in_item: px(7.),
+                });
+                state.horizontal.set_offset(gpui::point(px(-90.), px(0.)));
+                state.refresh(DiffDocument::parse(patch).unwrap(), DiffView::Unified);
+                let offset = state.handle.logical_scroll_top();
+
+                let line = &state.document.lines()
+                    [state.document.rows(state.view)[offset.item_ix].anchor()];
+
+                assert_eq!(line.text.as_ref(), "line97");
+                assert_eq!((line.old_line, line.new_line), (Some(old), Some(new)));
+                assert_eq!(offset.offset_in_item, px(7.));
+                assert_eq!(state.horizontal.offset().x, px(-90.));
+            });
+        }
     }
 }

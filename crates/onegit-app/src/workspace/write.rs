@@ -8,6 +8,10 @@ use onegit_git::{
 use std::sync::Arc;
 
 pub(super) enum Operation {
+    Lines {
+        action: super::staging::Action,
+        peers: Vec<Arc<onegit_git::Repository>>,
+    },
     File(ChangedFile),
     Branch(onegit_git::BranchRequest),
     Stash {
@@ -33,6 +37,10 @@ pub(super) enum Operation {
 impl Operation {
     pub fn progress(&self) -> &'static str {
         match self {
+            Self::Lines { action, .. } if action.direction == onegit_git::LineAction::Unstage => {
+                "Unstaging selected changes…"
+            }
+            Self::Lines { .. } => "Staging selected changes…",
             Self::File(file) if file.key.side == Side::Staged => "Unstaging file…",
             Self::File(_) => "Staging file…",
             Self::Conflict { .. } => "Updating conflict resolution…",
@@ -51,6 +59,7 @@ impl Operation {
 
     fn success(&self) -> &'static str {
         match self {
+            Self::Lines { .. } => "Selected changes updated",
             Self::File(file) if file.key.side == Side::Staged => "File unstaged",
             Self::File(_) => "File staged",
             Self::Conflict { .. } => "Conflict state updated",
@@ -67,6 +76,7 @@ impl Operation {
 pub(super) struct Outcome {
     pub loaded: Result<Arc<Loaded>, String>,
     pub result: Result<String, String>,
+    pub staging_completion: Option<super::staging::Completed>,
     pub committed: bool,
     pub branch_action: bool,
     pub stash_completion: Option<super::stashes::Completed>,
@@ -93,6 +103,10 @@ pub(super) fn staged_count(loaded: &Loaded) -> usize {
 }
 
 pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
+    if let Operation::Lines { action, peers } = &operation {
+        return super::staging::run(loaded, action, peers);
+    }
+
     if let Operation::Conflict { action, peers } = &operation {
         return super::conflicts::run(loaded, action, peers);
     }
@@ -168,6 +182,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                     repository.stage(&paths, None)?
                 }
             }
+            Operation::Lines { .. } => unreachable!("line edits use their reviewed index writer"),
             Operation::Discard { .. } => {
                 unreachable!("discard operations use their reviewed write guard")
             }
@@ -217,6 +232,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
         Ok((snapshot, detail)) => Outcome {
             loaded: Ok(read::from_snapshot(repository.clone(), snapshot)),
             result: Ok(detail),
+            staging_completion: None,
             committed,
             branch_action: false,
             stash_completion: None,
@@ -245,6 +261,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             Outcome {
                 loaded: refreshed,
                 result: Err(detail),
+                staging_completion: None,
                 committed: false,
                 branch_action: false,
                 stash_completion: None,
@@ -273,6 +290,7 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
             Outcome {
                 loaded: Ok(read::from_snapshot(repository.clone(), result.snapshot)),
                 result: Ok(detail),
+                staging_completion: None,
                 committed: false,
                 branch_action: true,
                 stash_completion: None,
@@ -303,6 +321,7 @@ fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outco
             Outcome {
                 loaded,
                 result: Err(detail),
+                staging_completion: None,
                 committed: false,
                 branch_action: true,
                 stash_completion: None,
@@ -391,6 +410,7 @@ fn run_stash(
     Outcome {
         loaded: refreshed,
         result: result.clone().map(|()| message.into()),
+        staging_completion: None,
         committed: false,
         branch_action: false,
         discard_completion: None,

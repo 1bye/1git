@@ -56,7 +56,7 @@ pub(super) fn open(
 
 fn patch(view: &RepositoryWorkspace) -> &str {
     match &view.preview {
-        PreviewState::Ready(Preview::Patch(doc)) => doc.patch(),
+        PreviewState::Ready(Preview::Patch { document: doc, .. }) => doc.patch(),
         _ => panic!("expected loaded patch"),
     }
 }

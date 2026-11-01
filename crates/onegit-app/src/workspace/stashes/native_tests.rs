@@ -116,7 +116,7 @@ fn reads_lazily_selects_first_files_keeps_immutable_selection_and_patch_after_re
     view.update(&mut cx, |state, _, cx| state.source(Some(f.load()), cx))
         .unwrap();
     draw(&mut cx, view);
-    view.read_with(&cx,|state,_|{assert_eq!(state.selected.as_deref(),Some(oid.as_str()));assert_eq!(state.entries[1].reference,"stash@{1}");assert_eq!(state.file.as_ref().unwrap().file.path.as_bytes(),b"b.txt");assert_eq!(state.diff_state,diff);assert_eq!(state.view,DiffView::Split);assert!(matches!(&state.preview,PreviewState::Ready(Preview::Patch(doc)) if doc.patch().contains("saved b")));}).unwrap();
+    view.read_with(&cx,|state,_|{assert_eq!(state.selected.as_deref(),Some(oid.as_str()));assert_eq!(state.entries[1].reference,"stash@{1}");assert_eq!(state.file.as_ref().unwrap().file.path.as_bytes(),b"b.txt");assert_eq!(state.diff_state,diff);assert_eq!(state.view,DiffView::Split);assert!(matches!(&state.preview,PreviewState::Ready(Preview::Patch { document: doc, .. }) if doc.patch().contains("saved b")));}).unwrap();
     assert_eq!(contents(&f.root), before);
     f.git(&["stash", "drop", "stash@{1}"]);
     view.update(&mut cx, |state, _, cx| state.load(cx)).unwrap();

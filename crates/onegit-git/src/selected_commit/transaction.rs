@@ -9,29 +9,20 @@ use crate::{
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
-use std::fs::{self, File};
-use std::io::{self, Seek, SeekFrom, Write};
+use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 struct Transaction {
-    index_path: PathBuf,
-    lock_path: PathBuf,
-    lock: File,
-    lock_identity: crate::platform::FileIdentity,
-    owns_lock: bool,
+    index: super::super::index_lock::IndexLock,
     directory: Option<TempDir>,
     retain: bool,
 }
 
 impl Transaction {
     fn new(index_path: PathBuf) -> Result<Self, CommitError> {
-        let mut lock_name = index_path.as_os_str().to_os_string();
-
-        lock_name.push(".lock");
-        let lock_path = PathBuf::from(lock_name);
-
-        let lock = crate::platform::create_private_file(&lock_path).map_err(|error| {
+        let index = super::super::index_lock::IndexLock::new(index_path).map_err(|error| {
             if error.kind() == io::ErrorKind::AlreadyExists {
                 CommitError::invalid(
                     ErrorCode::RepositoryLocked,
@@ -42,69 +33,24 @@ impl Transaction {
             }
         })?;
 
-        let lock_identity = match crate::platform::FileIdentity::from_file(&lock) {
-            Ok(identity) => identity,
-            Err(error) => {
-                let _ = fs::remove_file(&lock_path);
-
-                return Err(before(error.into()));
-            }
-        };
-
         Ok(Self {
-            index_path,
-            lock_path,
-            lock,
-            lock_identity,
-            owns_lock: true,
+            index,
             directory: None,
             retain: false,
         })
     }
 
-    fn check_lock(&self) -> io::Result<()> {
-        let metadata = fs::symlink_metadata(&self.lock_path)?;
-
-        if !metadata.is_file()
-            || crate::platform::FileIdentity::from_path(&self.lock_path)? != self.lock_identity
-        {
-            return Err(io::Error::other("The owned index lock changed."));
-        }
-
-        Ok(())
-    }
-
     fn install(&mut self, index: &Path) -> io::Result<()> {
-        self.check_lock()?;
-        let mut source = File::open(index)?;
-
-        self.lock.set_len(0)?;
-        self.lock.seek(SeekFrom::Start(0))?;
-        io::copy(&mut source, &mut self.lock)?;
-        self.lock
-            .set_permissions(source.metadata()?.permissions())?;
-        self.lock.sync_all()?;
-        self.check_lock()?;
-        fs::rename(&self.lock_path, &self.index_path)?;
-        self.owns_lock = false;
-
-        Ok(())
+        self.index.install(index)
     }
 
     fn cleanup(&mut self) -> io::Result<()> {
-        if self.owns_lock {
-            self.owns_lock = false;
-
-            if let Err(error) = self
-                .check_lock()
-                .and_then(|_| fs::remove_file(&self.lock_path))
-            {
-                if let Some(directory) = self.directory.take() {
-                    let _ = directory.keep();
-                }
-
-                return Err(error);
+        if let Err(error) = self.index.release() {
+            if let Some(directory) = self.directory.take() {
+                let _ = directory.keep();
             }
+
+            return Err(error);
         }
 
         if let Some(directory) = self.directory.take() {
@@ -188,29 +134,7 @@ impl Repository {
         let paths = validate(input)?;
         let message = trim(&input.message);
 
-        let output = self
-            .run(
-                ["rev-parse", "--path-format=absolute", "--git-path", "index"],
-                cancellation,
-            )
-            .map_err(before)?;
-
-        let mut bytes = output.stdout;
-
-        if bytes.last() == Some(&b'\n') {
-            bytes.pop();
-
-            if bytes.last() == Some(&b'\r') {
-                bytes.pop();
-            }
-        }
-
-        let index_path = crate::platform::absolute_path_from_git_bytes(&bytes)
-            .map_err(|_| before(RepositoryError::InvalidOutput))?;
-
-        if !index_path.is_absolute() {
-            return Err(before(RepositoryError::InvalidOutput));
-        }
+        let index_path = self.index_path(cancellation).map_err(before)?;
 
         let mut transaction = Transaction::new(index_path)?;
         let mut outcome = CommitOutcome::Committed;
@@ -281,7 +205,7 @@ impl Repository {
             transaction.directory = Some(directory);
 
             // Private-index preparation onward deliberately uses no caller cancellation.
-            match fs::copy(&transaction.index_path, &index) {
+            match fs::copy(&transaction.index.path, &index) {
                 Ok(_) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
                     self.commit_run(["read-tree", "--empty"], Some(&index), &[])
@@ -458,7 +382,9 @@ impl Repository {
 
         if let Err(error) = cleanup {
             if committed || outcome == CommitOutcome::Unknown {
-                let location = recovery_path.as_deref().unwrap_or(&transaction.lock_path);
+                let location = recovery_path
+                    .as_deref()
+                    .unwrap_or(&transaction.index.lock_path);
 
                 warning = Some(format!(
                     "{} Transaction cleanup failed. Inspect {} before continuing.",

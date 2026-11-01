@@ -220,7 +220,7 @@ fn previews_tracked_and_untracked_snapshots_without_mutating_repository_bytes() 
     assert_eq!(files.len(), 2);
 
     for file in &files {
-        let Preview::Patch(document) = read::patch(
+        let Preview::Patch { document, .. } = read::patch(
             &source.repository,
             file,
             &onegit_git::Cancellation::default(),
@@ -504,7 +504,7 @@ fn tracked_and_saved_untracked_versions_with_the_same_path_have_distinct_preview
             )
             .unwrap()
             {
-                Preview::Patch(doc) => doc.patch().to_owned(),
+                Preview::Patch { document: doc, .. } => doc.patch().to_owned(),
                 _ => panic!(),
             }
         })

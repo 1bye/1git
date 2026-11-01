@@ -11,6 +11,9 @@ mod discard_tests;
 mod motion;
 mod refresh;
 pub(in crate::workspace) mod session;
+mod staging_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod staging_tests;
 mod stash_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod stash_tests;
@@ -356,6 +359,21 @@ impl Workspace {
             window,
             move |this: &mut Self, _, event: &super::conflicts::Completed, window, cx| {
                 this.conflict_completed(id, event, window, cx)
+            },
+        ));
+
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::staging::Submit, window, cx| {
+                this.submit_staging(id, event, window, cx)
+            },
+        ));
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::staging::Completed, window, cx| {
+                this.staging_completed(id, event, window, cx)
             },
         ));
 

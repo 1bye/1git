@@ -11,13 +11,18 @@ struct Preview {
     retained: Option<gpui::Entity<onegit_ui::DiffViewerState>>,
     visible: bool,
     layout: onegit_ui::DiffSplitLayout,
+    staging: Option<onegit_ui::DiffStageAction>,
+    blocked: bool,
+    requests: Vec<onegit_ui::DiffStageRequest>,
 }
 
 impl Render for Preview {
-    fn render(&mut self, _: &mut gpui::Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
         rake::view! {
             <div class="size-full" focus={&self.root} tab-navigation={true}>
-                if self.visible {<DiffViewer state={self.retained.clone()} view={self.mode} split_layout={self.layout} {..DiffViewer::new("diff", "theme.rs", self.document.clone())}/>}
+                if self.visible {<DiffViewer staging={self.staging} staging_state={if self.blocked {onegit_ui::ControlState::Busy}else{onegit_ui::ControlState::Enabled}}
+                    on_stage={Some(Box::new(cx.listener(|this,event:&onegit_ui::DiffStageRequest,_,_|this.requests.push(event.clone()))))}
+                    state={self.retained.clone()} view={self.mode} split_layout={self.layout} {..DiffViewer::new("diff", "theme.rs", self.document.clone())}/>}
             </div>
         }
     }
@@ -52,6 +57,9 @@ fn setup(mode: DiffView) -> (gpui::TestAppContext, gpui::WindowHandle<Preview>) 
             retained: None,
             visible: true,
             layout: onegit_ui::DiffSplitLayout::Columns,
+            staging: None,
+            blocked: false,
+            requests: Vec::new(),
         }
     });
 
@@ -523,4 +531,356 @@ fn expansion_preserves_source_pixel_offset_modes_tabs_and_refresh() {
             "settled context requests no idle frames"
         );
     }
+}
+
+fn selectable(
+    mode: DiffView,
+    layout: onegit_ui::DiffSplitLayout,
+    staging: Option<onegit_ui::DiffStageAction>,
+) -> (gpui::TestAppContext, gpui::WindowHandle<Preview>) {
+    let (mut cx, v) = setup(mode);
+
+    v.update(&mut cx,|v,_,cx|{
+        v.document=DiffDocument::parse("diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n@@ -10,3 +10,3 @@\n let context = true;\n-\tlet café = \"old\";\r\n+\tlet café = \"👋 new\";\r\n tail\n\\ No newline at end of file\n").unwrap().without_file_metadata();
+        v.layout=layout;v.staging=staging;
+        v.retained=Some(cx.new(|cx|onegit_ui::DiffViewerState::new(v.document.clone(),mode,cx)));cx.notify();
+    }).unwrap();
+    draw(&mut cx, v);
+
+    (cx, v)
+}
+
+fn drag_code(
+    cx: &mut gpui::TestAppContext,
+    v: gpui::WindowHandle<Preview>,
+    from: gpui::Point<gpui::Pixels>,
+    to: gpui::Point<gpui::Pixels>,
+) {
+    cx.update_window(v.into(), |_, window, cx| {
+        window.dispatch_event(
+            gpui::MouseDownEvent {
+                button: gpui::MouseButton::Left,
+                position: from,
+                modifiers: Default::default(),
+                click_count: 1,
+                first_mouse: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        window.dispatch_event(
+            gpui::MouseMoveEvent {
+                position: to,
+                pressed_button: Some(gpui::MouseButton::Left),
+                modifiers: Default::default(),
+            }
+            .to_platform_input(),
+            cx,
+        );
+        window.dispatch_event(
+            gpui::MouseUpEvent {
+                button: gpui::MouseButton::Left,
+                position: to,
+                modifiers: Default::default(),
+                click_count: 1,
+            }
+            .to_platform_input(),
+            cx,
+        );
+    })
+    .unwrap();
+    draw(cx, v);
+}
+
+fn selected(cx: &gpui::TestAppContext, v: gpui::WindowHandle<Preview>) -> String {
+    v.read_with(cx, |v, cx| {
+        v.retained.as_ref().unwrap().read(cx).selected_text()
+    })
+    .unwrap()
+}
+
+#[test]
+fn drag_and_copy_raw_unicode_tabs_crlf_without_diff_markers_gutters_or_newline_notes() {
+    let (mut cx, v) = selectable(DiffView::Unified, onegit_ui::DiffSplitLayout::Columns, None);
+    let code = bounds(&cx, v, "diff-code-Old-6").unwrap();
+
+    drag_code(
+        &mut cx,
+        v,
+        gpui::point(code.left(), code.center().y),
+        gpui::point(code.right() - px(1.), code.center().y),
+    );
+    assert_eq!(selected(&cx, v), "\tlet café = \"👋 new\";\r");
+    key(
+        &mut cx,
+        v,
+        if cfg!(target_os = "macos") {
+            "cmd-c"
+        } else {
+            "ctrl-c"
+        },
+    );
+    assert_eq!(
+        cx.read_from_clipboard().unwrap().text().unwrap(),
+        "\tlet café = \"👋 new\";\r"
+    );
+    key(&mut cx, v, "escape");
+    assert!(selected(&cx, v).is_empty());
+    key(&mut cx, v, "shift-end");
+    assert!(!selected(&cx, v).is_empty());
+}
+
+#[test]
+fn split_multiline_selection_pins_the_starting_column_even_when_pointer_crosses_divider() {
+    for layout in [
+        onegit_ui::DiffSplitLayout::Columns,
+        onegit_ui::DiffSplitLayout::Aligned,
+    ] {
+        let (mut cx, v) = selectable(DiffView::Split, layout, None);
+        let old = bounds(&cx, v, "diff-code-Old-4").unwrap();
+        let new = bounds(&cx, v, "diff-code-New-6").unwrap();
+
+        drag_code(
+            &mut cx,
+            v,
+            gpui::point(old.left(), old.center().y),
+            gpui::point(new.right() - px(1.), new.center().y),
+        );
+        assert_eq!(
+            selected(&cx, v),
+            "let context = true;\n\tlet café = \"old\";\r",
+            "{layout:?}"
+        );
+        let top = bounds(&cx, v, "diff-code-New-4").unwrap();
+
+        drag_code(
+            &mut cx,
+            v,
+            gpui::point(top.left(), top.center().y),
+            gpui::point(new.right() - px(1.), new.center().y),
+        );
+        assert_eq!(
+            selected(&cx, v),
+            "let context = true;\n\tlet café = \"👋 new\";\r"
+        );
+    }
+}
+
+#[test]
+fn pointer_and_keyboard_stage_only_reviewed_lines_groups_and_hunks_and_busy_disables_controls() {
+    let (mut cx, v) = selectable(
+        DiffView::Unified,
+        onegit_ui::DiffSplitLayout::Columns,
+        Some(onegit_ui::DiffStageAction::Stage),
+    );
+
+    click(&mut cx, v, "diff-stage-line-Old--:11");
+    v.read_with(&cx, |v, _| assert_eq!(v.requests[0].lines, ["-:11"]))
+        .unwrap();
+    key(&mut cx, v, "space");
+    v.read_with(&cx, |v, _| assert_eq!(v.requests.len(), 2))
+        .unwrap();
+    click(&mut cx, v, "diff-stage-group-Old--:11");
+    v.read_with(&cx, |v, _| {
+        assert_eq!(v.requests.last().unwrap().lines, ["-:11", "+:11"])
+    })
+    .unwrap();
+    v.update(&mut cx, |v, _, cx| {
+        v.blocked = true;
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    click(&mut cx, v, "diff-stage-line-Old--:11");
+    v.read_with(&cx, |v, _| assert_eq!(v.requests.len(), 3))
+        .unwrap();
+    v.update(&mut cx, |v, _, cx| {
+        v.blocked = false;
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    click(&mut cx, v, "diff-stage-line-Old--:11");
+    v.update(&mut cx, |v, _, cx| {
+        let next = DiffDocument::parse(&v.document.patch().replace("👋 new", "externally changed"))
+            .unwrap()
+            .without_file_metadata();
+
+        v.retained
+            .as_ref()
+            .unwrap()
+            .update(cx, |state, _| state.refresh(next.clone(), v.mode));
+        v.document = next;
+    })
+    .unwrap();
+    // The focused old-frame callback must not stage current data before it has been painted.
+    cx.update_window(v.into(), |_, window, cx| {
+        let keystroke = gpui::Keystroke::parse("space").unwrap();
+
+        window.dispatch_event(
+            gpui::KeyDownEvent {
+                keystroke,
+                is_held: false,
+                prefer_character_input: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+    })
+    .unwrap();
+    v.read_with(&cx, |v, _| assert_eq!(v.requests.len(), 4))
+        .unwrap();
+}
+
+#[test]
+fn hunk_and_text_selection_controls_emit_original_review_and_survive_context_expansion() {
+    let (mut cx, v) = selectable(
+        DiffView::Unified,
+        onegit_ui::DiffSplitLayout::Aligned,
+        Some(onegit_ui::DiffStageAction::Stage),
+    );
+
+    click(&mut cx, v, "diff-stage-hunk-Old-0");
+    v.read_with(&cx, |v, _| {
+        assert_eq!(v.requests[0].lines, ["-:11", "+:11"])
+    })
+    .unwrap();
+    let code = bounds(&cx, v, "diff-code-Old-6").unwrap();
+
+    drag_code(
+        &mut cx,
+        v,
+        gpui::point(code.left(), code.center().y),
+        gpui::point(code.right() - px(1.), code.center().y),
+    );
+    click(&mut cx, v, "diff-copy-selection");
+    assert_eq!(
+        cx.read_from_clipboard().unwrap().text().unwrap(),
+        "\tlet café = \"👋 new\";\r"
+    );
+    click(&mut cx, v, "diff-stage-selection");
+    v.read_with(&cx, |v, _| assert_eq!(v.requests[1].lines, ["+:11"]))
+        .unwrap();
+    v.update(&mut cx, |v, _, cx| {
+        v.document = context_sample();
+        v.retained =
+            Some(cx.new(|cx| onegit_ui::DiffViewerState::new(v.document.clone(), v.mode, cx)));
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    let original = v
+        .read_with(&cx, |v, _| v.document.patch().to_owned())
+        .unwrap();
+
+    click(&mut cx, v, "diff-code-Old-3");
+    key(&mut cx, v, "e");
+    key(
+        &mut cx,
+        v,
+        if cfg!(target_os = "macos") {
+            "cmd-a"
+        } else {
+            "ctrl-a"
+        },
+    );
+    click(&mut cx, v, "diff-stage-selection");
+    v.read_with(&cx, |v, _| {
+        assert_eq!(v.requests.last().unwrap().document.patch(), original)
+    })
+    .unwrap();
+}
+
+#[test]
+fn selection_keeps_raw_added_text_when_switching_unified_and_split() {
+    let (mut cx, v) = selectable(DiffView::Unified, onegit_ui::DiffSplitLayout::Aligned, None);
+    let code = bounds(&cx, v, "diff-code-Old-6").unwrap();
+
+    drag_code(
+        &mut cx,
+        v,
+        gpui::point(code.left(), code.center().y),
+        gpui::point(code.right() - px(1.), code.center().y),
+    );
+    let text = selected(&cx, v);
+
+    for mode in [DiffView::Split, DiffView::Unified] {
+        v.update(&mut cx, |v, _, cx| {
+            v.mode = mode;
+            cx.notify();
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        assert_eq!(selected(&cx, v), text);
+    }
+}
+
+#[test]
+fn dragging_beyond_the_viewport_scrolls_and_stops_requesting_frames_on_release() {
+    let (mut cx, v) = setup(DiffView::Unified);
+    let code = bounds(&cx, v, "diff-code-Old-1").unwrap();
+    let from = gpui::point(code.left(), code.center().y);
+    let to = gpui::point(from.x, px(340.));
+
+    cx.update_window(v.into(), |_, window, cx| {
+        window.dispatch_event(
+            gpui::MouseDownEvent {
+                button: gpui::MouseButton::Left,
+                position: from,
+                modifiers: Default::default(),
+                click_count: 1,
+                first_mouse: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        window.dispatch_event(
+            gpui::MouseMoveEvent {
+                position: to,
+                pressed_button: Some(gpui::MouseButton::Left),
+                modifiers: Default::default(),
+            }
+            .to_platform_input(),
+            cx,
+        );
+    })
+    .unwrap();
+
+    for _ in 0..20 {
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(16));
+        cx.update_window(v.into(), |_, w, cx| w.simulate_next_frame(cx))
+            .unwrap();
+        draw(&mut cx, v);
+    }
+
+    assert!(
+        bounds(&cx, v, "diff-code-Old-1").is_none(),
+        "drag scrolls past the initial source line"
+    );
+    cx.update_window(v.into(), |_, window, cx| {
+        window.dispatch_event(
+            gpui::MouseUpEvent {
+                button: gpui::MouseButton::Left,
+                position: to,
+                modifiers: Default::default(),
+                click_count: 1,
+            }
+            .to_platform_input(),
+            cx,
+        );
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(200));
+    cx.update_window(v.into(), |_, w, cx| w.simulate_next_frame(cx))
+        .unwrap();
+    draw(&mut cx, v);
+    assert_eq!(
+        cx.update_window(v.into(), |_, w, cx| w.simulate_next_frame(cx))
+            .unwrap(),
+        0,
+        "released selection requests no idle frames"
+    );
 }

@@ -567,7 +567,11 @@ navigate rows; scroll wheel/trackpad handles both axes. Accessible row descripti
 include change kind, coordinates, raw source text and missing-final-newline state.
 Color is supplemented by +/− markers. Tabs and CR characters are shown as `→` and
 `␍`; `lines()` and `patch()` retain the exact source text for application-owned copy
-actions. This is a read-only surface with no text selection, editing or staging.
+actions. Dragging, double/triple click, Shift+arrows and Command/Ctrl+A select raw
+source text; Command/Ctrl+C or the floating Copy action copies it. Escape clears
+selection. Split selection stays in its starting column. Selection preserves tabs,
+Unicode and CRLF while excluding gutters, diff prefixes and newline annotations.
+The viewer does not edit source text.
 
 The parser validates hunk counts and ranges, supports additions/deletions, binary
 notices and metadata-only changes, and rejects combined or multiple-file patches.
@@ -693,3 +697,24 @@ Tabbed hosts can retain `DiffViewerState` and `CommitListState` entities and pas
 version of the same selected file, call `DiffViewerState::refresh` before supplying
 the new document; changing selection can use fresh state. Omitting `state` keeps
 the existing behavior for continuously mounted components.
+
+### Controlled diff staging
+
+Set `staging={Some(DiffStageAction::Stage)}` (or `Unstage`) and `on_stage`
+to opt into group/line gutters, hunk actions and Stage/Unstage selected lines.
+Use `staging_state` for busy/disabled writes. The owner must establish eligibility
+off the render thread: mode, rename, binary, type and submodule patches may require
+whole-file operations.
+
+`DiffStageRequest` contains the original unexpanded `DiffDocument` and stable
+`-:oldLine` / `+:newLine` keys. Context expansion never changes that review.
+A frozen native callback is rejected if its current document or action changed
+before activation. Applications must additionally revalidate repository identity,
+branch/HEAD and exact diff on their Git worker; use
+`onegit_git::Repository::change_lines` for the complete transaction.
+
+Retain `DiffViewerState`, call `refresh` for the same selected file and preserve
+the owner's draft and selection. Source anchors retain both scroll axes after index
+updates, preferring working-side coordinates when staging and old-side coordinates
+when unstaging. Native selection geometry is virtualized with visible rows.
+Group/line hover and press use the shared gpui-ce-motion surface transitions.

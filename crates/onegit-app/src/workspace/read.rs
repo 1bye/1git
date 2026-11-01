@@ -100,9 +100,15 @@ impl Loaded {
 }
 
 pub(super) enum Preview {
-    Patch(DiffDocument),
+    Patch {
+        document: DiffDocument,
+        line_staging: bool,
+    },
     Conflict(Box<super::conflicts::Preview>),
-    Notice { title: &'static str, detail: String },
+    Notice {
+        title: &'static str,
+        detail: String,
+    },
 }
 
 pub(super) fn path_label(path: &GitPath) -> String {
@@ -296,7 +302,10 @@ pub(super) fn preview(
         cancel,
     )?;
 
-    Ok(Preview::Patch(document))
+    Ok(Preview::Patch {
+        document,
+        line_staging: onegit_git::PartialPatch::new(&diff.patch).is_ok(),
+    })
 }
 
 /// Optional full context is read on the existing preview worker, never during layout.

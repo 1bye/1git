@@ -40,8 +40,8 @@ spacing checks described in `docs/RUST.md`.
 
 Rust retains index staging rather than the source app's selected-file inclusion
 workflow. It retains explicit page loading in History. Unported AI, amend/undo,
-graph, account and SSH actions are unavailable. Read-only diffs do not include
-hunk staging or text selection.
+graph, account and SSH actions are unavailable. History, stash and conflict diffs
+support text selection and copying, but remain read-only.
 These are behavior gaps, not a claim that the full original application is ported.
 Only persisted source library/cache entries are imported; unsaved source runtime
 state can differ. Repository contents, refs and the source session are not written
@@ -611,3 +611,75 @@ Strict all-target/all-feature workspace Clippy, rustdoc with warnings denied,
 rustfmt, Git whitespace checks and workspace spacing (including Windows/Linux Git
 code) pass. The normal app build succeeds, and its signed development bundle is
 running. CI was not run. Matching-screen visual verification remains pending.
+
+## Hunk and line staging, selection and copying
+
+| Current app source | Rust implementation |
+| --- | --- |
+| `native/diff-inclusion.patch` group and line rails | `onegit-ui/diff_viewer/staging.rs`, two 18-pixel gutters, keyboard-focusable native controls |
+| `RepositoryTextDiff` snapshot-bound selection | Frozen `DiffStageRequest`, retained original patch and app root/branch/HEAD guards |
+| Native diff source selection and clipboard | `diff_viewer/selection.rs`, native shaped-text hit testing, raw-source byte selection |
+| `packages/git` PartialPatch | Existing Rust `PartialPatch`, reused by `Repository::change_lines` |
+| Source viewport retained across status updates | `DiffViewerState::refresh` source-side anchor and pixel offsets |
+| Shared repository refresh | `workspace/tabs/staging_actions.rs`, independent related-tab drafts, selection, mode and filters |
+
+The intentional index-staging behavior remains: these actions change the actual
+Git index, rather than the source app's selected-commit inclusion set. A changed
+line, contiguous change group, complete hunk or selected text can stage/unstage
+its changed-source coordinates. Unsupported patches (renames, mode/type changes,
+binary or submodule updates) retain whole-file staging. Eligibility is prepared
+on the preview worker; patch parsing never runs during selection or motion frames.
+
+Each write holds the repository's common-directory mutation queue and an owned
+real index lock. It prepares a private index, revalidates the original three-line
+context diff, branch and HEAD, then atomically installs it. Unstaging restores only
+the selected path in that private index and reapplies complementary unselected
+changes. It preserves unrelated staging and every working-file byte. Foreign locks,
+unknown coordinates, changed diffs/branches and a replaced tab root are rejected.
+Errors never automatically retry writes; failed refreshes block subsequent writes.
+
+Dragging selects exact raw source text without diff prefixes, gutters or synthetic
+newline notes. Tabs, Unicode and CRLF survive copying. Split selection stays in its
+starting column even if the pointer crosses the divider. Double/triple click selects
+a word/line, Shift+arrows extends, Command/Ctrl+A selects source text,
+Command/Ctrl+C copies, and Escape clears selection. Selection crossing changed
+lines exposes Copy and Stage/Unstage selected lines; History/Stashes/conflict
+previews expose only Copy. Dragging outside the viewport scrolls while held and
+stops on release or window deactivation.
+
+The original app's rails, dimensions, colors and grouping guided the controls.
+Fast hover/press feedback uses gpui-ce-motion; reduced motion snaps and settled
+controls request no animation frames. Hunk buttons and the selection toolbar
+provide explicit action labels. The toolbar overlays the viewport without
+changing row heights or scroll position.
+
+Coverage includes native pointer/keyboard/copy events, synchronized split
+selection, original-patch requests after expansion, stale old-frame controls,
+pixel anchors after index changes, real Git partial stage/unstage, CRLF, missing
+newlines, unborn/deleted/literal-path files, cancellation, foreign locks, and
+duplicate/linked tabs with independent drafts. A replaced repository with the
+same HEAD and patch cannot receive an old tab action.
+
+The installed reference app still fails screen capture; matching-screen visual
+verification is pending. This limitation is separate from the native event and
+real-Git checks above.
+
+Validation: the all-target/all-feature workspace run passes 593 tests. The final
+UI rerun passes 126 tests including doctests; native tests cover selection across
+virtualized rows, drag auto-scroll stopping on release, and source pixel offsets
+after partial stage/unstage. The source PartialPatch's three Bun tests also pass.
+Strict workspace Clippy, rustdoc with warnings denied, rustfmt, Git whitespace
+and workspace/Windows/Linux spacing checks pass. The normal signed development
+bundle builds and is running. CI was not run.
+
+Live macOS verification used only the disposable
+`target/diff-qa/comparison-npne66yc` repository: line stage/unstage and hunk
+stage/unstage changed exactly the intended index content, retained the draft,
+and refreshed the file entries. Triple-click selection exposed Copy and Stage
+selected lines; Copy and Escape worked. The fixture index and temporary draft
+were restored afterward. A fresh native frame confirms the Rust rails and hunk
+actions at the normal window size. Reference capture still fails, so no completed
+matching-screen comparison is claimed.
+
+No changeset is required: the Rust crates are unpublished and TypeScript release
+packages are unchanged.

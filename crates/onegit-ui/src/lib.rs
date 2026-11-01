@@ -47,7 +47,7 @@ pub use commit_list::{
 
 pub use diff_viewer::{
     DiffDocument, DiffGutterStyle, DiffLine, DiffLineKind, DiffParseError, DiffSplitLayout,
-    DiffView, DiffViewer, DiffViewerState,
+    DiffStageAction, DiffStageHandler, DiffStageRequest, DiffView, DiffViewer, DiffViewerState,
 };
 
 pub use dropdown_menu::{

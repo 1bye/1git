@@ -137,7 +137,7 @@ pub(super) fn patch_toolbar(
         .unwrap_or_else(|| gpui::Empty.into_any_element());
 
     let counts = match preview {
-        PreviewState::Ready(Preview::Patch(doc)) => {
+        PreviewState::Ready(Preview::Patch { document: doc, .. }) => {
             Some((doc.added_lines(), doc.deleted_lines(), doc.is_binary()))
         }
         _ => None,

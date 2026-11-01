@@ -64,6 +64,13 @@ pub use metadata_writes::{
     StashReference,
 };
 
+#[path = "index_lock.rs"]
+mod index_lock;
+#[path = "line_staging.rs"]
+mod line_staging;
+
+pub use line_staging::{ChangeLines, LineAction};
+
 #[path = "mutations.rs"]
 mod mutations;
 

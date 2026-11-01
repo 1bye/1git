@@ -7,7 +7,7 @@ use rake::gpui::{self, accesskit, prelude::*, px};
 
 pub(super) const HEIGHT: f32 = 20.;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Side {
     Old,
     New,
@@ -40,14 +40,17 @@ pub(super) struct Layout {
     pub gutter: gpui::Pixels,
     pub width: gpui::Pixels,
     pub style: DiffGutterStyle,
+    pub hunk_background: Option<gpui::Hsla>,
 }
 
 fn plain_cell(
+    state: &gpui::Entity<Scroll>,
     document: &DiffDocument,
     index: Option<usize>,
     position: usize,
     layout: Layout,
-    hunk_background: Option<gpui::Hsla>,
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
 ) -> gpui::AnyElement {
     let Layout {
         view,
@@ -55,6 +58,7 @@ fn plain_cell(
         gutter,
         width,
         style,
+        hunk_background,
     } = layout;
 
     let inset = if style == DiffGutterStyle::Inset {
@@ -96,6 +100,17 @@ fn plain_cell(
         |line| describe(line, view, side),
     );
 
+    let shown = text.clone();
+
+    let selection = index
+        .and_then(|i| state.read(cx).text.range(i, side, document, view))
+        .map(|range| {
+            let raw = &document.lines()[index.expect("selected source line")].text;
+
+            super::document::display(&raw[..range.start]).len()
+                ..super::document::display(&raw[..range.end]).len()
+        });
+
     let spans = index.map(|index| {
         &document.0.syntax[index][match side {
             Side::Old if kind != DiffLineKind::Added => 0,
@@ -117,6 +132,10 @@ fn plain_cell(
         boundaries.extend([word.start, word.end]);
     }
 
+    if let Some(range) = &selection {
+        boundaries.extend([range.start, range.end]);
+    }
+
     boundaries.sort_unstable();
     boundaries.dedup();
     let text =
@@ -131,7 +150,7 @@ fn plain_cell(
                 })
                 .map(|span| super::syntax::color(span.kind, &theme));
 
-            let background_color = words
+            let mut background_color = words
                 .iter()
                 .any(|word| word.start <= range.start && word.end >= range.end)
                 .then_some(if kind == DiffLineKind::Added {
@@ -139,6 +158,13 @@ fn plain_cell(
                 } else {
                     theme.diff_deleted_word
                 });
+
+            if selection
+                .as_ref()
+                .is_some_and(|selected| selected.start <= range.start && selected.end >= range.end)
+            {
+                background_color = Some(theme.selection);
+            }
 
             (color.is_some() || background_color.is_some()).then_some((
                 range,
@@ -189,10 +215,49 @@ fn plain_cell(
         });
 
     if kind == DiffLineKind::Hunk || kind == DiffLineKind::Metadata {
+        let action = state
+            .read(cx)
+            .staging
+            .filter(|_| kind == DiffLineKind::Hunk);
+
+        let availability = state.read(cx).staging_state;
+
+        let keys = index
+            .map(|i| super::staging::hunk(document, i))
+            .unwrap_or_default();
+
+        let binding = super::staging::binding(state, keys.clone(), cx);
+
+        let action = action
+            .filter(|_| !keys.is_empty())
+            .map(|action| crate::Button {
+                variant: crate::ButtonVariant::Ghost,
+                size: crate::ControlSize::Small,
+                state: availability,
+                on_press: Some(Box::new(move |_, window, cx| {
+                    cx.stop_propagation();
+
+                    if let Some(binding) = &binding {
+                        binding.activate(window, cx);
+                    }
+                })),
+                ..crate::Button::new(("hunk-action", position), format!("{} hunk", action.verb()))
+            });
+
         return row
+            .relative()
             .bg(background)
             .pl(inset + gutter * if view == DiffView::Unified { 2. } else { 1. } + px(34.))
             .child(text)
+            .children(action.map(|action| {
+                gpui::div()
+                    .debug_selector(move || format!("diff-stage-hunk-{side:?}-{position}"))
+                    .absolute()
+                    .right(px(4.))
+                    .top(px(1.))
+                    .bg(background)
+                    .child(action)
+            }))
             .into_any_element();
     }
 
@@ -216,7 +281,17 @@ fn plain_cell(
         );
     }
 
-    row = row.child(gpui::div().w(inset).h_full().flex_shrink_0());
+    row = row.child(
+        if let Some(index) = index.filter(|_| state.read(cx).staging.is_some()) {
+            super::staging::gutter(state, document, index, side, window, cx)
+        } else {
+            gpui::div()
+                .w(inset)
+                .h_full()
+                .flex_shrink_0()
+                .into_any_element()
+        },
+    );
 
     if view == DiffView::Unified {
         row = row
@@ -271,9 +346,53 @@ fn plain_cell(
             .items_center()
             .px(px(14.))
             .bg(background)
-            .child(text),
+            .child({
+                let pointer = state.clone();
+
+                gpui::div()
+                    .relative()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .flex()
+                    .items_center()
+                    .cursor_text()
+                    .when_some(index, |d, index| {
+                        d.debug_selector(move || format!("diff-code-{side:?}-{index}"))
+                            .child(super::selection::measure(state, index, side, shown))
+                            .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                                pointer.update(cx, |state, cx| {
+                                    state.select_at(index, side, event, window, cx)
+                                });
+                            })
+                    })
+                    .child(text)
+            }),
     )
     .into_any_element()
+}
+
+#[derive(IntoElement)]
+struct SourceCell {
+    state: gpui::Entity<Scroll>,
+    document: DiffDocument,
+    index: Option<usize>,
+    position: usize,
+    layout: Layout,
+}
+
+impl RenderOnce for SourceCell {
+    fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
+        plain_cell(
+            &self.state,
+            &self.document,
+            self.index,
+            self.position,
+            self.layout,
+            window,
+            cx,
+        )
+    }
 }
 
 fn cell(
@@ -282,22 +401,23 @@ fn cell(
     index: Option<usize>,
     position: usize,
     layout: Layout,
-    cx: &gpui::App,
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
 ) -> gpui::AnyElement {
     let opacity = index
         .map(|i| state.read(cx).line_opacity(&document.lines()[i]))
         .unwrap_or(1.);
 
-    let cell = gpui::div()
-        .opacity(opacity)
-        .child(plain_cell(document, index, position, layout, None))
-        .into_any_element();
-
     let Some(request) = index
         .filter(|&i| document.lines()[i].kind == DiffLineKind::Hunk)
         .and_then(|i| document.request(Some(i), false))
     else {
-        return cell;
+        return gpui::div()
+            .opacity(opacity)
+            .child(plain_cell(
+                state, document, index, position, layout, window, cx,
+            ))
+            .into_any_element();
     };
 
     let state = state.clone();
@@ -321,6 +441,8 @@ fn cell(
         crate::motion::Surface::new(theme.pressed),
         true,
         move |surface| {
+            let clicked = state.clone();
+
             gpui::div()
                 .id("expand-context")
                 .debug_selector(move || format!("diff-expand-{position}"))
@@ -334,18 +456,21 @@ fn cell(
                     request.count
                 ))
                 .on_click(move |_, window, cx| {
-                    state.update(cx, |state, cx| {
+                    clicked.update(cx, |state, cx| {
                         window.focus(&state.focus, cx);
                         state.expand(request, cx);
                     })
                 })
-                .child(plain_cell(
-                    &document,
+                .child(SourceCell {
+                    state: state.clone(),
+                    document,
                     index,
                     position,
-                    layout,
-                    Some(surface.background),
-                ))
+                    layout: Layout {
+                        hunk_background: Some(surface.background),
+                        ..layout
+                    },
+                })
                 .child(
                     gpui::div()
                         .absolute()
@@ -468,7 +593,7 @@ pub(super) fn list(
 
     let retained = state.clone();
 
-    let list = gpui::list(handle, move |position, _, cx| {
+    let list = gpui::list(handle, move |position, window, cx| {
         if position == document.rows(view).len() {
             return after(&retained, &document, matches!(side, Side::New));
         }
@@ -481,7 +606,7 @@ pub(super) fn list(
             },
         };
 
-        cell(&retained, &document, source, position, layout, cx)
+        cell(&retained, &document, source, position, layout, window, cx)
     })
     .h_full()
     .w_full()
@@ -517,7 +642,7 @@ pub(super) fn aligned_list(
 
     let retained = state.clone();
 
-    let list = gpui::list(handle, move |position, _, cx| {
+    let list = gpui::list(handle, move |position, window, cx| {
         if position == document.rows(DiffView::Split).len() {
             return after(&retained, &document, false);
         }
@@ -532,6 +657,7 @@ pub(super) fn aligned_list(
                     width: px(0.),
                     ..layout
                 },
+                window,
                 cx,
             ),
             Row::Pair { old, new } => gpui::div()
@@ -553,6 +679,7 @@ pub(super) fn aligned_list(
                                 side: Side::Old,
                                 ..layout
                             },
+                            window,
                             cx,
                         ))),
                 )
@@ -578,6 +705,7 @@ pub(super) fn aligned_list(
                                 side: Side::New,
                                 ..layout
                             },
+                            window,
                             cx,
                         ))),
                 )

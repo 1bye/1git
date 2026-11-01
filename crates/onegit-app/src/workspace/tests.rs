@@ -90,7 +90,7 @@ fn patch(loaded: &Loaded, key: &ChangeKey) -> onegit_ui::DiffDocument {
     )
     .unwrap()
     {
-        Preview::Patch(document) => document,
+        Preview::Patch { document, .. } => document,
         Preview::Notice { title, detail } => panic!("expected patch: {title}: {detail}"),
         Preview::Conflict(_) => panic!("expected ordinary patch"),
     }
@@ -233,7 +233,7 @@ fn copied_file_preview_does_not_include_changes_to_its_source() {
     file.original = Some(GitPath::new("source.txt").unwrap());
     let preview = read::preview(&loaded.repository, &file, &Cancellation::default()).unwrap();
 
-    let Preview::Patch(document) = preview else {
+    let Preview::Patch { document, .. } = preview else {
         panic!("a copied file should have its own text preview");
     };
 
@@ -422,7 +422,7 @@ mod native {
 
     fn patch_text(cx: &gpui::TestAppContext, v: gpui::WindowHandle<RepositoryWorkspace>) -> String {
         v.read_with(cx, |v, _| match &v.preview {
-            PreviewState::Ready(Preview::Patch(doc)) => doc.patch().to_owned(),
+            PreviewState::Ready(Preview::Patch { document: doc, .. }) => doc.patch().to_owned(),
             _ => panic!("expected a loaded patch"),
         })
         .unwrap()
