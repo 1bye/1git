@@ -382,3 +382,26 @@ Unicode, tabs and CRLF. Split selection stays in its original column. Escape cle
 it. Dragging beyond the viewport scrolls only while held. History, stash and
 conflict source previews support copying without index actions. Hover/press motion
 uses gpui-ce-motion with reduced-motion support and no idle loop.
+
+## Amend and Undo last commit
+
+The last-commit footer enables **Amend** and **Undo** for an unpublished,
+non-merge tip on a named branch in a normal repository state. Eligibility uses
+known remote-tracking refs and performs no fetch. Published, stale, conflicted
+and active-operation reviews are guarded in the UI and rechecked by the Git worker.
+
+Amend loads the last message and focuses Summary. The **Amending** header has
+Cancel; both cancellation and confirmed success restore the ordinary draft.
+The submit button opens a confirmation, with an option to include the exact staged
+index. Uncheck it for a message-only amend that keeps staging intact. Failed or
+uncertain writes keep the amend draft available and never retry automatically.
+
+Undo asks first, keeps every working file and the exact index, and retains a
+recovery ref. It restores the old message only into an empty originating draft.
+Other repository tabs retain their drafts, selections, diff modes, filters and
+pane sizes while refreshing; the diff keeps both scroll axes at its source anchor.
+
+Composer and confirmation transitions use gpui-ce-motion with reduced-motion
+support and no idle animation. Sessions preserve the ordinary draft while an amend
+is active; reopening the app cancels amend mode. A result needing review blocks
+new writes until History is inspected and the repository is refreshed.

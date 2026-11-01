@@ -99,13 +99,25 @@ impl Workspace {
         _: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        self.refresh_written_tabs(id, &event.snapshots, cx);
+    }
+
+    pub(super) fn refresh_written_tabs(
+        &mut self,
+        id: u64,
+        snapshots: &[(
+            std::path::PathBuf,
+            Result<std::sync::Arc<crate::workspace::read::Loaded>, String>,
+        )],
+        cx: &mut gpui::Context<Self>,
+    ) {
         let origin = self
             .tabs
             .iter()
             .find(|tab| tab.id == id)
             .map(|tab| tab.workspace.entity_id());
 
-        for (root, result) in &event.snapshots {
+        for (root, result) in snapshots {
             for tab in self.matching(root, cx) {
                 if Some(tab.entity_id()) == origin {
                     continue;

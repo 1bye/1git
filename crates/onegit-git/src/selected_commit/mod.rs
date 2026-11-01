@@ -45,7 +45,8 @@ pub struct CommitFiles {
     /// Selected-line requests belonging to the selected paths.
     pub partial_files: Vec<PartialCommitFile>,
     /// Replace only the reviewed unpublished, non-merge branch tip.
-    /// Empty paths amend its message without including other staged work.
+    /// In Files mode, empty paths amend only its message and preserve other staging.
+    /// Staged mode includes the exact existing index, including partial changes.
     pub amend: bool,
 }
 

@@ -266,3 +266,57 @@ fn amend_refuses_unborn_detached_active_and_merge_tips() {
             .is_empty()
     );
 }
+
+#[test]
+fn staged_amend_uses_exact_index_including_partial_lines_without_staging_working_edits() {
+    let fixture = Fixture::new();
+
+    fixture.write("file", "base\n");
+    fixture.commit("parent");
+    fixture.write("file", "original\n");
+    fixture.write("retained", "old tip only\n");
+    fixture.commit("Original");
+    let parent = fixture.git(&["rev-parse", "HEAD^"]);
+    let author = fixture.git(&["show", "-s", "--format=%an <%ae> %aI"]);
+    let previous = fixture.git(&["rev-parse", "HEAD"]);
+
+    fixture.write("file", "staged subset\n");
+    fixture.git(&["add", "file"]);
+    fixture.write("file", "working remainder\n");
+    fixture.write("untracked", "keep\n");
+    let repository = open(&fixture);
+    let mut input = request(&repository, &[]);
+
+    input.mode = CommitMode::Staged;
+    input.amend = true;
+    let working = unchanged_working(&fixture);
+    let result = repository.commit_selected_files(&input, None).unwrap();
+
+    assert_eq!(result.outcome, CommitOutcome::Committed);
+    assert!(result.warning.is_none());
+    assert_eq!(fixture.git(&["show", "HEAD:file"]), b"staged subset\n");
+    assert_eq!(fixture.git(&["show", "HEAD:retained"]), b"old tip only\n");
+    assert_eq!(fixture.git(&["show", ":file"]), b"staged subset\n");
+    assert_eq!(fixture.git(&["rev-parse", "HEAD^"]), parent);
+    assert_eq!(
+        fixture.git(&["show", "-s", "--format=%an <%ae> %aI"]),
+        author
+    );
+    let retained = fixture.git(&["for-each-ref", "--format=%(objectname)", "refs/1git/amend/"]);
+
+    assert_eq!(retained, previous);
+    working();
+    fixture.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    fixture.write("file", "new staged\n");
+    fixture.git(&["add", "file"]);
+    let mut input = request(&repository, &[]);
+
+    input.mode = CommitMode::Staged;
+    input.amend = true;
+    let head = fixture.git(&["rev-parse", "HEAD"]);
+    let index = fs::read(fixture.root.join(".git/index")).unwrap();
+
+    assert!(repository.commit_selected_files(&input, None).is_err());
+    assert_eq!(fixture.git(&["rev-parse", "HEAD"]), head);
+    assert_eq!(fs::read(fixture.root.join(".git/index")).unwrap(), index);
+}

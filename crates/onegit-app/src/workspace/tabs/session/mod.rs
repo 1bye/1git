@@ -278,8 +278,16 @@ impl SavedTab {
 
         Some(Self {
             root: Root::capture(root),
-            summary: view.summary.read(cx).text().into(),
-            description: view.description.read(cx).text().into(),
+            summary: view
+                .amend
+                .as_ref()
+                .map(|amend| amend.previous.summary.clone())
+                .unwrap_or_else(|| view.summary.read(cx).text().into()),
+            description: view
+                .amend
+                .as_ref()
+                .map(|amend| amend.previous.description.clone())
+                .unwrap_or_else(|| view.description.read(cx).text().into()),
             history_visible: view.section == Section::History,
             stashes: Some({
                 let mut saved = view.stashes.read(cx).session(cx);

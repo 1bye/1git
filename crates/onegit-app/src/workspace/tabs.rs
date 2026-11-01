@@ -9,6 +9,9 @@ mod discard_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod discard_tests;
 mod motion;
+mod recovery_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod recovery_tests;
 mod refresh;
 pub(in crate::workspace) mod session;
 mod staging_actions;
@@ -377,6 +380,20 @@ impl Workspace {
             },
         ));
 
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::recovery::Submit, window, cx| {
+                this.submit_recovery(id, event, window, cx)
+            },
+        ));
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::recovery::Completed, window, cx| {
+                this.recovery_completed(id, event, window, cx)
+            },
+        ));
         let view = workspace.read(cx);
         let history = view.history.clone();
         let stashes = view.stashes.clone();
@@ -615,6 +632,8 @@ impl Workspace {
                     view.repository_busy = busy;
                     cx.notify();
                 }
+
+                view.configure_recovery(cx);
             });
         }
 
@@ -885,6 +904,7 @@ impl gpui::Render for Workspace {
             {self.branches.clone()}
             for tab in &self.tabs {<div id={("conflict-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).conflicts.clone()}</div>}
             for tab in &self.tabs {<div id={("discard-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).discard.clone()}</div>}
+            for tab in &self.tabs {<div id={("recovery-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).recovery.clone()}</div>}
             for tab in &self.tabs {<div id={("stash-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).stashes.read(cx).form.clone()}</div>}
             for entry in self.syncs.values() {<div id={("sync",entry.state.entity_id())} class="absolute inset-0">{entry.state.clone()}</div>}
         </onegit_ui::DialogHost>}

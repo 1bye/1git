@@ -89,9 +89,9 @@ impl RepositoryWorkspace {
     }
 
     fn files(
-        &self,
+        &mut self,
         loaded: Arc<Loaded>,
-        window: &gpui::Window,
+        window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> gpui::AnyElement {
         if !write::available(&loaded) {
@@ -238,6 +238,16 @@ impl RepositoryWorkspace {
 
         let list_focus = self.files_focus.clone();
         let last_commit = loaded.last_commit.clone();
+        let reviewed = super::recovery::Review::new(&loaded);
+        let amend_review = reviewed.clone();
+        let undo_review = reviewed;
+        let recovery_enabled = writable && self.amend.is_none() && amend_review.is_some();
+
+        let recovery_reason = loaded.last_commit_unavailable.clone().unwrap_or_else(|| {
+            "Edit the unpublished last commit. Publication uses known remote branches.".into()
+        });
+
+        let composer_height = self.composer.sample(self.amend.as_ref(), window, cx);
 
         let list_source = loaded.clone();
 
@@ -339,13 +349,22 @@ impl RepositoryWorkspace {
                 </div>
                 </ContextMenu>
                 </div>
-                if allowed {<div class="h-[140px] p-2 shrink-0 border-t-1 border-hairline flex flex-col" style={|s|s.debug_selector(||"workspace-commit-composer".into())}>
+                if allowed || self.amend.is_some() {<div class="p-2 shrink-0 border-t-1 border-hairline flex flex-col overflow-hidden" style={|s|s.h(composer_height).debug_selector(||"workspace-commit-composer".into())}>
+                    if let Some(amend)=&self.amend {
+                        <div class="h-[32px] shrink-0 flex flex-row items-center justify-between gap-1 px-1" style={|s|s.debug_selector(||"amend-header".into())}>
+                            <p class="text-caption text-muted-ink">{format!("Amending {}",amend.review.commit.oid.chars().take(7).collect::<String>())}</p>
+                            <div style={|s|s.debug_selector(||"amend-cancel".into())}><Button size={ControlSize::Small} state={if self.write_job.is_some()||self.repository_busy{ControlState::Disabled}else{ControlState::Enabled}}
+                                on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.cancel_amend(window,cx))))}
+                                {..Button::new("cancel-amend","Cancel")}/></div>
+                        </div>
+                        if !self.amend_current() {<p class="text-caption text-danger" role={gpui::accesskit::Role::Alert}>{"The last commit changed or is unavailable. Cancel amend and review it again."}</p>}
+                    }
                     <TextInput show_label={false} variant={InputVariant::Plain} size={ControlSize::Small} placeholder={"Commit message…".into()} availability={if writable{InputAvailability::Enabled}else{InputAvailability::Disabled}} {..TextInput::new("commit-summary",&self.summary,"Summary")}/>
                     <div class="flex-1 min-h-0"><TextArea show_label={false} variant={InputVariant::Plain} size={ControlSize::Small} rows={4} placeholder={"".into()} availability={if writable{InputAvailability::Enabled}else{InputAvailability::Disabled}} {..TextArea::new("commit-description",&self.description,"Description")}/></div>
                     <div class="h-[24px] shrink-0 flex flex-row items-center justify-end gap-1.5">
                         <Tooltip {..Tooltip::new("ai-unavailable","AI commit messages are not ported to Rust yet")}><IconButton size={ControlSize::Small} state={ControlState::Disabled} {..IconButton::new("ai-commit",IconName::Sparkles,"Generate commit message unavailable")}/></Tooltip>
-                        <Button size={ControlSize::Small} variant={ButtonVariant::Primary} accessibility_label={Some("Commit staged changes".into())} state={if self.write_job.is_some(){ControlState::Busy}else if self.can_commit(cx){ControlState::Enabled}else{ControlState::Disabled}}
-                            on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.commit(window,cx))))} {..Button::new("commit",format!("Commit {staged} {}",if staged==1{"file"}else{"files"}))}/>
+                        <div style={|s|s.debug_selector(||"workspace-commit-submit".into())}><Button size={ControlSize::Small} variant={ButtonVariant::Primary} accessibility_label={Some(if self.amend.is_some(){"Amend last commit".into()}else{"Commit staged changes".into()})} state={if self.write_job.is_some(){ControlState::Busy}else if self.can_commit(cx){ControlState::Enabled}else{ControlState::Disabled}}
+                            on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.commit(window,cx))))} {..Button::new("commit",if self.amend.is_some(){"Amend commit".into()}else{format!("Commit {staged} {}",if staged==1{"file"}else{"files"})})}/></div>
                     </div>
                 </div>
                 }
@@ -355,8 +374,14 @@ impl RepositoryWorkspace {
                             <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("last-age",format!("Committed {}",super::chrome::age(&commit.committed_at)))}/>
                             <onegit_ui::CommitSubject {..onegit_ui::CommitSubject::new("last-summary",commit.summary.clone())}/>
                         </div>
-                        <Tooltip {..Tooltip::new("amend-unavailable","Amend is not ported to Rust yet")}><Button size={ControlSize::Small} state={ControlState::Disabled} {..Button::new("amend","Amend")}/></Tooltip>
-                        <Tooltip {..Tooltip::new("undo-unavailable","Undo is not ported to Rust yet")}><Button size={ControlSize::Small} state={ControlState::Disabled} {..Button::new("undo","Undo")}/></Tooltip>
+                        if self.amend.is_none() {
+                            <Tooltip {..Tooltip::new("amend-help",recovery_reason.clone())}><div style={|s|s.debug_selector(||"commit-amend".into())}><Button size={ControlSize::Small} accessibility_label={Some("Amend last commit".into())} state={if recovery_enabled{ControlState::Enabled}else{ControlState::Disabled}}
+                                on_press={Some(Box::new(cx.listener(move |this,_,window,cx|{if let Some(review)=&amend_review{this.begin_amend(review.clone(),window,cx);}})))}
+                                {..Button::new("amend","Amend")}/></div></Tooltip>
+                        }
+                        <Tooltip {..Tooltip::new("undo-help",recovery_reason.clone())}><div style={|s|s.debug_selector(||"commit-undo".into())}><Button size={ControlSize::Small} accessibility_label={Some("Undo last commit".into())} state={if recovery_enabled{ControlState::Enabled}else{ControlState::Disabled}}
+                            on_press={Some(Box::new(cx.listener(move |this,_,window,cx|{if let Some(review)=&undo_review{this.review_undo(review.clone(),window,cx);}})))}
+                            {..Button::new("undo","Undo")}/></div></Tooltip>
                     </div>
                 }
             </div>
@@ -535,6 +560,7 @@ impl Render for RepositoryWorkspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
+        self.configure_recovery(cx);
         let conflict_blocked = !self.conflict_available();
 
         self.conflicts
@@ -584,9 +610,10 @@ impl Render for RepositoryWorkspace {
                     self.history.clone().into_any_element()
                 }
                 RepositoryState::Ready(loaded) => {
+                    let empty = loaded.files.is_empty();
                     let files = self.files(loaded.clone(), window, cx);
 
-                    let preview = if loaded.files.is_empty() {
+                    let preview = if empty {
                         notice(
                             "clean",
                             "Working tree is clean",
@@ -623,7 +650,7 @@ impl Render for RepositoryWorkspace {
         }.into_any_element();
 
         if let Some(host) = &self.discard_host {
-            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}{self.conflicts.clone()}</onegit_ui::DialogHost> }.into_any_element()
+            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}{self.conflicts.clone()}{self.recovery.clone()}</onegit_ui::DialogHost> }.into_any_element()
         } else {
             page
         }

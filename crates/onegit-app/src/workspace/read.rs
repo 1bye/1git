@@ -85,6 +85,7 @@ pub(super) struct Loaded {
     pub repository: Arc<Repository>,
     pub snapshot: Snapshot,
     pub last_commit: Option<Arc<onegit_git::CommitInfo>>,
+    pub last_commit_unavailable: Option<String>,
     pub files: Vec<ChangedFile>,
     positions: HashMap<ChangeKey, usize>,
 }
@@ -222,16 +223,28 @@ pub(super) fn from_snapshot(repository: Arc<Repository>, snapshot: Snapshot) -> 
         .map(|(index, file)| (file.key.clone(), index))
         .collect();
 
-    let last_commit = snapshot
-        .status
-        .head
-        .oid
-        .as_deref()
-        .and_then(|oid| repository.commit(oid, None).ok())
-        .map(Arc::new);
+    let review = snapshot.status.head.oid.as_ref().map(|_| {
+        repository.review_last_commit(&onegit_git::BranchIdentity::from_snapshot(&snapshot), None)
+    });
+
+    let last_commit_unavailable = review
+        .as_ref()
+        .and_then(|result| result.as_ref().err())
+        .map(ToString::to_string);
+
+    let last_commit = review.and_then(Result::ok).map(Arc::new).or_else(|| {
+        snapshot
+            .status
+            .head
+            .oid
+            .as_deref()
+            .and_then(|oid| repository.commit(oid, None).ok())
+            .map(Arc::new)
+    });
 
     Arc::new(Loaded {
         last_commit,
+        last_commit_unavailable,
         repository,
         snapshot,
         files,

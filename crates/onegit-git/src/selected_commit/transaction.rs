@@ -513,13 +513,6 @@ fn trim(value: &str) -> &str {
 fn validate(input: &CommitFiles) -> Result<Vec<GitPath>, CommitError> {
     let staged = input.mode == CommitMode::Staged;
 
-    if input.amend && staged {
-        return Err(CommitError::invalid(
-            ErrorCode::InvalidInput,
-            "Amend uses selected files, not staged mode.",
-        ));
-    }
-
     let mut paths = Vec::new();
     let mut seen = HashSet::new();
 

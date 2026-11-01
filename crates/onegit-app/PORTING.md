@@ -39,8 +39,7 @@ spacing checks described in `docs/RUST.md`.
 ## Intentional differences
 
 Rust retains index staging rather than the source app's selected-file inclusion
-workflow. It retains explicit page loading in History. Unported AI, amend/undo,
-graph, account and SSH actions are unavailable. History, stash and conflict diffs
+workflow. It retains explicit page loading in History. Unported AI, graph, account and SSH actions are unavailable. History, stash and conflict diffs
 support text selection and copying, but remain read-only.
 These are behavior gaps, not a claim that the full original application is ported.
 Only persisted source library/cache entries are imported; unsaved source runtime
@@ -683,3 +682,85 @@ matching-screen comparison is claimed.
 
 No changeset is required: the Rust crates are unpublished and TypeScript release
 packages are unchanged.
+
+## Amend and Undo last commit
+
+| Current app source | Rust implementation |
+| --- | --- |
+| `RepositoryLastCommit` metadata and recovery eligibility | `workspace/read::from_snapshot`, background `review_last_commit`, retained metadata for unavailable published tips |
+| `RepositoryCommit` amend header, focus and Cancel | `workspace/recovery`, previous draft retained separately, animated composer height |
+| `RepositoryWorkspaceModel` amend/cancel/commit-finished transitions | Frozen root/HEAD/branch review, exact draft restoration, stale amend marker |
+| `RepositoryCommit.undo` | Existing `Repository::undo_last_commit` with atomic recovery-ref creation |
+| Source selected-file amend | `commit_selected_files` with message-only Files mode or exact Staged mode |
+| Related mutation refresh | `tabs/recovery_actions` and shared `refresh_written_tabs` |
+
+Entering Amend performs no write: it loads the original message into the composer,
+retains the ordinary summary/body verbatim, and focuses Summary. Cancel and a
+confirmed amend restore that prior draft. Failed or uncertain amendments retain
+the edited amend draft and its original draft separately. A changed root, branch,
+HEAD or publication status disables submission until cancel/review.
+
+Both writes have cancel-first confirmations. Amend offers **Include staged files**
+when staging exists; leaving it unchecked changes only the message and preserves
+all staging. Checked uses the exact existing index, including partially staged
+lines, without including working edits. The same guarded private-index transaction
+handles staged amend; hooks, signing, original author and parent retention remain.
+
+Undo moves the reviewed named branch to its parent, or makes a first-commit branch
+unborn, while keeping the exact index and working-file bytes. The old commit remains
+in `refs/1git/undo/…`. Only an empty originating draft receives its message;
+other tabs keep their own drafts.
+
+Publication is based on known local remote-tracking refs, with no implicit fetch.
+Published, merge, detached/unborn, conflicted, active-operation and stale reviews
+cannot write. The backend rechecks eligibility under the repository write queue;
+Undo compares the branch tip atomically and Amend retains its old commit in
+`refs/1git/amend/…`. Command uncertainty or failed refresh requires History review
+and refresh, never an automatic retry. Hook diagnostics remain visible.
+
+Related duplicate tabs and linked worktrees refresh their independent snapshots.
+The origin uses the same automatic-refresh path, preserving file selection, diff
+state, horizontal and vertical pixel offsets, modes, filters and pane sizes.
+Closing an accepted write remains protected by the existing Rake task scope.
+
+The composer grows in 120 ms, and confirmations reveal/resize through
+gpui-ce-motion. Reduced motion snaps; settled controls request no idle frames.
+The footer and amend header follow the current app. These requested confirmations
+extend the current app's direct actions using its existing alert presentation.
+The Rust app continues to stage the index, rather than the source app's inclusion set.
+Sessions save the ordinary draft while amending; restart cancels amend mode, so a
+temporary amend message cannot silently become an ordinary commit draft.
+
+Test mappings:
+- Source `commit.component.test.tsx` amend/cancel, success, failure and published
+  cases → `tabs/recovery_tests` native and real-Git tests.
+- Source `repository-workspace.unit.test.ts` pinned amend and draft restoration
+  → stale/published/replaced-root guards and prior-draft/session checks.
+- Source `last-commit.component.test.tsx` retained footer and eligibility →
+  worker-prepared metadata and unavailable-reason fields; metadata reads never
+  change composer dimensions.
+- Existing Git commit/recovery suites plus staged-amend coverage verify author,
+  tree, parent, index, working bytes, publication guards and recovery refs.
+
+Validation: all 605 workspace tests pass across all targets/features. The final
+focused app rerun passes 12 recovery-related tests, and the Git commit/amend and
+Undo suites pass, including exact-index staged amend. The source workspace-model's
+20 Bun tests pass. Strict Clippy, rustdoc with warnings denied, rustfmt, Git whitespace
+and logical spacing for the workspace plus Windows/Linux Git code pass. The signed
+development app builds and is running. CI was not run.
+
+Live macOS verification used the existing disposable
+`target/diff-qa/comparison-npne66yc` fixture: Amend loaded its message and Cancel
+restored the draft; confirmed message-only amend retained the parent and working
+bytes and restored the prior draft. Confirmed Undo retained the exact pre-Undo
+index and working bytes, preserved the nonempty draft, and created a recovery ref.
+The fixture branch and temporary draft were restored afterward. A fresh capture
+shows the native-styled confirmation and amend header.
+
+The installed reference app still fails capture, so the matching-screen visual
+comparison is pending; no completed visual-parity claim is made. The native picker
+also did not open through automation, so live testing used the already open
+disposable fixture rather than the newly prepared recovery fixture.
+
+No changeset is required: these Rust crates are unpublished, and no TypeScript
+release packages changed.

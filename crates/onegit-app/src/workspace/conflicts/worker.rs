@@ -84,6 +84,7 @@ pub(in crate::workspace) fn run(
         loaded: origin,
         result: result.clone().map(|()| detail),
         staging_completion: None,
+        recovery_completion: None,
         committed: false,
         branch_action: false,
         stash_completion: None,

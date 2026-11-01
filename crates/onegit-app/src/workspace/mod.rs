@@ -7,6 +7,7 @@ mod history;
 mod home;
 mod native;
 mod read;
+mod recovery;
 mod staging;
 mod stashes;
 mod sync;
@@ -93,6 +94,9 @@ pub(crate) struct RepositoryWorkspace {
     history: gpui::Entity<history::HistoryWorkspace>,
     stashes: gpui::Entity<stashes::Stashes>,
     discard: gpui::Entity<discard::Form>,
+    recovery: gpui::Entity<recovery::Form>,
+    amend: Option<recovery::Amend>,
+    composer: recovery::Composer,
     conflicts: gpui::Entity<conflicts::Form>,
     conflict_side: onegit_git::ConflictSide,
     discard_host: Option<onegit_ui::DialogHostState>,
@@ -189,7 +193,29 @@ impl RepositoryWorkspace {
             conflicts::Form::new(host.or(discard_host.as_ref()).expect("dialog host"), cx)
         });
 
+        let recovery = cx.new(|cx| {
+            recovery::Form::new(host.or(discard_host.as_ref()).expect("dialog host"), cx)
+        });
+
         let mut subscriptions = vec![
+            cx.subscribe_in(
+                &recovery,
+                window,
+                |this: &mut Self, _, event: &recovery::Submit, window, cx| {
+                    if this.hosted {
+                        cx.emit(recovery::Submit(event.0.clone()));
+                    } else {
+                        this.start_write(
+                            write::Operation::Recovery {
+                                action: event.0.clone(),
+                                peers: Vec::new(),
+                            },
+                            window,
+                            cx,
+                        );
+                    }
+                },
+            ),
             cx.subscribe_in(
                 &conflicts,
                 window,
@@ -300,6 +326,9 @@ impl RepositoryWorkspace {
             discard,
             discard_host,
             conflicts,
+            recovery,
+            amend: None,
+            composer: recovery::Composer::new(cx.background_executor().now()),
             conflict_side: onegit_git::ConflictSide::Ours,
             selected: None,
             preview: PreviewState::Empty,
@@ -485,6 +514,7 @@ impl RepositoryWorkspace {
         }
 
         if self.draft_root.as_ref() != Some(&root) {
+            self.amend = None;
             self.summary.update(cx, |input, cx| input.set_text("", cx));
             self.description
                 .update(cx, |input, cx| input.set_text("", cx));
@@ -558,15 +588,27 @@ impl RepositoryWorkspace {
         let summary = self.summary.read(cx).text().trim();
         let description = self.description.read(cx).text();
 
+        let contents_available = if self.amend.is_some() {
+            self.amend_current()
+        } else {
+            matches!(&self.state, RepositoryState::Ready(loaded) if write::staged_count(loaded) > 0)
+        };
+
         self.can_write()
             && !summary.is_empty()
             && !summary.contains(['\0', '\n', '\r'])
             && !description.contains('\0')
-            && matches!(&self.state, RepositoryState::Ready(loaded) if write::staged_count(loaded) > 0)
+            && contents_available
     }
 
     fn commit(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
         if !self.can_commit(cx) {
+            return;
+        }
+
+        if self.amend.is_some() {
+            self.review_amend(window, cx);
+
             return;
         }
 
@@ -673,6 +715,7 @@ impl RepositoryWorkspace {
                 .update(cx, |input, cx| input.set_text("", cx));
         }
 
+        let recovery_completion = outcome.recovery_completion;
         let staging_completion = outcome.staging_completion;
         let conflict_completion = outcome.conflict_completion;
         let stash_completion = outcome.stash_completion;
@@ -730,7 +773,8 @@ impl RepositoryWorkspace {
                     || stash_completion.is_some()
                     || discard_completion.is_some()
                     || conflict_completion.is_some()
-                    || staging_completion.is_some() =>
+                    || staging_completion.is_some()
+                    || recovery_completion.is_some() =>
             {
                 self.apply_automatic(loaded, cx)
             }
@@ -739,7 +783,8 @@ impl RepositoryWorkspace {
                 if stash_completion.is_some()
                     || discard_completion.is_some()
                     || conflict_completion.is_some()
-                    || staging_completion.is_some() =>
+                    || staging_completion.is_some()
+                    || recovery_completion.is_some() =>
             {
                 self.refresh_blocked = true;
                 self.refresh_error = Some(format!(
@@ -751,6 +796,11 @@ impl RepositoryWorkspace {
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if let Some(completion) = recovery_completion {
+            self.recovery_finished(&completion, window, cx);
+            cx.emit(completion);
         }
 
         if let Some(completion) = staging_completion {
