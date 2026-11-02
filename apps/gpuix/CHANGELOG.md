@@ -1,5 +1,11 @@
 # @1git/gpuix
 
+## 0.1.3
+
+### Patch Changes
+
+- 758750d: Fix blank diff previews for files with long Markdown paragraphs. Keep complete text, normal scrolling, and line selection.
+
 ## 0.1.2
 
 ### Minor Changes
