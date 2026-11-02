@@ -139,6 +139,24 @@ function viewport() {
 
 	return { element, bounds };
 }
+it("keeps complete long-line diffs available for line inclusion", async () => {
+	const longPatch = diffPatch("example.ts", "long paragraph ".repeat(400));
+
+	reader.mockResolvedValueOnce({
+		ok: true,
+		value: [diffSection("working", longPatch)],
+	});
+	root.render(<Preview />);
+	await settle();
+
+	expect(viewport().element.customProps?.selectionEnabled).toBe(true);
+	expect(viewport().element.customProps?.patch).toBe(longPatch);
+	expect(received).toEqual([]);
+	gutter(27, 1);
+	await settle();
+	expect(received).toEqual(["-:11"]);
+});
+
 function gutter(x: number, row: number) {
 	const { bounds } = viewport();
 

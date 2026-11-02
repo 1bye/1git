@@ -1,5 +1,5 @@
 /**
- * Covers: native-preview guards, binary/empty/conflict notices.
+ * Covers: complete long-line previews, native-preview guards and binary/empty/conflict notices.
  * Real: diff presentation model.
  * Doubles: explicit Git patches, no repository I/O.
  * Requires: none.
@@ -54,9 +54,16 @@ it("does not confuse binary or conflicted content with an empty or clean diff", 
 	);
 });
 
-it("omits oversized patches in full rather than rendering a misleading truncated diff", () => {
+it("keeps a small diff with long Markdown paragraphs available for a bounded preview", () => {
+	const patch = diffPatch("large.md", "paragraph ".repeat(600));
+	const result = diffSection("working", patch);
+
+	expect(result.patch).toBe(patch);
+	expect(result.message).toBeNull();
+});
+
+it("omits patches exceeding the total byte or line budget", () => {
 	for (const patch of [
-		diffPatch("a", "x".repeat(diffLimits.lineLength + 1)),
 		diffPatch("a", "line\n".repeat(diffLimits.lines)),
 		diffPatch("a", "a".repeat(diffLimits.bytes)),
 	]) {

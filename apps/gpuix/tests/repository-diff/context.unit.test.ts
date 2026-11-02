@@ -151,6 +151,24 @@ it("rejects changed Git content and missing context instead of mixing snapshots"
 	).toThrow("changed outside");
 });
 
+it("expands context around long Markdown lines without clipping content", () => {
+	const paragraph = "paragraph ".repeat(600);
+	const patch = contextPatch().replace("+changed 40", `+${paragraph}`);
+
+	const source = contextPatch(23)
+		.replace("+changed 40", `+${paragraph}`)
+		.replace(" line 20\n", ` ${paragraph}\n`);
+
+	const request = DiffContext.request(patch, 37, 37);
+
+	if (!request) throw new Error("Missing context request.");
+
+	const expanded = DiffContext.expand(patch, source, request).patch;
+
+	expect(expanded).toContain(`+${paragraph}\n`);
+	expect(expanded).toContain(` ${paragraph}\n`);
+});
+
 it("bounds native preview growth and ignores additions without omitted context", () => {
 	const patch = contextPatch();
 	const request = DiffContext.request(patch, 97, 97);

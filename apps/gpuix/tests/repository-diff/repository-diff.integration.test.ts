@@ -175,6 +175,45 @@ it("keeps a small preview usable when complete syntax context exceeds its byte b
 	expect(section?.syntaxPatch).toBeUndefined();
 });
 
+it("previews a seven-line change in a large Markdown file with long paragraphs", async () => {
+	const path = "large.md";
+
+	const lines = Array.from(
+		{ length: 1600 },
+		(_, index) => `Paragraph ${index}: ${"markdown content ".repeat(300)}`
+	);
+
+	await writeFile(join(repository, path), `${lines.join("\n")}\n`);
+	await git("add", path);
+	await git("commit", "-m", "Large Markdown base");
+
+	for (let index = 1477; index < 1484; index++)
+		lines[index] = `Revised ${lines[index]}`;
+
+	await writeFile(join(repository, path), `${lines.join("\n")}\n`);
+	const index = await readFile(join(repository, ".git/index"));
+	const section = (await read(path))[0];
+
+	expect(section?.message).toBeNull();
+	expect(section?.patch).toContain("+Revised Paragraph 1477:");
+	expect(section?.stats).toEqual([{ path, addedLines: 7, deletedLines: 7 }]);
+	expect(section?.syntaxPatch).toBeUndefined();
+	expect(await readFile(join(repository, ".git/index"))).toEqual(index);
+
+	await git("add", path);
+	await git("commit", "-m", "Revise paragraphs");
+	const commit = (await git("rev-parse", "HEAD")).trim();
+
+	const result = await RepositoryDiff.read(
+		repository,
+		{ path, commit, beforeOid: "", afterOid: "", status: "M" },
+		new AbortController().signal
+	);
+
+	expect(result.ok && result.value[0]?.message).toBeNull();
+	expect(result.ok && result.value[0]?.patch).toBe(section?.patch);
+});
+
 it("does not attach failed or stale syntax context to a newer visible patch", async () => {
 	const patch =
 		"diff --git a/context.ts b/context.ts\nindex 1111111..2222222 100644\n--- a/context.ts\n+++ b/context.ts\n@@ -1 +1 @@\n-old\n+new\n";

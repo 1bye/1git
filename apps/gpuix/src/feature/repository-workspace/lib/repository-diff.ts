@@ -12,7 +12,7 @@ import {
 	type RepositoryImageComparison,
 } from "./repository-image";
 
-/** Limits native parsing/layout and Git output without silently truncating a patch. */
+/** Bounds Git output and native row counts; conflict previews additionally limit line length. */
 export const diffLimits = {
 	bytes: 512 * 1024,
 	lines: 2000,
@@ -299,7 +299,7 @@ export class RepositoryDiff {
 		return { result, syntaxPatch };
 	}
 
-	/** Rejects unsafe-sized or unsupported input before it reaches native parsing; never shows partial content as complete. */
+	/** Rejects oversized or unsupported patches before handing complete content to the virtualized viewer. */
 	static section(
 		diff: FileDiff,
 		target: RepositoryDiffSection["target"],
@@ -312,8 +312,7 @@ export class RepositoryDiff {
 		if (
 			diff.patchOmittedReason === "too-large" ||
 			Buffer.byteLength(patch) > diffLimits.bytes ||
-			lines.length > diffLimits.lines ||
-			lines.some((line) => line.length > diffLimits.lineLength)
+			lines.length > diffLimits.lines
 		) {
 			message =
 				"This diff is too large to preview safely. Inspect it in your editor or Git CLI.";

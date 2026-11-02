@@ -192,6 +192,68 @@ it("uses the app's translucent tooltip palette and an outlined toolbar icon for 
 	expect(root.renderer.findByTestId("diff-settings-tooltip")).toBeUndefined();
 });
 
+it("scrolls complete long Markdown lines in either layout without paging controls", async () => {
+	const paragraph = `${"paragraph ".repeat(600)}😀 end of paragraph`;
+	const patch = diffPatch("large.md", paragraph);
+
+	const reader = mock<typeof Reader.read>(async () => ({
+		ok: true,
+		value: [{ ...diffSection("working", patch), syntaxPatch: patch }],
+	}));
+
+	for (const mode of ["unified", "split"] as const) {
+		showDiff(reader, "large.md", 980, mode);
+		await settle();
+		const content = element("diff-viewport-content");
+		const header = bounds("diff-header");
+
+		expect(root.renderer.findByTestId("diff-preview-pager")).toBeUndefined();
+		expect(
+			root.renderer.findByTestId("diff-long-line-preview")
+		).toBeUndefined();
+		expect(bounds("diff-viewport").y).toBeCloseTo(header.y + header.height, 0);
+		expect(content.customProps?.patch).toBe(patch);
+		expect(content.customProps?.wordDiff).toBe(true);
+		expect(content.customProps?.syntaxPatch).toBe(patch);
+
+		const horizontal =
+			mode === "split" ? content.id : element("diff-viewport").id;
+
+		root.renderer.scrollTo(horizontal, -1_000_000, 0);
+		root.renderer.flush();
+		expect(root.renderer.getScrollOffset(horizontal)?.[0]).toBeLessThan(-4000);
+		expect(root.renderer.getPaintedText().join("\n")).toContain(
+			"😀 end of paragraph"
+		);
+	}
+
+	expect(reader).toHaveBeenCalledTimes(1);
+});
+
+it("renders offscreen diff rows on demand when scrolling, without rereading Git", async () => {
+	const lines = Array.from(
+		{ length: 400 },
+		(_, index) => `row_${index}: ${"markdown ".repeat(20)}`
+	);
+
+	const patch = `diff --git a/large.md b/large.md\nnew file mode 100644\n--- /dev/null\n+++ b/large.md\n@@ -0,0 +1,400 @@\n${lines.map((line) => `+${line}`).join("\n")}\n`;
+
+	const reader = mock<typeof Reader.read>(async () => ({
+		ok: true,
+		value: [diffSection("working", patch)],
+	}));
+
+	showDiff(reader, "large.md");
+	await settle();
+	expect(root.renderer.getPaintedText().join("\n")).not.toContain("row_399:");
+
+	root.renderer.scrollTo(element("diff-viewport-content").id, 0, -1_000_000);
+	root.renderer.flush();
+
+	expect(root.renderer.getPaintedText().join("\n")).toContain("row_399:");
+	expect(reader).toHaveBeenCalledTimes(1);
+});
+
 it("opens accessible diff settings, switches native layout without rereading Git and restores focus", async () => {
 	const reader = mock<typeof Reader.read>(async () => ({
 		ok: true,

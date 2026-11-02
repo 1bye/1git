@@ -246,8 +246,7 @@ export class DiffContext {
 
 		if (
 			output.length + 1 > diffLimits.lines ||
-			Buffer.byteLength(expanded) > diffLimits.bytes ||
-			output.some((line) => line.length > diffLimits.lineLength)
+			Buffer.byteLength(expanded) > diffLimits.bytes
 		)
 			throw new Error(
 				"This preview reached its safe size limit. Open the file in your editor to read more."
