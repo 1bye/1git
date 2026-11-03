@@ -8,6 +8,8 @@ mod conflict_tests;
 mod discard_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod discard_tests;
+#[cfg(all(test, feature = "test-support"))]
+mod graph_tests;
 mod motion;
 mod recovery_actions;
 #[cfg(all(test, feature = "test-support"))]
@@ -396,10 +398,35 @@ impl Workspace {
         ));
         let view = workspace.read(cx);
         let history = view.history.clone();
+        let graph = view.graph.clone();
+        let graph_inspector = graph.read(cx).inspector.clone();
+        let graph_state = graph.read(cx).state.clone();
+
+        let graph_splits = [
+            graph.read(cx).sidebar.clone(),
+            graph.read(cx).detail_split.clone(),
+        ];
+
+        let inspector_splits = graph_inspector.read(cx).session_splits();
         let stashes = view.stashes.clone();
         let stash_sidebar = stashes.read(cx).sidebar.clone();
         let stash_detail = stashes.read(cx).detail_split.clone();
         let split = view.split.clone();
+
+        state.push(cx.observe(&graph, |this: &mut Self, _, cx| this.session_changed(cx)));
+        state.push(cx.observe(&graph_state, |this: &mut Self, _, cx| {
+            this.session_changed(cx)
+        }));
+        state.push(cx.observe(&graph_inspector, |this: &mut Self, _, cx| {
+            this.session_changed(cx)
+        }));
+
+        for split in graph_splits
+            .into_iter()
+            .chain([inspector_splits.0, inspector_splits.1])
+        {
+            state.push(cx.observe(&split, |this: &mut Self, _, cx| this.session_changed(cx)));
+        }
 
         state.push(cx.observe(&stashes, |this: &mut Self, _, cx| this.session_changed(cx)));
         let splits = history.read(cx).session_splits();
@@ -626,6 +653,7 @@ impl Workspace {
                 let blocked=busy||view.refresh_blocked||!matches!(&view.state,RepositoryState::Ready(source) if super::write::available(source));
 
                 view.stashes.update(cx,|stashes,cx|stashes.configure(blocked,cx));
+                view.graph.update(cx,|graph,cx|graph.configure(blocked,cx));
                 view.discard.update(cx, |form, cx| form.configure(blocked, cx));
 
                 if view.repository_busy != busy {
@@ -905,6 +933,7 @@ impl gpui::Render for Workspace {
             for tab in &self.tabs {<div id={("conflict-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).conflicts.clone()}</div>}
             for tab in &self.tabs {<div id={("discard-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).discard.clone()}</div>}
             for tab in &self.tabs {<div id={("recovery-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).recovery.clone()}</div>}
+            for tab in &self.tabs {<div id={("graph-branch-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).graph.read(cx).form.clone()}</div>}
             for tab in &self.tabs {<div id={("stash-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).stashes.read(cx).form.clone()}</div>}
             for entry in self.syncs.values() {<div id={("sync",entry.state.entity_id())} class="absolute inset-0">{entry.state.clone()}</div>}
         </onegit_ui::DialogHost>}

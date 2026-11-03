@@ -547,7 +547,7 @@ verification. CI was not run.
 | `DiffContext` request/expand and unit cases | `onegit-ui/src/diff_viewer/context.rs` |
 | `RepositoryDiff.readText` optional syntax context | `workspace/read::document`, shared Changes/History/Stashes worker reads |
 | Conflict indexed/working comparisons | `conflicts/read::compare_named`, using the actual GitPath as a language hint |
-| Native syntax cache and token palette | `diff_viewer/syntax.rs`, cached Tree-sitter queries and prepared per-side spans |
+| Native syntax cache and token palette | `diff_viewer/syntax.rs`, reference Syntect grammars and prepared per-side spans |
 | Native expansion, keyboard and virtual scrolling | `diff_viewer/rows.rs`, `state.rs`, `onegit-ui/tests/diffs.rs` |
 
 All four repository views use the same immutable prepared document. Hidden context
@@ -565,7 +565,7 @@ the existing bounded Git reader and parser (16 MiB and 200,000 patch rows).
 
 Highlighting prepares separate old/new streams with the source app's light/dark
 token palette. Bundled grammars cover JavaScript/JSX, TypeScript/TSX, Rust,
-Python, Go, JSON, CSS, HTML, Bash and C. Other extensions remain plain text.
+Python, Go, JSON/JSONC, CSS, HTML, Bash, C, TOML, Markdown and YAML. Other extensions remain plain text.
 Multiline comments and strings use omitted context without displaying it.
 Fragment fallback resets parser state across gaps. Syntax parsing is bounded to
 512 KiB, 2,000 source lines and 4,000 bytes per line; oversized sources fall back
@@ -764,3 +764,124 @@ disposable fixture rather than the newly prepared recovery fixture.
 
 No changeset is required: these Rust crates are unpublished, and no TypeScript
 release packages changed.
+
+## Commit graph
+
+The graph is a separate repository view with captured local/remote branch tips,
+peeled tags, detached HEAD, unsimplified merge parents and topological pages.
+Reference search and All/Local/Remote/Tags filters match the source: they filter
+the reference sidebar, not commit subjects or graph ancestry. Selecting a reference
+reads its exact captured tip; Show full graph returns to the captured complete set.
+
+| Current app source | Rust implementation |
+| --- | --- |
+| `repository-graph/commit-graph.ts` | `onegit-ui/commit_graph/data.rs`, worker-prepared deterministic lanes and half-row connections |
+| `repository-graph-reader.ts` | `workspace/graph/read.rs` and `Repository::graph_history`, full OIDs streamed through stdin |
+| `GraphCommitRow` | Virtual native list, 36-pixel rows, GPU-painted curves/nodes, theme palettes, responsive columns and accessible ref badges |
+| `RepositoryGraph` | Retained per-tab refs, filters, pinned pages, retry/cancellation and repository view navigation |
+| `GraphDetailsDivider` and `GraphCommitFiles` | Bounded resizable panes and the existing history inspector, first-parent file/diff reads |
+| `RepositoryCommitDetails` | Subject, author/date, copy SHA feedback, tags, description disclosure and branch creation at the selected commit |
+| Restart state | Optional backward-compatible graph intent in workspace session version 1 |
+
+The graph does not check out references or fetch. Ref/page work and lane preparation
+run on background executors. Append pagination uses the same immutable tips;
+superseded scope/root reads are cancelled. Related-tab refresh retains immutable
+commit/file previews and the top visible commit plus its within-row pixel offset.
+Manual refresh also retains graph state. Native keyboard navigation and draggable, accessible scrollbars use fixed
+row geometry, so jumps to unmeasured virtual rows work. Both scroll axes, selection,
+diff mode, ref search/type/scope and pane sizes survive tab switches and restart.
+Restart/refresh restoration reads at most 10,000 rows before falling back if the
+anchor is no longer reachable. Ordinary interactive pagination remains available.
+
+Row hover/press/selection use the existing gpui-ce-motion surface transitions.
+Reduced motion snaps and settled controls do not request idle frames. Reference
+sidebars cap at 420 pixels; graph/details and file/diff splits retain independent
+preferences. Tooltips use opaque surfaces so graph rows do not show through them.
+
+Tests map the source graph's four layout cases and two real-Git reader cases to
+Rust topology/backend tests, plus native virtualization, controlled selection,
+distant keyboard navigation, row/pixel anchors, cancelled scopes/replaced roots,
+draft retention, selected committed-file previews, refresh and restart intent.
+The source's six layout/reader tests pass.
+
+New Branch… captures the reviewed commit's immutable OID and validates its
+repository before submitting through the shared write queue. Creating the branch
+keeps HEAD, working files and index intact, preserves drafts and selections, and
+refreshes duplicate and linked-worktree tabs. Failures after the command boundary
+require reopening the form before retry. The form uses gpui-ce-motion opacity and
+height transitions; Cancel does not write. Reset, revert, cherry-pick and tag-write
+menus remain outside this graph/navigation port.
+
+Matching native captures now use the same 1280×820 logical window, dark theme,
+repository and commit: onbot at `9bc01f3`, followed by the stable
+`target/diff-qa/comparison-npne66yc` fixture at merge `0160e16`. The fixture
+includes two branches, a merge, two tags and a committed Rust file. Comparison
+corrected the reference ordering, filled search field, filter padding, current
+branch color, row corners, badge backgrounds, pane widths, changed-files heading,
+branch action and scrollbars. Native Cancel checks leave HEAD, index and working
+bytes unchanged; branch writes are exercised only in disposable test repositories.
+Restart restored the selected merge and committed-file preview.
+
+This completes the graph's matching-screen comparison, not a claim that every
+existing app surface or syntax token is pixel-identical. The later diff/file-navigation comparison below addresses the grammar, gutter
+styling and committed-file tree gaps found in these captures.
+
+Validation: 627 workspace tests pass across all targets/features. Subsequent
+focused reruns pass six native graph viewport/motion cases, eight app graph/session/
+linked-tab cases, three Git graph integration cases and three tooltip lifecycle
+cases. Strict Clippy, rustdoc with warnings denied, rustfmt, Git whitespace, and
+logical spacing for workspace targets plus Windows/Linux Git code pass. The signed
+development app is running on the shared merge fixture. CI was not run.
+
+No changeset is required: these Rust crates are unpublished and no TypeScript
+release packages changed.
+
+## Commit-details visual follow-up
+
+The shared DiffViewer now uses the reference app's Syntect 5.3 and two-face 0.5.2
+grammars and neutral scope mapping. This replaces the Tree-sitter query pack:
+identical palette values previously produced different Rust/TypeScript tokens.
+Old/new source streams remain separate, omitted source gaps reset parser state,
+full context stays validated, and parsing remains on the preview worker. Added/
+deleted markers, number opacity and plain-code opacity match the native reference.
+Both unified gutter columns remain; the source uses both coordinates too.
+
+Graph and History committed-file panes now expose a working tree/list toggle.
+The tree groups exact Git bytes without filesystem reads, sorts numeric names,
+places folders before files, compacts single-child directory chains, displays
+descendant counts and supports collapse plus Left/Right/Up/Down/Home/End navigation.
+Rows use shared gpui-ce-motion feedback across the entire line, including indentation.
+An enclosing list owns roving focus, independently of the selected preview.
+Layout, collapsed directories and immutable selection round-trip through optional,
+backward-compatible session fields. Switching layout or collapsing a folder retains
+the existing diff state and draft; native tests verify restart and byte preservation.
+
+The source sorting uses locale-aware numeric string comparison. Rust preserves
+raw Git bytes and uses deterministic ASCII case-insensitive numeric ordering with
+a bytewise tie-break; non-ASCII locale collation is deliberately not emulated.
+
+Scope-mapping provenance and bundled grammar notices are recorded in
+`onegit-ui/THIRD_PARTY_NOTICES.md`. Rust crates remain unpublished, so no changeset
+is required.
+
+### Follow-up comparison and validation (2026-11-03)
+
+Compared the installed native reference and the rebuilt Rust app on the same
+`diff-parity-o_cgtiu3` repository, commit `68ba2a5f047b897c495846111cfab6501c11f517`,
+and `src/main.rs`, in dark mode at 1280 by 820 logical pixels. Matching captures
+cover unified and fixed 50/50 split layouts, syntax categories, both unified
+number columns, changed-line markers, word emphasis, tree rows, counts, and the
+active layout button. The final Rust capture confirms selection spans the full
+row, including indentation. Collapsing and reopening `src` retains the selected
+file and diff; restarting the rebuilt app restores the tree layout and selection.
+Both apps were returned to unified mode. Fixture HEAD, index SHA-256, and every
+working-file SHA-256 are unchanged after the comparison.
+
+The complete workspace suite passes 630 tests. A final focused history run passes
+14 tests, including tree layout/collapse/restart with exact path and draft
+preservation; the UI suite and its nine doctests also pass. Final strict workspace
+Clippy, rustdoc with warnings denied, rustfmt, Git whitespace, and logical spacing
+for all workspace targets plus Windows/Linux Git code pass.
+The signed development build was checked locally. CI was not run for this
+validation. This comparison covers the shared diff styling and committed-file
+navigation, not a claim that every remaining app screen is pixel-identical.

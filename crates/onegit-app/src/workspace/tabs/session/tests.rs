@@ -13,6 +13,7 @@ fn document(path: &std::path::Path) -> Document {
 fn tab(path: &std::path::Path, summary: &str) -> SavedTab {
     SavedTab {
         stashes: None,
+        graph: None,
         root: Root::capture(path),
         summary: summary.into(),
         description: "Details ✨\nKeep whitespace  ".into(),
@@ -26,6 +27,8 @@ fn tab(path: &std::path::Path, summary: &str) -> SavedTab {
         filter_visible: true,
         sidebar: 347.,
         history: History {
+            tree_layout: true,
+            collapsed: vec![b"folder/deep".to_vec()],
             commit: Some("1".repeat(40)),
             file: Some(b"a.txt".to_vec()),
             rows: 100,
@@ -180,4 +183,52 @@ fn older_sessions_load_without_stashes_and_invalid_saved_stash_intent_is_rejecte
     loaded.tabs[0].stashes.as_mut().unwrap().file = None;
     loaded.tabs[0].stashes.as_mut().unwrap().sidebar = f32::NAN;
     assert!(loaded.validate().is_err());
+}
+
+#[test]
+fn graph_intent_round_trips_and_pre_graph_sessions_still_load() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut doc = document(dir.path());
+
+    let graph = GraphView {
+        visible: true,
+        reference: Some("refs/tags/v1".into()),
+        query: "v1".into(),
+        kind: crate::workspace::graph::Kind::Tags,
+        details: doc.tabs[0].history.clone(),
+        selected: true,
+        rows: 500,
+        sidebar: 230.,
+        detail_fraction: 0.52,
+        anchor: Some("2".repeat(40)),
+        row: 250,
+        offset: 5.,
+        horizontal: -25.,
+    };
+
+    doc.tabs[0].graph = Some(graph);
+    assert!(doc.validate().is_ok());
+    assert_eq!(
+        serde_json::from_slice::<Document>(&serde_json::to_vec(&doc).unwrap()).unwrap(),
+        doc
+    );
+    let mut old = serde_json::to_value(&doc).unwrap();
+
+    old["tabs"][0].as_object_mut().unwrap().remove("graph");
+    let old: Document = serde_json::from_value(old).unwrap();
+
+    assert!(old.tabs[0].graph.is_none());
+    assert!(old.validate().is_ok());
+
+    for invalid in [f32::NAN, 37., -1.] {
+        let mut bad = doc.clone();
+
+        bad.tabs[0].graph.as_mut().unwrap().offset = invalid;
+        assert!(bad.validate().is_err());
+    }
+
+    let mut bad = doc;
+
+    bad.tabs[0].graph.as_mut().unwrap().anchor = Some("HEAD".into());
+    assert!(bad.validate().is_err());
 }

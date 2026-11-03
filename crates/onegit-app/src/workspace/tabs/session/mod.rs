@@ -14,7 +14,7 @@ use crate::workspace::{
 };
 
 use model::Document;
-pub(in crate::workspace) use model::{Change, History, Root, SavedTab, StashView};
+pub(in crate::workspace) use model::{Change, GraphView, History, Root, SavedTab, StashView};
 use onegit_git::GitPath;
 use onegit_ui::{DiffView, SplitState};
 use rake::gpui::{AppContext, px};
@@ -289,6 +289,19 @@ impl SavedTab {
                 .map(|amend| amend.previous.description.clone())
                 .unwrap_or_else(|| view.description.read(cx).text().into()),
             history_visible: view.section == Section::History,
+            graph: view
+                .pending_session
+                .as_ref()
+                .and_then(|saved| saved.graph.clone())
+                .or_else(|| {
+                    Some({
+                        let mut saved = view.graph.read(cx).session(cx);
+
+                        saved.visible = view.section == Section::Graph;
+
+                        saved
+                    })
+                }),
             stashes: Some({
                 let mut saved = view.stashes.read(cx).session(cx);
 
@@ -330,7 +343,9 @@ impl SavedTab {
         view.filter
             .update(cx, |input, cx| input.set_text(self.filter.clone(), cx));
         view.filter_visible = self.filter_visible;
-        view.section = if self.stashes.as_ref().is_some_and(|s| s.visible) {
+        view.section = if self.graph.as_ref().is_some_and(|g| g.visible) {
+            Section::Graph
+        } else if self.stashes.as_ref().is_some_and(|s| s.visible) {
             Section::Stashes
         } else if self.history_visible {
             Section::History
@@ -346,6 +361,11 @@ impl SavedTab {
         view.history.update(cx, |history, cx| {
             history.restore_preferences(&self.history, window, cx)
         });
+
+        if let Some(saved) = &self.graph {
+            view.graph
+                .update(cx, |graph, cx| graph.restore(saved, window, cx));
+        }
 
         if let Some(saved) = &self.stashes {
             view.stashes

@@ -355,8 +355,8 @@ Conflict source sides retain separate viewports. Commit drafts and selections
 are preserved.
 
 Colors match the current app's light/dark syntax and changed-word palettes.
-JavaScript/JSX, TypeScript/TSX, Rust, Python, Go, JSON, CSS, HTML, Bash and C have
-bundled grammars; other files stay plain text. Binary/oversized notices remain.
+JavaScript/JSX, TypeScript/TSX, Rust, Python, Go, JSON/JSONC, CSS, HTML, Bash, C,
+TOML, Markdown and YAML use the reference app’s Syntect grammars; other files stay plain text. Binary/oversized notices remain.
 Hidden context is optional and snapshot-checked; when it cannot be safely loaded,
 the ordinary preview stays usable. Expansion reports its safe display limit.
 Hover/press feedback and a fast reveal fade use gpui-ce-motion with reduced-motion
@@ -405,3 +405,7 @@ Composer and confirmation transitions use gpui-ce-motion with reduced-motion
 support and no idle animation. Sessions preserve the ordinary draft while an amend
 is active; reopening the app cancels amend mode. A result needing review blocks
 new writes until History is inspected and the repository is refreshed.
+
+Graph and History committed-file panes support tree/list layout, folder counts,
+compact directory chains and keyboard disclosure. The selected diff and draft
+survive layout changes; layout and collapsed folders restore with the session.

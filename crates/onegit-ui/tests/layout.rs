@@ -21,6 +21,7 @@ struct Workbench {
     axis: SplitAxis,
     disabled: bool,
     divider_size: gpui::Pixels,
+    max_first: Option<gpui::Pixels>,
     mounted: bool,
     width: gpui::Pixels,
     variant: TabVariant,
@@ -60,7 +61,7 @@ impl Render for Workbench {
                 </div>
                 if self.mounted {
                     <div style={|s| s.w(self.width).h(px(220.)).flex_shrink_0()}>
-                        <ResizableSplit divider_size={self.divider_size} axis={self.axis} disabled={self.disabled} min_first={px(80.)} min_second={px(100.)}
+                        <ResizableSplit divider_size={self.divider_size} max_first={self.max_first} axis={self.axis} disabled={self.disabled} min_first={px(80.)} min_second={px(100.)}
                             first={first} second={second} {..ResizableSplit::new("split", &self.split, "Main size")}/>
                     </div>
                 }
@@ -117,6 +118,7 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Workbench>) {
             axis: SplitAxis::Horizontal,
             disabled: false,
             divider_size: px(6.),
+            max_first: None,
             mounted: true,
             width: px(500.),
             variant: TabVariant::Underline,
@@ -611,4 +613,36 @@ fn proportional_split_preserves_user_share_when_the_viewport_changes() {
     .unwrap();
     draw(&mut cx, view);
     assert!((f32::from(bounds(&cx, view, "first-pane").size.width) - 148.2).abs() < 0.51);
+}
+
+#[test]
+fn optional_first_pane_maximum_bounds_pointer_and_keyboard_sizes() {
+    let (mut cx, v) = setup();
+
+    v.update(&mut cx, |v, _, cx| {
+        v.max_first = Some(px(240.));
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    v.update(&mut cx, |v, window, cx| {
+        v.split
+            .update(cx, |split, cx| split.resize(px(1000.), window, cx));
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    assert_eq!(
+        v.read_with(&cx, |v, cx| v.split.read(cx).size()).unwrap(),
+        px(240.)
+    );
+    v.update(&mut cx, |v, window, cx| {
+        v.split
+            .update(cx, |split, cx| split.resize(px(0.), window, cx));
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    assert_eq!(
+        v.read_with(&cx, |v, cx| v.split.read(cx).size()).unwrap(),
+        px(80.)
+    );
 }

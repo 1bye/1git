@@ -44,6 +44,8 @@ pub struct ResizableSplit {
     pub axis: SplitAxis,
     /// Minimum first-pane size in logical pixels.
     pub min_first: gpui::Pixels,
+    /// Optional maximum first-pane size. The minimum takes precedence in narrow layouts.
+    pub max_first: Option<gpui::Pixels>,
     /// Minimum second-pane size in logical pixels.
     pub min_second: gpui::Pixels,
     /// Disable pointer, keyboard and accessibility resizing.
@@ -70,6 +72,7 @@ impl ResizableSplit {
             label: label.into(),
             axis: SplitAxis::Horizontal,
             min_first: px(120.),
+            max_first: None,
             min_second: px(120.),
             disabled: false,
             divider_size: px(state::DIVIDER),
@@ -121,6 +124,7 @@ impl RenderOnce for ResizableSplit {
                 state::Config {
                     axis: self.axis,
                     min_first: self.min_first,
+                    max_first: self.max_first,
                     min_second: self.min_second,
                     disabled: self.disabled,
                     divider_size: self.divider_size,

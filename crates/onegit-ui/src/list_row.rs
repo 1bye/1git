@@ -1,6 +1,6 @@
 use crate::motion::{self, Surface};
 use crate::{ControlState, PressHandler, Text, TextRole, TextTone, Theme, focusable};
-use rake::gpui::{self, AnyElement, ColorExt, ElementId, SharedString, prelude::*, px};
+use rake::gpui::{self, AnyElement, ElementId, SharedString, prelude::*, px};
 
 /// Persistent selection, independent of hover, keyboard focus and checkbox inclusion.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -20,6 +20,8 @@ pub enum ListRowVariant {
     Standard,
     /// Menu rows with eight-pixel insets and slot gaps; slots are decorative.
     Menu,
+    /// Dense content row with small text and animated full-row feedback.
+    Compact,
     /// Forty-pixel single-choice form row with an outlined selected state.
     Choice,
 }
@@ -37,6 +39,10 @@ pub struct ListRow {
     pub label: SharedString,
     /// Accessible name when navigation context differs from the visible label.
     pub accessibility_label: Option<SharedString>,
+    /// Negative when an enclosing list owns roving keyboard focus.
+    pub tab_index: isize,
+    /// Optional visual label; the plain label still names the action for accessibility.
+    pub label_content: Option<AnyElement>,
     /// Optional secondary line.
     pub description: Option<SharedString>,
     /// Optional leading glyph/control.
@@ -61,6 +67,8 @@ impl ListRow {
             id: id.into(),
             label: label.into(),
             accessibility_label: None,
+            tab_index: 0,
+            label_content: None,
             description: None,
             leading: None,
             trailing: None,
@@ -99,7 +107,7 @@ impl RenderOnce for ListRow {
         });
 
         let hover = Surface::new(if selected {
-            theme.selection.blend(&theme.hover.opacity(0.4))
+            theme.selection
         } else {
             theme.hover
         });
@@ -108,11 +116,11 @@ impl RenderOnce for ListRow {
         motion::surface(self.id.clone(), rest, hover, hover, true, move |paint| {
             if menu {
                 return rake::view! {
-                    <button id={self.id} disabled={!enabled}
+                    <button id={self.id} tabindex={self.tab_index} disabled={!enabled}
                         aria-label={self.accessibility_label.unwrap_or_else(||self.label.clone())}
                         aria-description={description}
                         class="flex flex-row items-center gap-2 px-2 py-1 rounded-control min-w-0 w-full text-left"
-                        style={|s| focusable(s).min_h(px(if choice {40.} else {28.})).bg(paint.background)
+                        style={|s| focusable(s).min_h(px(if choice {40.} else if self.variant==ListRowVariant::Compact {26.} else {28.})).bg(paint.background).when(self.variant==ListRowVariant::Compact,|s|s.gap(px(6.)).border_0())
                             .border_color(Theme::transparent()).when(choice,|s|s.px(px(12.)).border_1().border_color(if selected{theme.focus_ring}else{theme.line})).aria_selected(selected)
                             .when(!enabled,|s|s.opacity(0.5))}
                         on:click={move |event,window,cx| {
@@ -121,7 +129,9 @@ impl RenderOnce for ListRow {
                         }}>
                         if let Some(leading)=self.leading { {leading} }
                         <div class="flex flex-col flex-1 min-w-0">
-                            <Text role={if choice{TextRole::Small}else{TextRole::Body}} max_lines={Some(1)} {..Text::new("label",self.label)}/>
+                            if let Some(content)=self.label_content { {content} } else {
+                                <Text role={if choice || self.variant==ListRowVariant::Compact{TextRole::Small}else{TextRole::Body}} max_lines={Some(1)} {..Text::new("label",self.label)}/>
+                            }
                             if let Some(description)=self.description {
                                 <Text role={TextRole::Caption} tone={TextTone::Muted} max_lines={Some(1)}
                                     {..Text::new("description",description)}/>
@@ -136,7 +146,7 @@ impl RenderOnce for ListRow {
                 <div id={self.id} class="flex flex-row items-center gap-1 px-1 rounded-control min-w-0"
                     style={|s| s.bg(paint.background)}>
                     if let Some(leading)=self.leading { {leading} }
-                    <button id="action" disabled={!enabled} aria-label={self.accessibility_label.unwrap_or_else(||self.label.clone())}
+                    <button id="action" tabindex={self.tab_index} disabled={!enabled} aria-label={self.accessibility_label.unwrap_or_else(||self.label.clone())}
                         aria-description={description}
                         class="flex flex-col items-start justify-center flex-1 min-w-0 text-left px-1.5 py-1"
                         style={|s| focusable(s).min_h(px(28.)).border_color(Theme::transparent())
@@ -145,7 +155,7 @@ impl RenderOnce for ListRow {
                             cx.stop_propagation();
                             if let Some(handler)=&self.on_press {handler(event,window,cx);}
                         }}>
-                        <Text max_lines={Some(1)} {..Text::new("label",self.label)}/>
+                        if let Some(content)=self.label_content { {content} } else { <Text max_lines={Some(1)} {..Text::new("label",self.label)}/> }
                         if let Some(description)=self.description {
                             <Text role={TextRole::Caption} tone={TextTone::Muted} max_lines={Some(1)}
                                 {..Text::new("description",description)}/>

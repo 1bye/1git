@@ -14,6 +14,7 @@ pub enum SplitEvent {
 pub(super) struct Config {
     pub axis: SplitAxis,
     pub min_first: gpui::Pixels,
+    pub max_first: Option<gpui::Pixels>,
     pub min_second: gpui::Pixels,
     pub disabled: bool,
     pub divider_size: gpui::Pixels,
@@ -34,6 +35,7 @@ pub struct SplitState {
     pub(super) actual: gpui::Pixels,
     pub(super) axis: SplitAxis,
     pub(super) min_first: gpui::Pixels,
+    max_first: Option<gpui::Pixels>,
     pub(super) min_second: gpui::Pixels,
     pub(super) available: gpui::Pixels,
     pub(super) disabled: bool,
@@ -85,6 +87,7 @@ impl SplitState {
             actual: size,
             axis: SplitAxis::Horizontal,
             min_first: px(120.),
+            max_first: None,
             min_second: px(120.),
             available: size + px(120.),
             disabled: false,
@@ -174,7 +177,9 @@ impl SplitState {
         } else {
             (
                 self.min_first.min(self.available),
-                (self.available - self.min_second).max(px(0.)),
+                (self.available - self.min_second)
+                    .max(px(0.))
+                    .min(self.max_first.unwrap_or(self.available).max(self.min_first)),
             )
         }
     }
@@ -215,6 +220,7 @@ impl SplitState {
 
         self.axis = config.axis;
         self.min_first = nonnegative(config.min_first);
+        self.max_first = config.max_first.map(nonnegative);
         self.min_second = nonnegative(config.min_second);
         self.disabled = config.disabled;
         self.divider_size = nonnegative(config.divider_size).max(px(1.));

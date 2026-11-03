@@ -31,10 +31,16 @@ pub(in crate::workspace) struct SavedTab {
     pub history: History,
     #[serde(default)]
     pub stashes: Option<StashView>,
+    #[serde(default)]
+    pub graph: Option<GraphView>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(in crate::workspace) struct History {
+    #[serde(default)]
+    pub tree_layout: bool,
+    #[serde(default)]
+    pub collapsed: Vec<Vec<u8>>,
     pub commit: Option<String>,
     pub file: Option<Vec<u8>>,
     pub rows: usize,
@@ -51,6 +57,23 @@ pub(in crate::workspace) struct StashView {
     pub split_diff: bool,
     pub sidebar: f32,
     pub detail_fraction: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(in crate::workspace) struct GraphView {
+    pub visible: bool,
+    pub reference: Option<String>,
+    pub query: String,
+    pub kind: crate::workspace::graph::Kind,
+    pub details: History,
+    pub selected: bool,
+    pub rows: usize,
+    pub sidebar: f32,
+    pub detail_fraction: f32,
+    pub anchor: Option<String>,
+    pub row: usize,
+    pub offset: f32,
+    pub horizontal: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -151,6 +174,47 @@ impl Document {
                     || !(0.0..=1.0).contains(&saved.detail_fraction)
                 {
                     return Err("Session contains invalid stash pane sizes".into());
+                }
+            }
+
+            if let Some(saved) = &tab.graph {
+                for oid in saved.anchor.iter().chain(saved.details.commit.iter()) {
+                    if !matches!(oid.len(), 40 | 64) || !oid.bytes().all(|b| b.is_ascii_hexdigit())
+                    {
+                        return Err("Session contains an invalid graph commit".into());
+                    }
+                }
+
+                if let Some(path) = &saved.details.file {
+                    GitPath::new(path).map_err(|e| e.to_string())?;
+                }
+
+                if saved.rows > 10_000
+                    || saved.row > 9999
+                    || saved.details.rows > 10_000
+                    || ![saved.sidebar, saved.details.sidebar]
+                        .iter()
+                        .all(|v| v.is_finite() && (0.0..=100_000.).contains(v))
+                    || ![saved.detail_fraction, saved.details.detail_fraction]
+                        .iter()
+                        .all(|v| v.is_finite() && (0.0..=1.).contains(v))
+                    || !saved.offset.is_finite()
+                    || !(0.0..=36.).contains(&saved.offset)
+                    || !saved.horizontal.is_finite()
+                    || !(-1_000_000.0..=0.).contains(&saved.horizontal)
+                {
+                    return Err("Session contains invalid graph viewport or pane sizes".into());
+                }
+            }
+
+            for history in std::iter::once(&tab.history).chain(tab.graph.iter().map(|g| &g.details))
+            {
+                if history.collapsed.len() > 10_000 {
+                    return Err("Session contains too many collapsed directories".into());
+                }
+
+                for path in &history.collapsed {
+                    GitPath::new(path).map_err(|e| e.to_string())?;
                 }
             }
 

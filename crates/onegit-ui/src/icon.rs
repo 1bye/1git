@@ -29,6 +29,8 @@ pub enum IconName {
     Grid,
     /// Repository list layout.
     List,
+    /// Hierarchical repository file layout.
+    Tree,
     /// Back to the folder library.
     Back,
     /// Account menu.
@@ -202,6 +204,7 @@ impl IconName {
             Self::Computer => ("onegit-ui/Computer", include_bytes!("icons/Computer.svg")),
             Self::Server => ("onegit-ui/Server", include_bytes!("icons/Server.svg")),
             Self::Grid => ("onegit-ui/Grid", include_bytes!("icons/Grid.svg")),
+            Self::Tree => ("onegit-ui/Tree", include_bytes!("icons/Tree.svg")),
             Self::List => ("onegit-ui/List", include_bytes!("icons/List.svg")),
             Self::Back => ("onegit-ui/Back", include_bytes!("icons/Back.svg")),
             Self::Search => ("onegit-ui/Search", include_bytes!("icons/Search.svg")),

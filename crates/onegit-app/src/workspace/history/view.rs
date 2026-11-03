@@ -1,4 +1,4 @@
-use super::{DetailState, Details, HistoryWorkspace};
+use super::{DetailState, Details, HistoryWorkspace, Presentation};
 
 use crate::workspace::{
     PreviewState, chrome,
@@ -48,47 +48,86 @@ impl HistoryWorkspace {
         let focus = self.files_focus.clone().tab_stop(count > 0);
         let selected = self.file.clone();
 
-        let callback = Rc::new(cx.listener(|this, path: &onegit_git::GitPath, window, cx| {
+        let rows = self.file_rows.clone();
+        let tree = self.tree_layout;
+        let cursor = self.file_cursor.clone();
+
+        let callback = Rc::new(cx.listener(|this, row: &usize, window, cx| {
             window.focus(&this.files_focus, cx);
 
-            if this.file.as_ref() != Some(path) {
-                this.select_file(path.clone(), cx);
+            let Some(entry) = this.file_rows.get(*row).map(|r| r.entry.clone()) else {
+                return;
+            };
+
+            match entry {
+                super::files::Entry::Folder(path) => this.toggle_folder(path, cx),
+                super::files::Entry::File(_) => this.activate_file_row(*row, cx),
             }
         }));
 
-        let list=gpui::uniform_list("committed-files",count,move |range,_,_|range.map(|index|{
-            let file=&details.files[index];
-            let path=file.path.clone();
-            let active=selected.as_ref()==Some(&path);
+        let visible = rows.len();
+
+        let list=gpui::uniform_list("committed-files",visible,move |range,_,_|range.map(|index|{
+            let row=&rows[index];
+            let cursor_active=cursor.as_ref()==Some(&row.entry);
             let theme=Theme::current();
-            let label=read::path_label(&path);
-            let description=file.original_path.as_ref().map(|source|format!("{} · from {}",read::status_name(file.status),read::path_label(source))).unwrap_or_else(||read::status_name(file.status).into());
             let callback=callback.clone();
-            let identity=chrome::file_identity(&path);
-            let icon=chrome::status_icon(file.status);
+
+            let (active, label, expanded, icon) = match &row.entry {
+                super::files::Entry::File(file_index) => {
+                    let file = &details.files[*file_index];
+                    let active = selected.as_ref()==Some(&file.path);
+                    let label = format!("{}, {}",read::path_label(&file.path),read::status_name(file.status));
+
+                    (active,label,None,chrome::status_icon(file.status))
+                }
+                super::files::Entry::Folder(path) => {
+                    let open = row.expanded == Some(true);
+
+                    let icon=rake::view! {
+                        <div class="flex flex-row items-center gap-1.5 text-muted-ink">
+                            <onegit_ui::Icon size={onegit_ui::IconSize::Small} {..onegit_ui::Icon::new("disclosure",if open{IconName::ChevronDown}else{IconName::ChevronRight})}/>
+                            <onegit_ui::Icon size={onegit_ui::IconSize::Small} {..onegit_ui::Icon::new("folder",IconName::Folder)}/>
+                        </div>
+                    }.into_any_element();
+
+                    (cursor.as_ref()==Some(&row.entry),format!("{}, {} changed files",String::from_utf8_lossy(path),row.count),Some(open),icon)
+                }
+            };
+
+            let identity = if expanded.is_some() { Some(rake::view!{<p class="text-small text-muted-ink" wrap={false} ellipsis={true}>{row.label.clone()}</p>}.into_any_element()) } else if !tree {
+                match row.entry { super::files::Entry::File(i) => Some(chrome::file_identity(&details.files[i].path)), _=>None }
+            } else { None };
+
+            let name = if tree { row.label.clone() } else {
+                match row.entry { super::files::Entry::File(i) => read::path_label(&details.files[i].path), _=>row.label.clone() }
+            };
+
+            let icon = gpui::div().pl(px(row.depth as f32*16.)).flex().items_center().child(icon).into_any_element();
+            let count = expanded.map(|_|rake::view!{<p class="text-caption text-faint-ink">{row.count.to_string()}</p>}.into_any_element());
 
             rake::view! {
-                <div id={index} role={accesskit::Role::ListBoxOption} aria-label={format!("{label}, {description}")}
-                    class="w-full h-[28px] min-w-0 px-2 flex flex-row items-center gap-2 border-1 rounded-[4px] overflow-hidden"
-                    style={|s|s.bg(if active{theme.selection}else{gpui::transparent_black()}).border_color(if active&&focused{theme.focus_ring}else{gpui::transparent_black()})
-                        .aria_selected(active).when(active && owns_focus,|s|s.aria_active_descendant()).hover(|s|s.bg(if active{theme.selection}else{theme.hover})).cursor(gpui::CursorStyle::PointingHand)
+                <div id={index} role={if tree{accesskit::Role::TreeItem}else{accesskit::Role::ListBoxOption}} aria-label={label.clone()}
+                    class="w-full h-[28px] min-w-0 border-1 rounded-[4px]"
+                    style={|s|s.border_color(if cursor_active&&focused{theme.focus_ring}else{gpui::transparent_black()})
+                        .aria_selected(active && expanded.is_none()).when(tree,|s|s.aria_level(row.depth+1)).when_some(expanded,|s,v|s.aria_expanded(v)).when(cursor_active && owns_focus,|s|s.aria_active_descendant())
                         .debug_selector(||format!("history-file-{index}"))
-                        .a11y_synthetic_children(move|builder|{builder.parent_node().set_position_in_set(index+1);builder.parent_node().set_size_of_set(count);})}
-                    on:click={move|_,window,cx|{cx.stop_propagation();callback(&path,window,cx);}}>
-                    {icon}
-                    <div class="flex-1 min-w-0">{identity}</div>
+                        .a11y_synthetic_children(move|builder|{builder.parent_node().set_position_in_set(index+1);builder.parent_node().set_size_of_set(visible);})}>
+                    <onegit_ui::ListRow tab_index={-1} variant={onegit_ui::ListRowVariant::Compact} leading={Some(icon)} label_content={identity} trailing={count} accessibility_label={Some(label.into())}
+                        selection={if active && expanded.is_none(){onegit_ui::RowSelection::Selected}else{onegit_ui::RowSelection::Unselected}}
+                        on_press={Some(Box::new(move|_,window,cx|callback(&index,window,cx)))}
+                        {..onegit_ui::ListRow::new(format!("{}:{:?}",details.commit.oid,row.entry),name)}/>
                 </div>
             }.into_any_element()
         }).collect()).size_full().min_w_0().min_h_0().track_scroll(&self.files_scroll).with_sizing_behavior(gpui::ListSizingBehavior::Auto);
 
         rake::view! {
-            <div class="size-full min-w-0 min-h-0 flex flex-col">
-                <div class="h-[28px] px-3.5 shrink-0 flex flex-row items-center justify-between">
-                    <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("file-heading","Changed files")}/>
-                    <div class="flex flex-row items-center gap-3"><Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("file-count",count.to_string())}/><onegit_ui::Tooltip {..onegit_ui::Tooltip::new("file-layout-tip","List view")}><div class="size-6 flex items-center justify-center text-muted-ink"><onegit_ui::Icon {..onegit_ui::Icon::new("file-layout",IconName::List)}/></div></onegit_ui::Tooltip></div>
+            <div class="size-full min-w-0 min-h-0 flex flex-col" style={|s|s.when(self.presentation==Presentation::Inspector,|s|s.pr(px(6.)))}>
+                <div class="shrink-0 flex flex-row items-center justify-between" style={|s|s.h(px(if self.presentation==Presentation::Inspector{42.}else{28.})).pl(px(if self.presentation==Presentation::Inspector{8.}else{14.})).pr(px(if self.presentation==Presentation::Inspector{8.}else{12.}))}>
+                    <Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("file-heading",if self.presentation==Presentation::Inspector{format!("Changed files · {count}")}else{"Changed files".to_owned()})}/>
+                    <div class="flex flex-row items-center gap-3">if self.presentation!=Presentation::Inspector {<Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("file-count",count.to_string())}/>}<onegit_ui::Tooltip {..onegit_ui::Tooltip::new("file-layout-tip",if self.tree_layout{"Switch to list view"}else{"Switch to tree view"})}><Button variant={if self.tree_layout{ButtonVariant::Secondary}else{ButtonVariant::Ghost}} tone={if self.tree_layout{onegit_ui::ButtonTone::Accent}else{onegit_ui::ButtonTone::Normal}} pressed={Some(self.tree_layout)} size={ControlSize::Small} height={Some(px(26.))} width={Some(px(26.))} padding={Some(px(0.))} icon={Some(if self.tree_layout{IconName::Tree}else{IconName::List})} accessibility_label={Some(if self.tree_layout{"Switch to list view".into()}else{"Switch to tree view".into()})} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.toggle_layout(cx))))} {..Button::new("file-layout","")}/></onegit_ui::Tooltip></div>
                 </div>
-                <div id="history-files" role={accesskit::Role::ListBox} aria-label="Committed files" class="flex-1 min-w-0 min-h-0 overflow-hidden pl-1.5 pr-3"
-                    style={|s|s.track_focus(&focus).debug_selector(||"history-files".into()).on_key_down(cx.listener(|this,event,window,cx|this.navigate_files(event,window,cx)))}>
+                <div id="history-files" role={if self.tree_layout{accesskit::Role::Tree}else{accesskit::Role::ListBox}} aria-label="Committed files" class="flex-1 min-w-0 min-h-0 overflow-hidden pl-1.5" style={|s|s.pr(px(if self.presentation==Presentation::Inspector{6.}else{12.})).track_focus(&focus).debug_selector(||"history-files".into()).on_key_down(cx.listener(|this,event,window,cx|this.navigate_files(event,window,cx)))}>
                     {list}
                 </div>
 
@@ -158,6 +197,11 @@ impl HistoryWorkspace {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
                 {toolbar}
                 if matches!(self.preview,PreviewState::Failed(_)){<div class="px-3 py-1"><Button size={ControlSize::Small} variant={ButtonVariant::Ghost} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{if let Some(path)=this.file.clone(){this.select_file(path,cx);}})))} {..Button::new("retry-history-patch","Retry patch")}/></div>}
+                if !matches!(self.detail,DetailState::Ready(_)) {
+                    <div class="h-[28px] shrink-0 flex flex-row justify-end px-2">
+                        <onegit_ui::IconButton size={ControlSize::Small} on_press={Some(Box::new(cx.listener(|_,_,_,cx|cx.emit(super::Close))))} {..onegit_ui::IconButton::new("close-pending-graph-details",IconName::Close,"Close commit details")}/>
+                    </div>
+                }
                 <div class="flex-1 min-w-0 min-h-0">{content}</div>
             </div>
         }.into_any_element()
@@ -170,6 +214,10 @@ impl Render for HistoryWorkspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
+        if self.presentation == Presentation::Inspector {
+            return self.inspector_view(window, cx);
+        }
+
         let revisions = self.revisions(cx);
 
         let (files, detail) = match &self.detail {
@@ -239,6 +287,113 @@ impl Render for HistoryWorkspace {
             </div>
         }.into_any_element();
 
-        rake::view! {<ResizableSplit divider_size={px(1.)} min_first={px(240.)} min_second={px(240.)} first={sidebar} second={detail} {..ResizableSplit::new("history-sidebar-split",&self.sidebar,"History sidebar width")}/>}
+        rake::view! {<ResizableSplit divider_size={px(1.)} min_first={px(240.)} min_second={px(240.)} first={sidebar} second={detail} {..ResizableSplit::new("history-sidebar-split",&self.sidebar,"History sidebar width")}/>}.into_any_element()
+    }
+}
+
+impl HistoryWorkspace {
+    fn inspector_view(
+        &self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> gpui::AnyElement {
+        let content = match &self.detail {
+            DetailState::Ready(details) => {
+                let metadata = self.inspector_metadata(details, window, cx);
+                let files = self.files(details.clone(), window, cx);
+                let preview = self.preview(cx);
+
+                rake::view! {
+                    <div class="size-full min-w-0 min-h-0 flex flex-col">
+                        {metadata}
+                        <div class="flex-1 min-w-0 min-h-0">
+                            <ResizableSplit divider_size={px(1.)} min_first={px(119.)} max_first={Some(px(419.))} min_second={px(160.)} first={files} second={preview} {..ResizableSplit::new("graph-files-split",&self.sidebar,"Committed files width")}/>
+                        </div>
+                    </div>
+                }.into_any_element()
+            }
+            DetailState::Failed(error) => rake::view! {
+                <div class="size-full min-w-0 min-h-0 flex flex-col">
+                    {notice("graph-detail-error","Could not load this commit",error.clone())}
+                    <Button size={ControlSize::Small} on_press={Some(Box::new(cx.listener(|this,_,_,cx|{
+                        if let Some(oid)=this.selected.clone(){this.load_commit(oid,None,None,cx);}
+                    })))} {..Button::new("graph-retry-detail","Retry commit")}/>
+                </div>
+            }.into_any_element(),
+            DetailState::Loading => notice("graph-detail-loading","Loading commit…","Reading committed files."),
+            DetailState::Empty => notice("graph-detail-empty","Select a commit",""),
+        };
+
+        rake::view! {
+            <div class="size-full min-w-0 min-h-0 flex flex-col">
+                if !matches!(self.detail,DetailState::Ready(_)) {
+                    <div class="h-[28px] shrink-0 flex flex-row justify-end px-2">
+                        <onegit_ui::IconButton size={ControlSize::Small} on_press={Some(Box::new(cx.listener(|_,_,_,cx|cx.emit(super::Close))))} {..onegit_ui::IconButton::new("close-pending-graph-details",IconName::Close,"Close commit details")}/>
+                    </div>
+                }
+                <div class="flex-1 min-w-0 min-h-0">{content}</div>
+            </div>
+        }
+        .into_any_element()
+    }
+}
+
+impl HistoryWorkspace {
+    fn inspector_metadata(
+        &self,
+        details: &Details,
+        window: &gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> gpui::AnyElement {
+        let commit = &details.commit;
+
+        let body = commit
+            .body
+            .split_once("\n\n")
+            .map_or("", |(_, body)| body)
+            .trim_end();
+
+        let preview = body.split("\n\n").next().unwrap_or("");
+        let more = body != preview || preview.lines().count() > 3 || preview.chars().count() > 180;
+
+        let tags = self
+            .tags
+            .iter()
+            .map(|s| s.as_ref())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        rake::view! {
+            <div class="flex flex-row items-center shrink-0 min-w-0 border-b-1 border-hairline">
+                <div id="graph-commit-metadata" role={accesskit::Role::Group} aria-label="Selected commit" class="flex-1 min-w-0 max-h-[120px] overflow-y-scroll py-2.5 pl-3.5 pr-3 flex flex-col gap-1">
+                    <div role={accesskit::Role::Heading} aria-label={commit.summary.clone()} class="max-h-[64px] overflow-y-scroll" style={|s|s.aria_level(2)}>
+                        <onegit_ui::CommitSubject wrap={true} {..onegit_ui::CommitSubject::new("graph-subject",commit.summary.clone())}/>
+                    </div>
+                    <div class="flex flex-row flex-wrap items-center gap-1.5">
+                        <p class="text-caption text-muted-ink" aria-label={format!("{} <{}>",commit.author.name,commit.author.email)}>{commit.author.name.clone()}</p>
+                        <p class="text-caption text-faint-ink">{format!("· {}",chrono::DateTime::parse_from_rfc3339(&commit.authored_at).map(|d|d.with_timezone(&chrono::Local).format("%b %-d, %Y at %-I:%M %p").to_string()).unwrap_or_else(|_|commit.authored_at.clone()))}</p>
+                        <button id="graph-copy-sha" aria-label="Copy commit SHA" aria-description={commit.oid.clone()} class="h-5 px-1 rounded-[4px] text-caption text-muted-ink"
+                            on:click={cx.listener({let oid=commit.oid.clone();move|this,_,_,cx|{cx.write_to_clipboard(gpui::ClipboardItem::new_string(oid.clone()));this.copied=true;cx.notify();}})}>
+                            {format!("{}{}",commit.oid.chars().take(7).collect::<String>(),if self.copied{" · Copied"}else{""})}
+                        </button>
+                        if !tags.is_empty() {<p aria-label={format!("Tags: {tags}")} wrap={false} ellipsis={true} class="max-w-[180px] px-1 rounded-[3px] bg-surface-sunken text-caption text-muted-ink">{tags}</p>}
+                        if more {
+                            <button id="graph-description" aria-label={if self.description_expanded{"Show less description"}else{"Show more description"}} class="h-5 px-1 rounded-[4px] text-caption text-muted-ink"
+                                style={|s|s.aria_expanded(self.description_expanded)}
+                                on:click={cx.listener(|this,_,_,cx|{this.description_expanded = !this.description_expanded;cx.notify();})}>{if self.description_expanded{"Show less"}else{"Show more"}}</button>
+                        }
+                    </div>
+                    if !body.is_empty(){
+                        <div id="graph-description-text" class="min-w-0" style={|s|s.max_h(px(if self.description_expanded{160.}else{48.})).when(self.description_expanded,|s|s.overflow_y_scroll()).when(!self.description_expanded,|s|s.overflow_hidden())}>
+                            <p class="text-small text-muted-ink" aria-label={body.to_owned()}>{if self.description_expanded{body}else{preview}}</p>
+                        </div>
+                    }
+                </div>
+                <div class="pr-2 shrink-0 flex flex-row items-center">
+                    <Button accessibility_label={Some("Create branch here".into())} variant={ButtonVariant::Ghost} size={ControlSize::Small} state={if self.branch_available{ControlState::Enabled}else{ControlState::Disabled}} on_press={Some(Box::new(cx.listener({let commit=details.commit.clone();move|_,_,_,cx|cx.emit(super::CreateBranch(commit.clone()))})))} {..Button::new("graph-new-branch",if window.viewport_size().width<px(850.){"+"}else{"New Branch…"})}/>
+                    <Button size={ControlSize::Small} variant={ButtonVariant::Ghost} width={Some(px(24.))} padding={Some(px(0.))} accessibility_label={Some("Close commit details".into())} on_press={Some(Box::new(cx.listener(|_,_,_,cx|cx.emit(super::Close))))} {..Button::new("graph-close-details","×")}/>
+                </div>
+            </div>
+        }.into_any_element()
     }
 }

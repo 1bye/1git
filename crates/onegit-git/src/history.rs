@@ -634,3 +634,96 @@ fn parse_file_history(bytes: &[u8]) -> Result<Vec<(String, CommitFile)>, Reposit
 #[cfg(test)]
 #[path = "history_tests.rs"]
 mod tests;
+
+/// Topologically ordered multi-tip history, pinned to full immutable object IDs.
+#[derive(Clone, Copy, Debug)]
+pub struct GraphHistoryOptions<'a> {
+    /// Captured branch/tag tips and detached HEAD. Empty tips yield an empty page.
+    pub tips: &'a [String],
+    /// Page size, from 1 through 500.
+    pub limit: usize,
+    /// Number of commits already read from these exact tips.
+    pub offset: u64,
+}
+
+impl Default for GraphHistoryOptions<'_> {
+    fn default() -> Self {
+        Self {
+            tips: &[],
+            limit: 100,
+            offset: 0,
+        }
+    }
+}
+
+impl Repository {
+    /// Read one graph page without fetching or resolving moving branch names.
+    ///
+    /// # Errors
+    /// Rejects invalid full object IDs, page sizes and offsets, and propagates Git/cancellation errors.
+    pub fn graph_history(
+        &self,
+        options: GraphHistoryOptions<'_>,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<CommitPage, RepositoryError> {
+        self.mutations.wait_for_pending();
+        super::check_cancelled(cancellation)?;
+
+        if !(1..=500).contains(&options.limit) || options.offset > MAX_SAFE_INTEGER {
+            return Err(RepositoryError::InvalidInput(
+                "Graph history limit or offset is out of range",
+            ));
+        }
+
+        let mut seen = HashSet::new();
+        let mut input = String::new();
+
+        for tip in options.tips {
+            if !full_oid(tip) {
+                return Err(RepositoryError::InvalidInput(
+                    "Graph tips must be full object IDs",
+                ));
+            }
+
+            if seen.insert(tip) {
+                input.push_str(tip);
+                input.push('\n');
+            }
+        }
+
+        if input.is_empty() {
+            return Ok(CommitPage::default());
+        }
+
+        let args: Vec<OsString> = vec![
+            "-c".into(),
+            "log.showSignature=false".into(),
+            "log".into(),
+            "--no-notes".into(),
+            "--no-decorate".into(),
+            "--topo-order".into(),
+            "--stdin".into(),
+            format!("--max-count={}", options.limit + 1).into(),
+            format!("--skip={}", options.offset).into(),
+            format!("--format={HISTORY_FORMAT}").into(),
+            "--".into(),
+        ];
+
+        let mut command = GitCommand::new(&self.info.root, args);
+
+        command.directory = Some(&self.root_directory);
+        command.stdin = input.as_bytes();
+        command.cancellation = cancellation;
+        let output = self.process.run(command)?;
+        let mut commits = parse_history(&output.stdout)?;
+        let has_more = commits.len() > options.limit;
+
+        commits.truncate(options.limit);
+
+        Ok(CommitPage {
+            commits,
+            has_more,
+            next_offset: has_more.then_some(options.offset + options.limit as u64),
+        })
+    }
+}

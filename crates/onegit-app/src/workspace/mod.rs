@@ -3,6 +3,7 @@ mod branches;
 mod chrome;
 mod conflicts;
 mod discard;
+mod graph;
 mod history;
 mod home;
 mod native;
@@ -74,6 +75,7 @@ enum Section {
     Changes,
     History,
     Stashes,
+    Graph,
 }
 
 pub(crate) use tabs::Workspace;
@@ -92,6 +94,7 @@ pub(crate) struct RepositoryWorkspace {
     home: gpui::Entity<home::Home>,
     home_visible: bool,
     history: gpui::Entity<history::HistoryWorkspace>,
+    graph: gpui::Entity<graph::Graph>,
     stashes: gpui::Entity<stashes::Stashes>,
     discard: gpui::Entity<discard::Form>,
     recovery: gpui::Entity<recovery::Form>,
@@ -107,7 +110,7 @@ pub(crate) struct RepositoryWorkspace {
     view: DiffView,
     focus: gpui::FocusHandle,
     files_focus: gpui::FocusHandle,
-    section_focus: [gpui::FocusHandle; 3],
+    section_focus: [gpui::FocusHandle; 4],
     filter: gpui::Entity<InputState>,
     filter_visible: bool,
     visible_files: Arc<[usize]>,
@@ -181,6 +184,14 @@ impl RepositoryWorkspace {
 
         let discard_host = host.is_none().then(|| onegit_ui::DialogHostState::new(cx));
 
+        let graph = cx.new(|cx| {
+            graph::Graph::new(
+                host.or(discard_host.as_ref()).expect("dialog host"),
+                window,
+                cx,
+            )
+        });
+
         let discard = cx.new(|cx| {
             discard::Form::new(
                 host.or(discard_host.as_ref()).expect("dialog host"),
@@ -198,6 +209,14 @@ impl RepositoryWorkspace {
         });
 
         let mut subscriptions = vec![
+            cx.subscribe_in(&graph,window,|this:&mut Self,_,event:&graph::Submit,window,cx|{
+                let same=matches!(&this.state,RepositoryState::Ready(source) if source.snapshot.repository.root==event.root);
+                if same {this.start_write(write::Operation::GraphBranch(event.clone()),window,cx);}
+                if !same || this.write_job.is_none() {
+                    let form=this.graph.read(cx).form.clone();
+                    form.update(cx,|form,cx|form.finish(Err("The repository is busy or changed. Reopen Create branch after refreshing.".into()),window,cx));
+                }
+            }),
             cx.subscribe_in(
                 &recovery,
                 window,
@@ -322,6 +341,7 @@ impl RepositoryWorkspace {
             home,
             home_visible: true,
             history,
+            graph,
             stashes,
             discard,
             discard_host,
@@ -337,7 +357,12 @@ impl RepositoryWorkspace {
             view: DiffView::Unified,
             focus,
             files_focus: cx.focus_handle(),
-            section_focus: [cx.focus_handle(), cx.focus_handle(), cx.focus_handle()],
+            section_focus: [
+                cx.focus_handle(),
+                cx.focus_handle(),
+                cx.focus_handle(),
+                cx.focus_handle(),
+            ],
             filter,
             filter_visible: false,
             visible_files: Arc::from([]),
@@ -421,6 +446,8 @@ impl RepositoryWorkspace {
         self.diff_job = None;
         self.history
             .update(cx, |history, cx| history.set_source(None, cx));
+        self.graph
+            .update(cx, |graph, cx| graph.suspend_for(&path, cx));
         self.stashes.update(cx, |stashes, cx| stashes.suspend(cx));
         self.selected = None;
         self.preview = PreviewState::Empty;
@@ -540,6 +567,13 @@ impl RepositoryWorkspace {
 
         self.selected = None;
         self.preview = PreviewState::Empty;
+        self.graph.update(cx, |graph, cx| {
+            graph.set_source(Some(loaded.clone()), cx);
+
+            if self.section == Section::Graph {
+                graph.activate(cx);
+            }
+        });
         self.history.update(cx, |history, cx| {
             history.set_source(Some(loaded.clone()), cx);
 
@@ -840,6 +874,11 @@ impl RepositoryWorkspace {
         }
 
         if let Some(completion) = branch_completion {
+            let form = self.graph.read(cx).form.clone();
+
+            form.update(cx, |form, cx| {
+                form.finish(completion.result.clone(), window, cx)
+            });
             cx.emit(completion);
         }
 
@@ -917,17 +956,18 @@ impl RepositoryWorkspace {
             Section::Changes => 0usize,
             Section::History => 1,
             Section::Stashes => 2,
+            Section::Graph => 3,
         };
 
         let next = match event.keystroke.key.as_str() {
             "up" | "left" => current.saturating_sub(1),
-            "down" | "right" => (current + 1).min(2),
+            "down" | "right" => (current + 1).min(3),
             "home" => 0,
-            "end" => 2,
+            "end" => 3,
             _ => return,
         };
 
-        let id = gpui::ElementId::from(["changes", "history", "stashes"][next]);
+        let id = gpui::ElementId::from(["changes", "history", "stashes", "graph"][next]);
 
         window.prevent_default();
         cx.stop_propagation();
@@ -938,6 +978,8 @@ impl RepositoryWorkspace {
     fn change_section(&mut self, id: &gpui::ElementId, cx: &mut gpui::Context<Self>) {
         self.section = if *id == gpui::ElementId::from("history") {
             Section::History
+        } else if *id == gpui::ElementId::from("graph") {
+            Section::Graph
         } else if *id == gpui::ElementId::from("stashes") {
             Section::Stashes
         } else {
@@ -946,6 +988,10 @@ impl RepositoryWorkspace {
 
         if self.section == Section::Stashes {
             self.stashes.update(cx, |stashes, cx| stashes.activate(cx));
+        }
+
+        if self.section == Section::Graph {
+            self.graph.update(cx, |graph, cx| graph.activate(cx));
         }
 
         if self.section == Section::History {
@@ -977,6 +1023,8 @@ impl RepositoryWorkspace {
             .as_ref()
             .is_some_and(|key| loaded.file(key).is_some());
 
+        self.graph
+            .update(cx, |graph, cx| graph.set_source(Some(loaded.clone()), cx));
         self.history.update(cx, |history, cx| {
             history.refresh_source(loaded.clone(), cx);
 

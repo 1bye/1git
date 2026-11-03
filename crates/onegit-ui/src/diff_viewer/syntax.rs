@@ -1,13 +1,13 @@
-//! Prepared Tree-sitter spans; no parsing during render, scroll, or theme changes.
+//! Prepared reference-grammar spans; parsing never runs during rendering or scrolling.
+mod scopes;
+
 use super::DiffLine;
+use std::ops::Range;
 
-use std::{
-    collections::HashMap,
-    ops::Range,
-    sync::{Arc, LazyLock},
+use syntect::{
+    easy::ScopeRangeIterator,
+    parsing::{ParseState, ScopeStack},
 };
-
-use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 const NAMES: &[&str] = &[
     "comment",
@@ -33,6 +33,7 @@ const NAMES: &[&str] = &[
     "tag",
     "attribute",
     "label",
+    "embedded",
     "error",
 ];
 
@@ -44,115 +45,18 @@ pub(super) struct Span {
 
 pub(super) type Spans = [Vec<Span>; 2];
 
-static CONFIGS: LazyLock<HashMap<&'static str, Arc<HighlightConfiguration>>> =
-    LazyLock::new(|| {
-        let js = tree_sitter_javascript::HIGHLIGHT_QUERY;
-        let ts = format!("{js}\n{}", tree_sitter_typescript::HIGHLIGHTS_QUERY);
-        let mut result = HashMap::new();
-
-        macro_rules! add {
-            ($name:expr, $language:expr, $query:expr, $locals:expr) => {
-                if let Ok(mut config) =
-                    HighlightConfiguration::new($language.into(), $name, $query, "", $locals)
-                {
-                    config.configure(NAMES);
-                    result.insert($name, Arc::new(config));
-                }
-            };
-        }
-        add!(
-            "js",
-            tree_sitter_javascript::LANGUAGE,
-            js,
-            tree_sitter_javascript::LOCALS_QUERY
-        );
-        add!(
-            "ts",
-            tree_sitter_typescript::LANGUAGE_TYPESCRIPT,
-            &ts,
-            tree_sitter_typescript::LOCALS_QUERY
-        );
-        add!(
-            "tsx",
-            tree_sitter_typescript::LANGUAGE_TSX,
-            &ts,
-            tree_sitter_typescript::LOCALS_QUERY
-        );
-        add!(
-            "rs",
-            tree_sitter_rust::LANGUAGE,
-            tree_sitter_rust::HIGHLIGHTS_QUERY,
-            ""
-        );
-        add!(
-            "py",
-            tree_sitter_python::LANGUAGE,
-            tree_sitter_python::HIGHLIGHTS_QUERY,
-            ""
-        );
-        add!(
-            "go",
-            tree_sitter_go::LANGUAGE,
-            tree_sitter_go::HIGHLIGHTS_QUERY,
-            ""
-        );
-        add!(
-            "json",
-            tree_sitter_json::LANGUAGE,
-            tree_sitter_json::HIGHLIGHTS_QUERY,
-            ""
-        );
-        add!(
-            "css",
-            tree_sitter_css::LANGUAGE,
-            tree_sitter_css::HIGHLIGHTS_QUERY,
-            ""
-        );
-        add!(
-            "html",
-            tree_sitter_html::LANGUAGE,
-            tree_sitter_html::HIGHLIGHTS_QUERY,
-            ""
-        );
-        add!(
-            "sh",
-            tree_sitter_bash::LANGUAGE,
-            tree_sitter_bash::HIGHLIGHT_QUERY,
-            ""
-        );
-        add!(
-            "c",
-            tree_sitter_c::LANGUAGE,
-            tree_sitter_c::HIGHLIGHT_QUERY,
-            ""
-        );
-
-        result
-    });
-
-fn language(path: &str) -> Option<&'static str> {
-    match path.rsplit('.').next()? {
-        "js" | "jsx" | "mjs" | "cjs" => Some("js"),
-        "ts" | "mts" | "cts" => Some("ts"),
-        "tsx" => Some("tsx"),
-        "rs" => Some("rs"),
-        "py" | "pyw" => Some("py"),
-        "go" => Some("go"),
-        "json" | "jsonc" => Some("json"),
-        "css" => Some("css"),
-        "html" | "htm" => Some("html"),
-        "sh" | "bash" | "zsh" => Some("sh"),
-        "c" | "h" => Some("c"),
-        _ => None,
-    }
-}
-
 /// Independent side streams reset at gaps, so missing context cannot leak parser state.
 pub(super) fn annotate(lines: &[DiffLine], paths: [&str; 2]) -> Vec<Spans> {
     let mut output = vec![[Vec::new(), Vec::new()]; lines.len()];
 
     for (side, path) in paths.into_iter().enumerate() {
-        let Some(config) = language(path).and_then(|name| CONFIGS.get(name)) else {
+        let Some(language) =
+            scopes::detect_language(Some(path), None, lines.first().map(|l| l.text.as_str()))
+        else {
+            continue;
+        };
+
+        let Some(config) = scopes::syntax_for_language(language) else {
             continue;
         };
 
@@ -171,7 +75,7 @@ pub(super) fn annotate(lines: &[DiffLine], paths: [&str; 2]) -> Vec<Spans> {
             };
 
             if previous.is_some_and(|previous| coordinate != previous + 1) {
-                highlight(&block, lines, side, config, &mut output);
+                highlight(&block, lines, side, language, config, &mut output);
                 block.clear();
             }
 
@@ -179,7 +83,7 @@ pub(super) fn annotate(lines: &[DiffLine], paths: [&str; 2]) -> Vec<Spans> {
             previous = Some(coordinate);
         }
 
-        highlight(&block, lines, side, config, &mut output);
+        highlight(&block, lines, side, language, config, &mut output);
     }
 
     output
@@ -189,77 +93,66 @@ fn highlight(
     block: &[usize],
     lines: &[DiffLine],
     side: usize,
-    config: &HighlightConfiguration,
+    language: scopes::LanguageId,
+    syntax: &syntect::parsing::SyntaxReference,
     output: &mut [Spans],
 ) {
-    let mut source = String::new();
-    let mut offsets = Vec::with_capacity(block.len());
-
-    for &index in block {
-        offsets.push(source.len());
-        source.push_str(&lines[index].text);
-        source.push('\n');
-    }
-
-    // Match the current app's syntax budget; ordinary patch rendering remains available.
-    if source.len() > 512 * 1024
-        || block.len() > 2000
+    if block.len() > 2000
+        || block
+            .iter()
+            .map(|&i| lines[i].text.len() + 1)
+            .sum::<usize>()
+            > 512 * 1024
         || block.iter().any(|&i| lines[i].text.len() > 4000)
     {
         return;
     }
 
-    let mut highlighter = Highlighter::new();
+    let mut parser = ParseState::new(syntax);
+    let mut stack = ScopeStack::new();
+    let set = scopes::syntax_set();
 
-    let Ok(events) = highlighter.highlight(config, source.as_bytes(), None, |_| None) else {
-        return;
-    };
+    for &index in block {
+        let line = &lines[index];
+        let source = format!("{}\n", line.text);
 
-    let mut stack = Vec::new();
-    let mut row = 0;
+        let Ok(ops) = parser.parse_line(&source, set) else {
+            clear(block, side, output);
 
-    for event in events {
-        match event {
-            Ok(HighlightEvent::HighlightStart(kind)) => stack.push(kind.0),
-            Ok(HighlightEvent::HighlightEnd) => {
-                stack.pop();
-            }
-            Ok(HighlightEvent::Source { start, end }) => {
-                while row < block.len() && offsets[row] + lines[block[row]].text.len() < start {
-                    row += 1;
-                }
+            return;
+        };
 
-                let Some(&kind) = stack.last() else { continue };
-
-                let mut current = row;
-
-                while current < block.len() && offsets[current] < end {
-                    let line = &lines[block[current]];
-                    let from = start.saturating_sub(offsets[current]).min(line.text.len());
-                    let to = (end - offsets[current]).min(line.text.len());
-
-                    if from < to {
-                        // Transform UTF-8 source offsets through visible tabs/control characters.
-                        let display_offset =
-                            |end| super::document::display(&line.text[..end]).len();
-
-                        output[block[current]][side].push(Span {
-                            range: display_offset(from)..display_offset(to),
-                            kind,
-                        });
-                    }
-
-                    current += 1;
-                }
-            }
-            Err(_) => {
-                for &index in block {
-                    output[index][side].clear();
-                }
+        for (range, op) in ScopeRangeIterator::new(&ops, &source) {
+            if stack.apply(op).is_err() {
+                clear(block, side, output);
 
                 return;
             }
+
+            let end = range.end.min(line.text.len());
+
+            if range.start >= end {
+                continue;
+            }
+
+            let Some(kind) = scopes::kind_for_region(language, &source[range.start..end], &stack)
+            else {
+                continue;
+            };
+
+            let display_offset = |end| super::document::display(&line.text[..end]).len();
+
+            output[index][side].push(Span {
+                range: display_offset(range.start)..display_offset(end),
+                kind: kind as usize,
+            });
         }
+    }
+}
+
+fn clear(block: &[usize], side: usize, output: &mut [Spans]) {
+    for &index in block {
+        output[index][side].clear();
     }
 }
 
@@ -292,7 +185,14 @@ mod tests {
 
     #[test]
     fn grammars_compile_and_multiline_state_and_utf8_ranges_are_valid() {
-        assert_eq!(CONFIGS.len(), 11);
+        for path in [
+            "a.js", "a.jsx", "a.ts", "a.tsx", "a.rs", "a.py", "a.go", "a.json", "a.jsonc", "a.css",
+            "a.html", "a.sh", "a.c", "a.toml", "a.md", "a.yaml",
+        ] {
+            let language = scopes::detect_language(Some(path), None, None).unwrap();
+
+            assert!(scopes::syntax_for_language(language).is_some(), "{path}");
+        }
 
         for (path, body) in [
             ("a.ts", "/* café\nexport const value = 'test';\n*/"),
@@ -331,8 +231,25 @@ mod tests {
         let document = DiffDocument::parse("@@ -1 +1 @@\n value = True\n").unwrap();
         let spans = annotate(document.lines(), ["old.py", "new.ts"]);
 
-        assert!(spans[1][0].iter().any(|s| NAMES[s.kind] == "constant"));
-        assert!(!spans[1][1].iter().any(|s| NAMES[s.kind] == "constant"));
+        assert!(spans[1][0].iter().any(|s| NAMES[s.kind] == "boolean"));
+        assert!(!spans[1][1].iter().any(|s| NAMES[s.kind] == "boolean"));
+    }
+
+    #[test]
+    fn reference_rust_return_type_is_plain_while_primitives_and_functions_are_colored() {
+        let line = "pub fn greeting(name: &str) -> String {";
+        let document = DiffDocument::parse(&format!("@@ -0,0 +1 @@\n+{line}\n")).unwrap();
+        let spans = annotate(document.lines(), ["a.rs", "a.rs"]);
+        let start = line.find("String").unwrap();
+
+        assert!(
+            spans[1][1]
+                .iter()
+                .filter(|s| s.range.contains(&start))
+                .all(|s| !matches!(NAMES[s.kind], "type" | "type.builtin")),
+            "the reference grammar leaves String in this signature plain"
+        );
+        assert!(spans[1][1].iter().any(|s| NAMES[s.kind] == "function"));
     }
 
     #[test]

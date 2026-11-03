@@ -606,6 +606,9 @@ impl Render for RepositoryWorkspace {
 
                     self.stashes.clone().into_any_element()
                 }
+                RepositoryState::Ready(_) if self.section == Section::Graph => {
+                    self.graph.clone().into_any_element()
+                }
                 RepositoryState::Ready(_) if self.section == Section::History => {
                     self.history.clone().into_any_element()
                 }
@@ -650,7 +653,7 @@ impl Render for RepositoryWorkspace {
         }.into_any_element();
 
         if let Some(host) = &self.discard_host {
-            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}{self.conflicts.clone()}{self.recovery.clone()}</onegit_ui::DialogHost> }.into_any_element()
+            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}{self.conflicts.clone()}{self.recovery.clone()}{self.graph.read(cx).form.clone()}</onegit_ui::DialogHost> }.into_any_element()
         } else {
             page
         }

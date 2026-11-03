@@ -599,6 +599,7 @@ impl Render for InputState {
         };
 
         let plain = self.config.variant == InputVariant::Plain;
+        let filled = self.config.variant == InputVariant::Filled;
         let typography = if plain { theme.small } else { theme.body };
         let line_height = typography.line_height.unwrap_or(px(18.)).max(px(1.));
 
@@ -619,6 +620,12 @@ impl Render for InputState {
         } else {
             px(self.config.size.height())
         };
+
+        let height = self
+            .config
+            .height
+            .filter(|height| f32::from(*height).is_finite())
+            .map_or(height, |height| height.max(line_height + px(2.)));
 
         let entity = cx.entity();
         let accessible_value = cx.entity();
@@ -679,6 +686,8 @@ impl Render for InputState {
             .border_1()
             .rounded(if self.config.size == crate::ControlSize::Library {
                 px(6.)
+            } else if filled {
+                px(5.)
             } else {
                 theme.control
             })
@@ -691,7 +700,7 @@ impl Render for InputState {
             )
             .border_color(if invalid {
                 theme.danger
-            } else if plain {
+            } else if plain || (filled && !focused) {
                 Theme::transparent()
             } else if focused {
                 theme.focus_ring

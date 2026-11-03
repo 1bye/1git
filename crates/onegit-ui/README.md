@@ -584,9 +584,9 @@ show parse errors in the surrounding application UI.
 Call `with_source(old_path, new_path, full_patch)` on a background worker to prepare
 syntax and optional unchanged context. Paths select independent old/new grammars;
 they are language hints, never filesystem inputs. Mismatched full context is
-ignored. Tree-sitter queries and spans are reused during scroll/theme changes.
-JavaScript/JSX, TypeScript/TSX, Rust, Python, Go, JSON, CSS, HTML, Bash and C are
-bundled; other paths stay plain text. Full context restores multiline parser
+ignored. The reference Syntect grammar set and prepared spans are reused during scroll/theme changes.
+JavaScript/JSX, TypeScript/TSX, Rust, Python, Go, JSON/JSONC, CSS, HTML, Bash, C,
+TOML, Markdown and YAML are bundled; other paths stay plain text. Full context restores multiline parser
 state; without it, each continuous source fragment starts fresh.
 
 Hunk separators and the trailing control reveal up to 20 unchanged lines. E
@@ -718,3 +718,8 @@ the owner's draft and selection. Source anchors retain both scroll axes after in
 updates, preferring working-side coordinates when staging and old-side coordinates
 when unstaging. Native selection geometry is virtualized with visible rows.
 Group/line hover and press use the shared gpui-ce-motion surface transitions.
+
+Committed-file lists can use `ListRowVariant::Compact` with `label_content`
+for filename/path labels and a negative `tab_index` when an enclosing list owns
+roving focus. `ButtonTone::Accent` colors neutral actions; an optional `height`
+retains host toolbar geometry and participates in the existing size transition.

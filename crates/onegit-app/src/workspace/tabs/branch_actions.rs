@@ -112,6 +112,22 @@ impl Workspace {
 
                 self.home
                     .update(cx, |home, cx| home.refresh_overview(&loaded.snapshot, cx));
+                let linked = self
+                    .related(&event.root, cx)
+                    .iter()
+                    .filter_map(|tab| match &tab.read(cx).state {
+                        RepositoryState::Ready(source)
+                            if source.snapshot.repository.root != event.root =>
+                        {
+                            Some(source.snapshot.repository.root.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect::<std::collections::HashSet<_>>();
+
+                for root in linked {
+                    self.invalidate(&root, cx);
+                }
             }
             Err(error) => {
                 self.report(

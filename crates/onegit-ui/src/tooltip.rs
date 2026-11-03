@@ -14,6 +14,8 @@ pub struct Tooltip {
     pub shortcut: Option<gpui::SharedString>,
     /// Delay before pointer hover opens the hint. Keyboard focus is immediate.
     pub delay: Duration,
+    /// Maximum logical width, constrained to the current viewport.
+    pub max_width: gpui::Pixels,
     /// The wrapped control; avoid putting unrelated controls in the same tooltip.
     pub children: Vec<gpui::AnyElement>,
 }
@@ -28,6 +30,7 @@ impl Tooltip {
             shortcut: None,
             delay: Duration::from_millis(350),
             children: Vec::new(),
+            max_width: px(300.),
         }
     }
 }
@@ -222,7 +225,7 @@ impl RenderOnce for Tooltip {
                 let bubble=rake::view! {
                     <div id="hint" role={accesskit::Role::Tooltip} aria-label={self.text.clone()}
                         class="flex flex-col gap-1 border-1 rounded-control px-2 py-1"
-                        style={|s|s.max_w((window.viewport_size().width-px(16.)).clamp(px(1.),px(300.))).bg(theme.surface_raised).border_color(theme.line).shadow_md().occlude().on_hover(move |value,_,cx|bubble_hover.update(cx,|this,cx|this.hover(*value,Duration::ZERO,cx)))}>
+                        style={|s|s.max_w((window.viewport_size().width-px(16.)).clamp(px(1.),self.max_width.max(px(1.)))).bg(theme.surface).border_color(theme.line).shadow_md().occlude().on_hover(move |value,_,cx|bubble_hover.update(cx,|this,cx|this.hover(*value,Duration::ZERO,cx)))}>
                         <p class="text-body" style={|s|s.text_color(theme.ink)}>{self.text}</p>
                         if let Some(shortcut)=self.shortcut {<p class="text-caption" style={|s|s.text_color(theme.muted_ink)}>{shortcut}</p>}
                     </div>

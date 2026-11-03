@@ -3,7 +3,7 @@ use super::{
 };
 
 use crate::Theme;
-use rake::gpui::{self, accesskit, prelude::*, px};
+use rake::gpui::{self, ColorExt as _, accesskit, prelude::*, px};
 
 pub(super) const HEIGHT: f32 = 20.;
 
@@ -18,11 +18,18 @@ fn number(
     width: gpui::Pixels,
     theme: &Theme,
     background: gpui::Hsla,
+    style: DiffGutterStyle,
 ) -> impl IntoElement {
     gpui::div()
         .w(width)
         .flex_shrink_0()
-        .text_color(theme.diff_muted_ink)
+        .text_color(if style == DiffGutterStyle::Inset {
+            theme.diff_muted_ink
+        } else if background == theme.diff_added || background == theme.diff_deleted {
+            theme.diff_ink.opacity(0.9)
+        } else {
+            theme.diff_faint_ink.opacity(0.8)
+        })
         .text_size(px(11.))
         .pr(px(8.))
         .h_full()
@@ -75,20 +82,20 @@ fn plain_cell(
     });
 
     let (background, ink, marker) = match kind {
-        DiffLineKind::Added => (theme.diff_added, theme.diff_ink, "+"),
-        DiffLineKind::Deleted => (theme.diff_deleted, theme.diff_ink, "−"),
+        DiffLineKind::Added => (theme.diff_added, theme.diff_ink.opacity(0.92), "+"),
+        DiffLineKind::Deleted => (theme.diff_deleted, theme.diff_ink.opacity(0.92), "−"),
         DiffLineKind::Hunk => (
             hunk_background.unwrap_or(theme.diff_hunk),
             theme.diff_muted_ink,
             " ",
         ),
         DiffLineKind::Metadata => (theme.diff_hunk, theme.diff_muted_ink, "·"),
-        DiffLineKind::Context => (theme.surface, theme.diff_ink, " "),
+        DiffLineKind::Context => (theme.surface, theme.diff_ink.opacity(0.92), " "),
     };
 
     let marker_ink = match kind {
-        DiffLineKind::Added => theme.success,
-        DiffLineKind::Deleted => theme.danger,
+        DiffLineKind::Added => theme.diff_ink,
+        DiffLineKind::Deleted => theme.diff_ink,
         _ => theme.muted_ink,
     };
 
@@ -295,8 +302,8 @@ fn plain_cell(
 
     if view == DiffView::Unified {
         row = row
-            .child(number(old, gutter, &theme, number_background))
-            .child(number(new, gutter, &theme, number_background));
+            .child(number(old, gutter, &theme, number_background, style))
+            .child(number(new, gutter, &theme, number_background, style));
     } else {
         row = row.child(number(
             match side {
@@ -306,6 +313,7 @@ fn plain_cell(
             gutter,
             &theme,
             number_background,
+            style,
         ));
     }
 

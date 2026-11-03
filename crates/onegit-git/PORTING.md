@@ -203,3 +203,21 @@ The manual `Rust platforms` workflow runs unfiltered native tests, doctests and
 warnings-as-errors Clippy on Linux, Windows and macOS. Run evidence is recorded in
 GitHub Actions for `rust/gpui`; app/UI launch and packaging are separate checks.
 No changeset is needed: this Rust crate is unreleased (`publish = false`).
+
+## Multi-tip commit graph
+
+`GraphHistoryOptions` accepts captured full object IDs, a bounded page size and
+offset. `Repository::graph_history` uses topological order and streams deduplicated
+tips through stdin to avoid Windows command-line limits. Empty/unborn histories
+and tags pointing to trees produce no invented commits; merge parent identities
+remain unsimplified. Pages continue from the same immutable tips even if a branch
+moves between reads. The new integration suite maps the source graph reader cases,
+checks pagination, detached HEAD/non-commit tips, cancellation/validation through
+the shared process contract, and verifies index/ref bytes are not changed by reads.
+
+`Repository::create_branch_at_commit` creates a non-forced local branch at a
+reviewed immutable commit without checkout. It validates the full OID, commit
+object type, branch name, duplicate refs, root identity and active-operation guard
+inside the shared mutation queue. Dirty working/index state is allowed and remains
+untouched. Integration tests cover dirty and detached repositories, duplicate and
+invalid inputs, and refusal during unfinished operations.

@@ -18,6 +18,7 @@ pub(super) enum Operation {
     },
     File(ChangedFile),
     Branch(onegit_git::BranchRequest),
+    GraphBranch(super::graph::Submit),
     Stash {
         request: onegit_git::StashRequest,
         peers: Vec<Arc<onegit_git::Repository>>,
@@ -56,7 +57,7 @@ impl Operation {
             Self::StageAll => "Staging all changes…",
             Self::UnstageAll => "Unstaging all changes…",
             Self::Commit { .. } => "Creating commit…",
-            Self::Branch(_) => "Updating branch…",
+            Self::Branch(_) | Self::GraphBranch(_) => "Updating branch…",
             Self::Stash { .. } => "Updating saved work…",
             Self::Discard {
                 action: super::discard::Action::Restore(_),
@@ -76,7 +77,7 @@ impl Operation {
             Self::StageAll => "Changes staged",
             Self::UnstageAll => "Changes unstaged",
             Self::Commit { .. } => "Commit created",
-            Self::Branch(_) => "Branch updated",
+            Self::Branch(_) | Self::GraphBranch(_) => "Branch updated",
             Self::Stash { .. } => "Stash updated",
             Self::Discard { .. } => "Files updated",
         }
@@ -132,6 +133,15 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
 
     if let Operation::Stash { request, peers } = &operation {
         return run_stash(loaded, request, peers);
+    }
+
+    if let Operation::GraphBranch(request) = &operation {
+        let result = loaded
+            .repository
+            .create_branch_at_commit(&request.name, &request.oid, None)
+            .map_err(Into::into);
+
+        return branch_outcome(loaded, result);
     }
 
     if let Operation::Branch(request) = &operation {
@@ -207,7 +217,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             Operation::Stash { .. } => {
                 unreachable!("stash operations use their reviewed write guard")
             }
-            Operation::Branch(_) => {
+            Operation::Branch(_) | Operation::GraphBranch(_) => {
                 unreachable!("branch operations use their reviewed write guard")
             }
             Operation::Conflict { .. } => {
@@ -295,7 +305,18 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
 fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outcome {
     let repository = &loaded.repository;
 
-    match repository.change_branch(request, None) {
+    let result = repository.change_branch(request, None);
+
+    branch_outcome(loaded, result)
+}
+
+fn branch_outcome(
+    loaded: Arc<Loaded>,
+    result: Result<onegit_git::BranchMutation, onegit_git::BranchError>,
+) -> Outcome {
+    let repository = &loaded.repository;
+
+    match result {
         Ok(result) => {
             let detail = if let Some(saved) = &result.saved_changes {
                 format!(

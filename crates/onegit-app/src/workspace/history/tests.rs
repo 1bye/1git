@@ -351,6 +351,95 @@ mod native {
     }
 
     #[test]
+    fn file_tree_collapse_layout_switch_and_restart_keep_preview_draft_and_exact_selection() {
+        let f = Fixture::new();
+
+        fs::create_dir_all(f.root.join("src/deep")).unwrap();
+        f.write("src/deep/a2.rs", "pub fn value() -> bool { true }\n");
+        f.write("src/deep/a10.rs", "pub fn count() -> usize { 42 }\n");
+        f.commit();
+        let before = contents(&f.root);
+        let (mut cx, v) = setup(&f);
+
+        click(&mut cx, v, "tab-history");
+        let h = history(v, &cx);
+
+        v.update(&mut cx, |view, _, cx| {
+            view.summary
+                .update(cx, |draft, cx| draft.set_text("Keep the draft", cx))
+        })
+        .unwrap();
+        h.update(&mut cx, |h, cx| {
+            h.select_file(GitPath::new("src/deep/a2.rs").unwrap(), cx)
+        });
+        draw(&mut cx, v);
+        let original = h.read_with(&cx, |h, _| h.diff_state.as_ref().unwrap().entity_id());
+
+        h.update(&mut cx, |h, cx| {
+            h.toggle_layout(cx);
+            assert_eq!(h.file_rows.len(), 3);
+            h.toggle_folder(b"src/deep".to_vec(), cx);
+            assert_eq!(h.file_rows.len(), 1);
+            h.toggle_layout(cx);
+            h.toggle_layout(cx);
+            assert_eq!(h.file_rows.len(), 1);
+            assert_eq!(h.diff_state.as_ref().unwrap().entity_id(), original);
+        });
+        draw(&mut cx, v);
+        let saved = h.read_with(&cx, |h, cx| h.session(cx));
+
+        let restored = v
+            .update(&mut cx, |view, window, cx| {
+                let source = match &view.state {
+                    RepositoryState::Ready(source) => source.clone(),
+                    _ => panic!("ready repository"),
+                };
+
+                cx.new(|cx| {
+                    let mut h = HistoryWorkspace::new(window, cx);
+
+                    h.set_source(Some(source), cx);
+                    h.restore_preferences(&saved, window, cx);
+                    h.restore_selection(&saved, cx);
+
+                    h
+                })
+            })
+            .unwrap();
+
+        draw(&mut cx, v);
+        restored.read_with(&cx, |h, _| {
+            assert!(h.tree_layout);
+            assert_eq!(h.file_rows.len(), 1);
+            assert!(h.collapsed.contains(b"src/deep".as_slice()));
+            assert_eq!(h.file.as_ref().unwrap().as_bytes(), b"src/deep/a2.rs");
+            assert!(matches!(h.preview, PreviewState::Ready(_)));
+        });
+        v.update(&mut cx, |_, window, cx| {
+            restored.update(cx, |h, cx| {
+                h.file_cursor = Some(files::Entry::Folder(b"src/deep".to_vec()));
+                h.navigate_files(
+                    &gpui::KeyDownEvent {
+                        keystroke: gpui::Keystroke::parse("right").unwrap(),
+                        is_held: false,
+                        prefer_character_input: false,
+                    },
+                    window,
+                    cx,
+                );
+                assert_eq!(h.file_rows.len(), 3);
+            });
+        })
+        .unwrap();
+        assert_eq!(
+            v.read_with(&cx, |view, cx| view.summary.read(cx).text().to_owned())
+                .unwrap(),
+            "Keep the draft"
+        );
+        assert_eq!(contents(&f.root), before);
+    }
+
+    #[test]
     fn a_new_commit_invalidates_history_and_manual_refresh_recovers_from_read_failures() {
         let f = Fixture::new();
 

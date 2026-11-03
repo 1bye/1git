@@ -8,7 +8,13 @@
 
 mod button;
 mod checkbox;
+mod commit_graph;
 mod commit_list;
+
+pub use commit_graph::{
+    CommitGraph, CommitGraphData, CommitGraphScroll, CommitGraphState, GraphCommit, GraphViewport,
+};
+
 mod commit_subject;
 mod dialog;
 mod diff_viewer;

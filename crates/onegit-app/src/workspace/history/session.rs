@@ -21,7 +21,20 @@ impl HistoryWorkspace {
                 .unwrap_or(self.data.items().len())
                 .min(10_000),
             split_diff: self.view == DiffView::Split,
-            sidebar: self.sidebar.read(cx).preferred_size().into(),
+            tree_layout: self.tree_layout,
+            collapsed: {
+                let mut paths = self.collapsed.iter().cloned().collect::<Vec<_>>();
+
+                paths.sort();
+
+                paths
+            },
+            sidebar: f32::from(self.sidebar.read(cx).preferred_size())
+                + if self.presentation == super::Presentation::Inspector {
+                    1.
+                } else {
+                    0.
+                },
             detail_fraction: self.detail_split.read(cx).fraction().unwrap_or(0.5),
         }
     }
@@ -38,12 +51,27 @@ impl HistoryWorkspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        self.tree_layout = saved.tree_layout;
+        self.collapsed = saved.collapsed.iter().cloned().collect();
+        self.rebuild_files();
         self.view = if saved.split_diff {
             DiffView::Split
         } else {
             DiffView::Unified
         };
-        self.sidebar = cx.new(|cx| SplitState::new(px(saved.sidebar), window, cx));
+        self.sidebar = cx.new(|cx| {
+            SplitState::new(
+                px((saved.sidebar
+                    - if self.presentation == super::Presentation::Inspector {
+                        1.
+                    } else {
+                        0.
+                    })
+                .max(0.)),
+                window,
+                cx,
+            )
+        });
         self.detail_split =
             cx.new(|cx| SplitState::proportional(saved.detail_fraction, window, cx));
     }
@@ -75,6 +103,14 @@ impl HistoryWorkspace {
 
         let repository = source.repository.clone();
 
+        if self.selected.as_ref().is_some_and(|old| old != &oid) {
+            self.collapsed.clear();
+        }
+
+        self.file_cursor = None;
+        self.file_rows = Arc::from([]);
+        self.description_expanded = false;
+        self.copied = false;
         self.detail_job = None;
         self.patch_job = None;
         self.selected = Some(oid.clone());
@@ -103,7 +139,13 @@ impl HistoryWorkspace {
                     .commit_files(&commit.oid, Some(&cancel))
                     .map_err(super::super::read::message)?;
 
-                Ok(Arc::new(Details { commit, files }))
+                let tree = super::files::Tree::new(&files);
+
+                Ok(Arc::new(Details {
+                    commit,
+                    files,
+                    tree,
+                }))
             },
             |this, result, cx| {
                 this.detail_job = None;
@@ -119,6 +161,7 @@ impl HistoryWorkspace {
                         this.commits
                             .insert(details.commit.oid.clone().into(), details.commit.clone());
                         this.detail = DetailState::Ready(details);
+                        this.rebuild_files();
 
                         if let Some(path) = path {
                             this.select_file(path, cx);

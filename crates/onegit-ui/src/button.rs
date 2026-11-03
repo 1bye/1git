@@ -19,12 +19,14 @@ pub enum ButtonVariant {
     Alert,
 }
 
-/// Ordinary or explicitly destructive action appearance.
+/// Action colors, independent of visual prominence.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ButtonTone {
     /// Ordinary action.
     #[default]
     Normal,
+    /// Accent-colored neutral or ghost action.
+    Accent,
     /// Destructive action.
     Danger,
 }
@@ -104,6 +106,10 @@ pub struct Button {
     pub size: ControlSize,
     /// Optional explicit logical width, included in size transitions.
     pub width: Option<gpui::Pixels>,
+    /// Optional logical height for host toolbar geometry and size transitions.
+    pub height: Option<gpui::Pixels>,
+    /// Optional horizontal logical padding, included in automatic size transitions.
+    pub padding: Option<gpui::Pixels>,
     /// Optional corner radius for native-style alert actions.
     pub radius: Option<gpui::Pixels>,
     /// Availability and work state.
@@ -131,7 +137,9 @@ impl Button {
             tone: ButtonTone::Normal,
             size: ControlSize::Medium,
             width: None,
+            height: None,
             radius: None,
+            padding: None,
             state: ControlState::Enabled,
             icon: None,
             accessibility_label: None,
@@ -188,9 +196,19 @@ impl RenderOnce for Button {
         let busy = self.state == ControlState::Busy;
         let icon_only = self.label.is_empty();
 
+        let height = self
+            .height
+            .unwrap_or_else(|| px(self.size.height()))
+            .max(px(1.));
+
+        let padding = self
+            .padding
+            .unwrap_or_else(|| px(self.size.padding()))
+            .max(px(0.));
+
         let (background, hover, pressed, foreground): (Hsla, Hsla, Hsla, Hsla) =
             match (self.variant, self.tone) {
-                (ButtonVariant::Primary, ButtonTone::Normal) => (
+                (ButtonVariant::Primary, ButtonTone::Normal | ButtonTone::Accent) => (
                     theme.primary,
                     theme.primary_hover,
                     theme.primary_pressed,
@@ -222,6 +240,8 @@ impl RenderOnce for Button {
                     theme.pressed,
                     if tone == ButtonTone::Danger {
                         theme.danger
+                    } else if tone == ButtonTone::Accent {
+                        theme.accent
                     } else {
                         theme.ink
                     },
@@ -232,6 +252,8 @@ impl RenderOnce for Button {
                     theme.pressed,
                     if tone == ButtonTone::Danger {
                         theme.danger
+                    } else if tone == ButtonTone::Accent {
+                        theme.accent
                     } else {
                         theme.ink
                     },
@@ -267,8 +289,8 @@ impl RenderOnce for Button {
 
         let measurement = rake::view! {
             <div class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 font-medium border-1"
-                style={|s| s.h(px(self.size.height()))
-                    .px(px(if icon_only {0.} else {self.size.padding()}))
+                style={|s| s.h(height)
+                    .px(if icon_only {px(0.)} else {padding})
                     .when(icon_only, |s| s.w(px(self.size.height())))
                     .when_some(self.width, |s, width| s.w(width))}>
                 if glyph.is_some() { <div style={|s| s.size(px(icon_size.pixels())).flex_shrink_0()}/> }
@@ -297,7 +319,7 @@ impl RenderOnce for Button {
                             aria-description={if busy { "In progress" } else { "" }}
                             class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 max-w-[100%] font-medium"
                             style={|s| focusable(s).w(dimensions.width).h(dimensions.height)
-                                .px(px(if icon_only {0.} else {self.size.padding()}))
+                                .px(if icon_only {px(0.)} else {padding})
                                 .bg(paint.background).text_color(paint.ink).border_color(paint.border)
                                 .when_some(self.radius, |s,radius|s.rounded(radius))
                                 .when_some(self.pressed, |s,pressed|s.aria_toggled(if pressed {gpui::accesskit::Toggled::True}else{gpui::accesskit::Toggled::False}))

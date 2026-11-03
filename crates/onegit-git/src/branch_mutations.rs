@@ -239,6 +239,73 @@ impl Repository {
         self.edit_branch(Edit::Create(options), cancellation)
     }
 
+    /// Create a non-replacing branch at one reviewed immutable commit without checking out.
+    ///
+    /// Dirty index/working files are permitted and preserved. Active operations are rejected.
+    ///
+    /// # Errors
+    /// Rejects invalid names/OIDs, missing commits, active operations, and repository replacement.
+    pub fn create_branch_at_commit(
+        &self,
+        name: &str,
+        oid: &str,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<BranchMutation, WriteError> {
+        let _write = self.mutations.enter();
+
+        self.branch_preflight(cancellation)?;
+
+        if !crate::validation::full_oid(oid) {
+            return Err(conflict("Choose a full immutable commit identity."));
+        }
+
+        let snapshot = self
+            .snapshot_uncoordinated(false, cancellation)
+            .map_err(|e| failure(WritePhase::BeforeCommand, e))?;
+
+        if snapshot.operation != OperationState::Normal
+            || snapshot
+                .status
+                .files
+                .iter()
+                .any(|file| file.record_type == RecordType::Unmerged)
+        {
+            return Err(conflict(
+                "Finish the current Git operation before creating a branch.",
+            ));
+        }
+
+        self.branch_name(name, cancellation)?;
+
+        if self
+            .branches_uncoordinated(cancellation)
+            .map_err(|e| failure(WritePhase::BeforeCommand, e))?
+            .branches
+            .iter()
+            .any(|branch| branch.kind == BranchKind::Local && branch.name == name)
+        {
+            return Err(conflict("This branch already exists. Choose another name."));
+        }
+
+        let kind = self
+            .run(["cat-file", "-t", oid], cancellation)
+            .map_err(|e| failure(WritePhase::BeforeCommand, e))?;
+
+        if kind.stdout.trim_ascii() != b"commit" {
+            return Err(conflict("The selected object is not a commit."));
+        }
+
+        self.execute_branch(
+            Edit::Create(CreateBranch {
+                start_point: Some(oid),
+                ..CreateBranch::new(name)
+            }),
+            cancellation,
+        )?;
+
+        self.branch_result(cancellation)
+    }
+
     /// Switch the current worktree. Destructive discard is possible only with explicit force.
     pub fn checkout_branch(
         &self,

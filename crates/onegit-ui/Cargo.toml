@@ -8,17 +8,8 @@ description = "Reusable 1git components and themes on Rake and GPUI"
 
 [dependencies]
 regex.workspace = true
-tree-sitter-highlight.workspace = true
-tree-sitter-typescript.workspace = true
-tree-sitter-javascript.workspace = true
-tree-sitter-rust.workspace = true
-tree-sitter-python.workspace = true
-tree-sitter-go.workspace = true
-tree-sitter-json.workspace = true
-tree-sitter-css.workspace = true
-tree-sitter-html.workspace = true
-tree-sitter-bash.workspace = true
-tree-sitter-c.workspace = true
+syntect.workspace = true
+two-face.workspace = true
 gpui-ce-motion.workspace = true
 unicode-segmentation.workspace = true
 rake = { workspace = true, features = ["experimental-view"] }

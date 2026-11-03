@@ -48,6 +48,8 @@ pub struct Theme {
     pub diff_ink: Hsla,
     /// Patch coordinates and secondary code labels.
     pub diff_muted_ink: Hsla,
+    /// Faint patch coordinates, matching the reference code palette.
+    pub diff_faint_ink: Hsla,
     /// Stronger token background for paired additions.
     pub diff_added_word: Hsla,
     /// Stronger token background for paired deletions.
@@ -164,6 +166,7 @@ impl Theme {
             diff_hunk: color(0xf8fafc, 0x25282f),
             diff_ink: color(0x24292e, 0xe6edf3),
             diff_muted_ink: color(0x586069, 0xa4acb7),
+            diff_faint_ink: color(0x6a737d, 0x8e96a3),
             diff_added_word: color(0xacf2bd, 0x365940),
             diff_deleted_word: color(0xfdb8c0, 0x703b46),
             diff_added_rail: color(0x92c9a4, 0x3d6149),

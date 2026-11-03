@@ -131,7 +131,10 @@ pub use diff::{DiffOptions, DiffStat, DiffTarget, FileDiff, PatchOmission};
 
 pub use content::{FileContent, FileData, FileSource};
 
-pub use history::{BranchComparison, CommitFile, CommitInfo, CommitPage, HistoryOptions, Identity};
+pub use history::{
+    BranchComparison, CommitFile, CommitInfo, CommitPage, GraphHistoryOptions, HistoryOptions,
+    Identity,
+};
 
 pub use refs::{
     Branch, BranchCollection, BranchKind, ConfigScope, ConfigValue, Remote, Stash, Tag, TagKind,
