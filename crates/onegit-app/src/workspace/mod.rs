@@ -831,11 +831,22 @@ impl RepositoryWorkspace {
         let stash_completion = outcome.stash_completion;
         let discard_completion = outcome.discard_completion;
 
-        let branch_completion = outcome.branch_action.then(|| branches::Completed {
+        let branch_completion = outcome.branch_action.map(|branch| branches::Completed {
+            change: branch.change,
+            snapshots: branch.snapshots,
+            needs_review: branch.needs_review,
             root: path.clone(),
             loaded: outcome.loaded.clone(),
             result: outcome.result.as_ref().map(|_| ()).map_err(Clone::clone),
         });
+
+        if let Some(change) = branch_completion
+            .as_ref()
+            .and_then(|event| event.change.as_ref())
+        {
+            self.graph
+                .update(cx, |graph, cx| graph.branch_changed(change, cx));
+        }
 
         let mut feedback = match outcome.result {
             Ok(detail) => Toast {
@@ -879,7 +890,7 @@ impl RepositoryWorkspace {
 
         match outcome.loaded {
             Ok(loaded)
-                if outcome.branch_action
+                if branch_completion.is_some()
                     || stash_completion.is_some()
                     || discard_completion.is_some()
                     || conflict_completion.is_some()
@@ -891,7 +902,8 @@ impl RepositoryWorkspace {
             }
             Ok(loaded) => self.apply_loaded(loaded, preferred, cx),
             Err(error)
-                if stash_completion.is_some()
+                if branch_completion.is_some()
+                    || stash_completion.is_some()
                     || discard_completion.is_some()
                     || conflict_completion.is_some()
                     || staging_completion.is_some()
@@ -908,6 +920,14 @@ impl RepositoryWorkspace {
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if branch_completion
+            .as_ref()
+            .is_some_and(|event| event.needs_review)
+        {
+            self.refresh_blocked = true;
+            self.refresh_error=Some("The branch action needs review. Inspect Branches and refresh before writing again.".into());
         }
 
         if let Some(completion) = replay_completion {

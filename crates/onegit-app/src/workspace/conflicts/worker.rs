@@ -87,7 +87,7 @@ pub(in crate::workspace) fn run(
         replay_completion: None,
         recovery_completion: None,
         committed: false,
-        branch_action: false,
+        branch_action: None,
         stash_completion: None,
         discard_completion: None,
         conflict_completion: Some(Completed { snapshots, result }),

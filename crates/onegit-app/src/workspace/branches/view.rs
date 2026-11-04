@@ -1,10 +1,10 @@
-use super::{Phase, Picker, model};
+use super::{EditKind, Phase, Picker, model};
 use onegit_git::{BranchChanges, BranchKind};
 
 use onegit_ui::{
-    Button, ButtonVariant, ControlSize, ControlState, Dialog, DialogAvailability, DialogDismissal,
-    DialogPresentation, Icon, IconName, IconSize, InputAvailability, ListRow, ListRowVariant,
-    RowSelection, Text, TextInput, TextRole, TextTone,
+    Button, ButtonVariant, ContextMenu, ControlSize, ControlState, Dialog, DialogAvailability,
+    DialogDismissal, DialogPresentation, Icon, IconName, IconSize, InputAvailability, ListRow,
+    ListRowVariant, RowSelection, Text, TextInput, TextRole, TextTone,
 };
 
 use rake::gpui::{self, Focusable, prelude::*, px};
@@ -68,10 +68,10 @@ impl Picker {
 
         gpui::uniform_list("branch-list",count,cx.processor(|this,range:Range<usize>,_,cx| {
             range.map(|position| {
-                let index=this.visible[position];let branch=&this.data.as_ref().expect("visible branches have data").branches[index];
+                let index=this.visible[position];let branch=this.data.as_ref().expect("visible branches have data").branches[index].clone();
                 let blocked=this.blocked(index);let current=branch.checked_out;
 
-                let detail=if branch.kind==BranchKind::Remote{if model::remote_target(branch,this.data.as_ref().expect("branch data loaded")).is_err(){"Local branch exists".into()}else{"Remote".into()}}
+                let detail=if branch.kind==BranchKind::Remote{if model::remote_target(&branch,this.data.as_ref().expect("branch data loaded")).is_err(){"Local branch exists".into()}else{"Remote".into()}}
                     else if !current&&branch.worktree_path.is_some(){"Other worktree".into()}
                     else{model::commit_age(branch.committed_at.as_deref(),chrono::Utc::now().timestamp_millis())};
 
@@ -79,12 +79,22 @@ impl Picker {
                 let trailing=rake::view!{<Text role={TextRole::Caption} tone={TextTone::Muted} max_lines={Some(1)} {..Text::new("age",detail)}/>}.into_any_element();
                 let label=if current{format!("{}, current branch",branch.name)}else{branch.name.clone()};
 
-                rake::view!{<div class="w-full h-[28px] min-w-0" style={|s|s.debug_selector(move||format!("branch-row-{position}"))}>
+                let focus=this.row_focus.entry(branch.full_name.clone()).or_insert_with(||cx.focus_handle()).clone();
+
+                let row=rake::view!{<div class="w-full h-[28px] min-w-0" style={|s|s.track_focus(&focus).debug_selector(move||format!("branch-row-{position}"))}>
                     <ListRow variant={ListRowVariant::Menu} accessibility_label={Some(label.into())} leading={Some(leading)} trailing={Some(trailing)} selection={if this.highlighted==Some(position){RowSelection::Selected}else{RowSelection::Unselected}}
                         state={if this.busy||blocked.is_some(){ControlState::Disabled}else{ControlState::Enabled}}
                         on_press={Some(Box::new(cx.listener(move|this,_,window,cx|this.choose(index,window,cx))))}
                         {..ListRow::new(("branch",index),branch.name.clone())}/>
-                </div>}.into_any_element()
+                </div>}.into_any_element();
+
+                if branch.kind==BranchKind::Local {
+                    let mut context=ContextMenu::new(this.edit_menu(branch,cx),focus);
+
+                    context.children.push(row);
+
+                    context.into_any_element()
+                }else{row}
             }).collect()
         })).size_full().min_h_0().track_scroll(&self.scroll).with_sizing_behavior(gpui::ListSizingBehavior::Auto).into_any_element()
     }
@@ -136,7 +146,7 @@ impl gpui::Render for Picker {
                     + 28.
                     + if restore.is_some() { 28. } else { 0. }
             }
-            Phase::Create { .. } => 150.,
+            Phase::Create { .. } | Phase::Edit { .. } => 150.,
             Phase::Changes { .. } => 300.,
             Phase::Restore(_) => 164.,
         } + if self.error.is_some() {
@@ -192,6 +202,7 @@ impl gpui::Render for Picker {
                     self.name.read(cx).text().trim().is_empty()
                         || (remote.is_none() && self.dirty())
                 }
+                Phase::Edit { branch, kind } => self.edit_request(branch, *kind, cx).is_none(),
                 Phase::Restore(_) => self.dirty(),
                 _ => false,
             };
@@ -228,6 +239,13 @@ impl gpui::Render for Picker {
                                 {..TextInput::new("branch-name",&self.name,"New branch name")}/>
                             <Text role={TextRole::Small} tone={TextTone::Muted} {..Text::new("branch-detail",remote.as_ref().map(|remote|format!("Tracks {} in this workspace.",remote.trim_start_matches("refs/remotes/"))).unwrap_or_else(||format!("Create locally from {current} and switch to it. Publish later to share it.")))}/>
                         }
+                        if let Phase::Edit{branch,kind}=&self.phase {
+                            <p class="text-body font-medium shrink-0">{kind.title()}</p>
+                            <TextInput variant={onegit_ui::InputVariant::Surface} show_label={false} height={Some(px(30.))} size={ControlSize::Medium} placeholder={"New branch name…".into()}
+                                availability={if self.busy||*kind==EditKind::Delete{InputAvailability::ReadOnly}else{InputAvailability::Enabled}}
+                                {..TextInput::new("branch-name",&self.name,if *kind==EditKind::Delete{"Branch to delete"}else{"New branch name"})}/>
+                            <div class="shrink-0" style={|s|s.debug_selector(||"branch-edit-guidance".into())}><Text role={TextRole::Small} tone={TextTone::Muted} {..Text::new("branch-detail",if *kind==EditKind::Rename{format!("Rename “{}” locally. Remote branches stay unchanged.",branch.name)}else{"Deletes only the local branch. Unmerged work is protected.".into()})}/></div>
+                        }
                         if let Phase::Changes{destination,choice,..}=&self.phase {
                             <Text role={TextRole::Body} {..Text::new("changes-title","What about your changes?")}/>
                             <Text role={TextRole::Small} tone={TextTone::Muted} {..Text::new("changes-description",format!("Switch to “{destination}” without losing your uncommitted work."))}/>
@@ -244,11 +262,11 @@ impl gpui::Render for Picker {
                             <Text role={TextRole::Small} tone={TextTone::Muted} {..Text::new("restore-detail",format!("Saved work is available for “{}”. Restore it now or keep it in Stashes for later.",saved.branch))}/>
                         }
                     </div>
-                    <div class="flex flex-row items-center justify-between gap-1.5 px-2 pb-2 shrink-0">
-                        <Button size={ControlSize::Small} variant={ButtonVariant::Ghost} state={availability} on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.back(window,cx))))} {..Button::new("cancel-branch",if matches!(self.phase,Phase::Restore(_)){"Not now"}else{"Cancel"})}/>
+                    <div class="flex flex-row items-center justify-between gap-1.5 px-2 shrink-0" style={|s|s.pb(if matches!(self.phase,Phase::Edit{..}){px(0.)}else{px(8.)}).debug_selector(||"branch-form-actions".into())}>
+                        <Button focus={Some(self.cancel_focus.clone())} size={ControlSize::Small} variant={ButtonVariant::Ghost} state={availability} on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.back(window,cx))))} {..Button::new("cancel-branch",if matches!(self.phase,Phase::Restore(_)){"Not now"}else{"Cancel"})}/>
                         <Button size={ControlSize::Small} variant={ButtonVariant::Primary} state={if self.busy{ControlState::Busy}else if confirm_disabled{ControlState::Disabled}else{ControlState::Enabled}}
                             on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.confirm(window,cx))))}
-                            {..Button::new("confirm-branch",match self.phase {Phase::Create{..}=>"Create and switch",Phase::Changes{..}=>"Switch branch",_=>"Restore changes"})}/>
+                            {..Button::new("confirm-branch",match &self.phase {Phase::Create{..}=>"Create and switch",Phase::Changes{..}=>"Switch branch",Phase::Edit{kind,..}=>kind.confirm(),_=>"Restore changes"})}/>
                     </div>
                 }
                 if let Some(notice)=notice {<div class="px-2 py-1 shrink-0"><Text role={TextRole::Caption} tone={if self.error.is_some(){TextTone::Danger}else{TextTone::Muted}} max_lines={Some(5)} {..Text::new("branch-notice",notice)}/>
@@ -261,7 +279,7 @@ impl gpui::Render for Picker {
 
         rake::view!{<Dialog trigger_preview={preview} width={px(288.)} presentation={DialogPresentation::Attached{origin:self.origin,height:px(height.value()as f32)}}
             dismissal={DialogDismissal::EscapeAndOutside} availability={if self.busy{DialogAvailability::Busy}else{DialogAvailability::Ready}}
-            initial_focus={Some(if matches!(self.phase,Phase::List){self.query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Create{..}){self.name.read(cx).focus_handle(cx)}else{self.list_focus.clone()})}
+            initial_focus={Some(if matches!(self.phase,Phase::List){self.query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Create{..}|Phase::Edit{kind:EditKind::Rename,..}){self.name.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Edit{kind:EditKind::Delete,..}){self.cancel_focus.clone()}else{self.list_focus.clone()})}
             {..Dialog::new("workspace-branches",&self.dialog,"Workspace branches")}>
             {body}
         </Dialog>}.into_any_element()

@@ -151,7 +151,7 @@ pub(in crate::workspace) fn run(
         loaded,
         result: result.clone(),
         committed: false,
-        branch_action: false,
+        branch_action: None,
         staging_completion: None,
         stash_completion: None,
         discard_completion: None,

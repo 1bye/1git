@@ -167,7 +167,7 @@ pub(super) fn run(
             }
         }),
         committed: false,
-        branch_action: false,
+        branch_action: None,
         stash_completion: None,
         discard_completion: None,
         conflict_completion: None,

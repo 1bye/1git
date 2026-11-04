@@ -542,3 +542,47 @@ fn tag_actions_from_graph_and_history_open_exact_targets_and_cancel_without_writ
         source.local_tags.as_ref().unwrap().as_ref()
     );
 }
+
+#[test]
+fn branch_deletion_clears_only_removed_graph_scope_and_retains_commit_details() {
+    let f = merge_fixture();
+    let source = f.load();
+    let commit = Arc::new(source.repository.commit("feature", None).unwrap());
+    let (mut cx, v) = setup(&f);
+    let graph = graph(v, &cx);
+
+    graph.update(&mut cx, |graph, cx| {
+        graph.scope(Some("refs/heads/feature".into()), cx)
+    });
+    draw(&mut cx, v);
+    graph.update(&mut cx, |graph, cx| {
+        graph.select(&commit.oid.clone().into(), cx)
+    });
+    draw(&mut cx, v);
+    let before = graph.read_with(&cx, |graph, cx| graph.session(cx));
+
+    v.update(&mut cx, |view, window, cx| {
+        view.start_write(
+            crate::workspace::write::Operation::Branch {
+                request: onegit_git::BranchRequest::new(
+                    onegit_git::BranchAction::Delete {
+                        name: "feature".into(),
+                        expected_target: commit.oid.clone(),
+                    },
+                    &source.snapshot,
+                ),
+                peers: vec![],
+            },
+            window,
+            cx,
+        )
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    let after = graph.read_with(&cx, |graph, cx| graph.session(cx));
+
+    assert!(after.reference.is_none());
+    assert_eq!(after.details.commit, before.details.commit);
+    assert_eq!(after.details.file, before.details.file);
+    assert!(f.git(&["branch", "--list", "feature"]).is_empty());
+}

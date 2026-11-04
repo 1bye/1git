@@ -130,8 +130,22 @@ worktree refreshes on success and failure while retaining independent commit dra
 filters, diff modes, selections where available and pane preferences. Other tabs
 for that worktree cannot start another write while the operation is pending.
 The picker uses `gpui-ce-motion` for its 160 ms height/opacity transitions, snaps
-with reduced motion, and stops requesting frames once settled. Rename/delete,
-branch integration and worktree management are separate UI work.
+with reduced motion, and stops requesting frames once settled.
+
+Right-click a local branch, use Control-click on macOS, or focus it and press
+Shift+F10 to rename or delete it. Both actions open an attached review; deleting
+starts with Cancel focused. Renaming the current branch is allowed. Branches
+checked out in another worktree cannot be renamed; no checked-out branch can be
+deleted. Deletion uses non-forcing Git checks, so unmerged work remains protected.
+These local actions require clean working files, keep remote branches unchanged,
+and reject moved branch tips or changed HEAD before writing.
+
+Related tabs and linked worktrees refresh together, retaining independent drafts,
+selection and scroll. Graph filters follow renamed refs, including saved workspace
+sessions; deleting a scoped branch clears its filter while retaining immutable
+commit details. Failed or stale reviews keep their entered name, require renewed
+consent, and never replay automatically. Branch integration and worktree
+management are separate UI work.
 
 The **History** tab browses locally available commits reachable from the checked-out
 HEAD. It loads 50 commits at a time; **Load more commits** appends the next page.

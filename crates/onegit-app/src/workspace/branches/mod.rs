@@ -1,6 +1,9 @@
 //! Attached branch navigation; accepted writes remain owned by the repository workspace.
+mod edit;
 pub(super) mod model;
 mod view;
+
+pub(super) use edit::Kind as EditKind;
 
 use super::{
     ReadJob,
@@ -25,6 +28,10 @@ use std::{
 
 pub(super) enum Phase {
     List,
+    Edit {
+        branch: onegit_git::Branch,
+        kind: EditKind,
+    },
     Create {
         remote: Option<String>,
     },
@@ -56,6 +63,8 @@ pub(super) struct Picker {
     expanded: bool,
     highlighted: Option<usize>,
     list_focus: gpui::FocusHandle,
+    row_focus: std::collections::HashMap<String, gpui::FocusHandle>,
+    cancel_focus: gpui::FocusHandle,
     scroll: gpui::UniformListScrollHandle,
     pub(super) phase: Phase,
     pub(super) busy: bool,
@@ -95,6 +104,7 @@ impl Picker {
                     this.data = None;
                     this.saved.clear();
                     this.visible.clear();
+                    this.row_focus.clear();
                 }
                 cx.notify();
             }),
@@ -137,6 +147,8 @@ impl Picker {
             expanded: false,
             highlighted: None,
             list_focus: cx.focus_handle().tab_stop(true),
+            row_focus: std::collections::HashMap::new(),
+            cancel_focus: cx.focus_handle(),
             scroll: gpui::UniformListScrollHandle::new(),
             phase: Phase::List,
             busy: false,
@@ -423,6 +435,11 @@ impl Picker {
                     );
                 }
             }
+            Phase::Edit { branch, kind } => {
+                if let Some(request) = self.edit_request(branch, *kind, cx) {
+                    self.submit(request, cx);
+                }
+            }
             Phase::List => {}
         }
     }
@@ -443,6 +460,7 @@ impl Picker {
         &mut self,
         result: Result<(), String>,
         loaded: Option<&Loaded>,
+        needs_review: bool,
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
@@ -454,19 +472,20 @@ impl Picker {
         match result {
             Ok(()) => self.close(window, cx),
             Err(mut error) => {
-                self.stale = loaded.is_none_or(|loaded| {
-                    self.source.as_ref().is_some_and(|source| {
-                        BranchIdentity::from_snapshot(&loaded.snapshot)
-                            != BranchIdentity::from_snapshot(&source.snapshot)
-                    }) || !write::available(loaded)
-                        || loaded
-                            .snapshot
-                            .status
-                            .files
-                            .iter()
-                            .any(|file| file.record_type != RecordType::Ignored)
-                            != self.dirty
-                });
+                self.stale = needs_review
+                    || loaded.is_none_or(|loaded| {
+                        self.source.as_ref().is_some_and(|source| {
+                            BranchIdentity::from_snapshot(&loaded.snapshot)
+                                != BranchIdentity::from_snapshot(&source.snapshot)
+                        }) || !write::available(loaded)
+                            || loaded
+                                .snapshot
+                                .status
+                                .files
+                                .iter()
+                                .any(|file| file.record_type != RecordType::Ignored)
+                                != self.dirty
+                    });
 
                 if self.stale {
                     error.push_str(" Close and reopen Branches to review the current repository.");
@@ -488,6 +507,7 @@ impl Picker {
     fn back(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
         if !self.busy {
             self.phase = Phase::List;
+            self.highlighted = None;
             self.error = None;
             window.focus(&self.query.read(cx).focus_handle(cx), cx);
             cx.notify();
@@ -541,7 +561,19 @@ impl Picker {
                 self.highlighted = next;
 
                 if let Some(index) = next {
-                    window.focus(&self.list_focus, cx);
+                    let branch = &self
+                        .data
+                        .as_ref()
+                        .expect("highlighted branch has data")
+                        .branches[self.visible[index]];
+
+                    let focus = self
+                        .row_focus
+                        .entry(branch.full_name.clone())
+                        .or_insert_with(|| cx.focus_handle())
+                        .clone();
+
+                    window.focus(&focus, cx);
                     self.scroll
                         .scroll_to_item(index, gpui::ScrollStrategy::Nearest);
                 } else {
@@ -559,7 +591,22 @@ impl Picker {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(super) enum RefChange {
+    Rename { from: String, to: String },
+    Delete(String),
+}
+
+pub(super) struct WriteResult {
+    pub change: Option<RefChange>,
+    pub snapshots: Vec<(std::path::PathBuf, Result<Arc<Loaded>, String>)>,
+    pub needs_review: bool,
+}
+
 pub(super) struct Completed {
+    pub change: Option<RefChange>,
+    pub snapshots: Vec<(std::path::PathBuf, Result<Arc<Loaded>, String>)>,
+    pub needs_review: bool,
     pub root: std::path::PathBuf,
     pub loaded: Result<Arc<Loaded>, String>,
     pub result: Result<(), String>,

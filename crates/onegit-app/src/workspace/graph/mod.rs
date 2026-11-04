@@ -287,6 +287,26 @@ impl Graph {
         cx.notify();
     }
 
+    pub(in crate::workspace) fn branch_changed(
+        &mut self,
+        change: &super::branches::RefChange,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let (from, to) = match change {
+            super::branches::RefChange::Rename { from, to } => (from, Some(to)),
+            super::branches::RefChange::Delete(from) => (from, None),
+        };
+
+        for reference in [&mut self.reference, &mut self.refs_cursor] {
+            if reference.as_ref() == Some(from) {
+                *reference = to.cloned();
+            }
+        }
+
+        self.dirty = true;
+        cx.notify();
+    }
+
     pub fn activate(&mut self, cx: &mut gpui::Context<Self>) {
         self.activated = true;
 

@@ -1248,3 +1248,82 @@ All shared-fixture confirmations were cancelled. HEAD remains
 Accepted writes and rejection paths ran only in disposable automated fixtures.
 The final signed app starts, restores its History selection and runs with no
 confirmation open. CI and native Windows/Linux execution were not run.
+
+
+## Local branch rename and deletion (2026-11-04)
+
+Source behavior comes from workspace-menu.tsx, repository-branches.ts and their
+workspace-menu.component/repository-branches.integration suites. Local branch
+row context actions map to workspace/branches/edit.rs and the existing attached
+picker. Right-click, macOS Control-click and Shift+F10 use the shared ContextMenu.
+The 288 by 150 form, prefilled 30-pixel input, copy, small actions and local-only
+guidance follow the original. Height and opacity use the picker's existing
+160ms gpui-ce-motion transitions, honor reduced motion and stop frames at rest.
+
+Review captures the exact source branch/HEAD and target ref/OID. The existing
+onegit-git reviewed branch API serializes revalidation and uses non-forcing
+branch -m / branch -d. Renaming the current branch is supported. An occupied
+branch cannot be deleted, and one checked out in another worktree cannot be
+renamed. Dirty work, active operations, collisions, unmerged deletion and stale
+tips are refused. Names and errors remain visible after failure; stale or uncertain
+reviews require reopening rather than replaying. Invalid-name validation remains
+editable. Remote refs and branch publication are unchanged.
+
+The window owns writes through completion and all related worktree reads.
+Duplicate and linked tabs retain drafts, selected commit/file, diff modes,
+filters, pane sizes and viewports. Acknowledged renames remap Graph reference
+filters and cursors before refreshing, so saved sessions restore the new scope.
+Deletion clears only a removed scope, retaining immutable selected commit detail.
+An acknowledged rename followed by a failed peer refresh still carries its ref
+mapping and blocks further writes until a successful repository refresh.
+
+Test mapping: the original two branch suites pass all 103 cases. Existing
+onegit-git branches tests cover current/other-worktree restrictions, exact target
+review and ordinary rename/deletion. New backend characterization covers
+unmerged, dirty, cancelled and moved-source rejection. Native branch tests drive
+actual context menu events, rename confirmation, deletion cancellation, retained
+failed intent, duplicate-tab refresh and keyboard access. A linked-worktree
+session test checks drafts, ref scope, selected commit/file, split mode and pixel
+offsets across rename and restart. A Graph deletion test preserves selected
+immutable details; a broken peer fixture retains acknowledged rename metadata.
+
+Deliberate differences: deletion initially focuses Cancel rather than the
+original's read-only field. Stale/uncertain reviews remain disabled until reopened.
+The Rust workspace is unpublished, so this task requires no changeset or version
+change. No dependencies were added.
+
+
+### Branch edit verification status
+
+The workspace/all-target/all-feature suite passes 689 tests across 50 suites.
+The subsequently added occupied-branch context-menu regression also passes.
+All 12 doctests pass. The final native build, strict workspace Clippy, warnings-
+denied rustdoc, formatting, Git whitespace and logical spacing for all workspace
+targets plus Windows/Linux Git code pass. The original branch suites pass 103
+tests. No CI or native Windows/Linux run was performed in this task.
+
+Compared successful full-size original and corrected signed Rust Rename and
+Delete forms on diff-parity-o_cgtiu3, reviewing preview at
+686a55437e341d8a3080c439f88b54b89feb0c55 while HEAD is codex/rewrite-parity at
+197033c5c8243ad23c22c8a65848d0d8121983c8. Both apps selected History's Baseline
+diff preview and docs/README.md, showing the same three added lines.
+
+The first live Rust capture exposed clipped two-line guidance and actions eight
+pixels too high. Removing the edit form's extra footer bottom padding fixes both
+within the original 288 by 150 geometry. A bounds regression checks that guidance
+fits above the footer and the actions end four pixels inside the attached surface.
+All 28 affected branch tests pass after the correction, as do final strict Clippy,
+rustfmt, Git whitespace and workspace/Windows/Linux logical-spacing checks.
+
+Corrected full-window captures confirm matching form position, dimensions,
+heading, name field, guidance wrapping, padding and action placement. Rust retains
+its visible focused-input border and initially focuses Cancel for deletion.
+The compared app windows have different overall sizes/tab counts; this verifies
+matching branch review surfaces and repository selections, not whole-window
+pixel identity. Both reviews were cancelled and the pickers dismissed.
+The corrected signed development app is running with its restored History
+selection and no confirmation open.
+
+No Rename/Delete confirmation was accepted in the shared comparison fixture.
+Its original branch/tag refs remain intact and its working-tree status is clean.
+Accepted branch edits ran only in disposable automated test repositories.

@@ -516,3 +516,125 @@ fn restart_restores_stash_navigation_and_drafts_without_restoring_pending_action
     close(&mut next, restored);
     assert_eq!(contents(&f.root), before);
 }
+
+#[test]
+fn branch_rename_refreshes_linked_tabs_and_restores_graph_scopes_drafts_and_navigation_after_restart()
+ {
+    use crate::workspace::branches;
+    use onegit_git::{BranchAction, BranchRequest};
+
+    let f = Fixture::new();
+
+    f.write("a.txt", "base\n");
+    f.commit();
+    let source = f.load();
+    let oid = source.snapshot.status.head.oid.clone().unwrap();
+    let linked = f.directory.path().join("linked-rename");
+
+    f.git(&["worktree", "add", "-b", "linked", linked.to_str().unwrap()]);
+    let store_dir = tempfile::tempdir().unwrap();
+    let path = store_dir.path().join("rename-session.json");
+    let (mut cx, view) = setup(&f);
+
+    enable(view, &mut cx, &path);
+    let first = open(&mut cx, view, &f.root);
+    let second = open(&mut cx, view, &f.root);
+    let third = open(&mut cx, view, &linked);
+
+    view.update(&mut cx, |_, window, cx| {
+        for (tab, draft) in [
+            (&first, "Origin draft"),
+            (&second, "Duplicate draft"),
+            (&third, "Linked draft"),
+        ] {
+            tab.update(cx, |tab, cx| {
+                tab.summary
+                    .update(cx, |input, cx| input.set_text(draft, cx));
+                let mut graph = tab.graph.read(cx).session(cx);
+
+                graph.reference = Some("refs/heads/main".into());
+                graph.selected = true;
+                graph.details.commit = Some(oid.clone());
+                graph.details.file = Some(b"a.txt".to_vec());
+                graph.details.split_diff = true;
+                tab.graph
+                    .update(cx, |view, cx| view.restore(&graph, window, cx));
+                tab.change_section(&"graph".into(), cx);
+            });
+        }
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    let before = view
+        .update(&mut cx, |workspace, _, cx| workspace.capture_session(cx))
+        .unwrap();
+
+    view.update(&mut cx, |workspace, window, cx| {
+        let tab = workspace.tabs[0].id;
+
+        workspace.submit_branch(
+            &branches::Submit {
+                tab,
+                request: BranchRequest::new(
+                    BranchAction::Rename {
+                        name: "main".into(),
+                        new_name: "renamed-main".into(),
+                        expected_target: oid.clone(),
+                    },
+                    &source.snapshot,
+                ),
+            },
+            window,
+            cx,
+        );
+    })
+    .unwrap();
+    draw(&mut cx, view);
+
+    let after = view
+        .update(&mut cx, |workspace, _, cx| {
+            for (index, tab) in workspace.tabs.iter().enumerate() {
+                let view = tab.workspace.read(cx);
+
+                let RepositoryState::Ready(source) = &view.state else {
+                    panic!("ready branch tab")
+                };
+
+                assert_eq!(
+                    source.snapshot.status.head.branch.as_deref(),
+                    Some(if index == 2 { "linked" } else { "renamed-main" })
+                );
+                assert!(!view.refresh_blocked);
+            }
+
+            workspace.capture_session(cx)
+        })
+        .unwrap();
+
+    for (old, new) in before.tabs.iter().zip(&after.tabs) {
+        assert_eq!(new.summary, old.summary);
+        assert_eq!(new.description, old.description);
+        let old = old.graph.as_ref().unwrap();
+        let new = new.graph.as_ref().unwrap();
+
+        assert_eq!(new.reference.as_deref(), Some("refs/heads/renamed-main"));
+        assert_eq!(new.details.commit, old.details.commit);
+        assert_eq!(new.details.file, old.details.file);
+        assert_eq!(new.details.split_diff, old.details.split_diff);
+        assert_eq!(new.offset, old.offset);
+        assert_eq!(new.horizontal, old.horizontal);
+    }
+
+    close(&mut cx, view);
+    assert_eq!(Store::load(&path).unwrap(), Some(after.clone()));
+    let (mut restored_cx, restored) = restart(&f, &path);
+
+    let restored_state = restored
+        .update(&mut restored_cx, |workspace, _, cx| {
+            workspace.capture_session(cx)
+        })
+        .unwrap();
+
+    assert_eq!(restored_state, after);
+    close(&mut restored_cx, restored);
+}

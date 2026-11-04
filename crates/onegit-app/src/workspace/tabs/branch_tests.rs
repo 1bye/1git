@@ -659,3 +659,339 @@ fn creation_from_a_clean_unborn_repository_updates_every_tab_without_creating_a_
         "creating the unborn branch must not create a commit"
     );
 }
+
+fn branch_context(
+    cx: &mut gpui::TestAppContext,
+    view: gpui::WindowHandle<Workspace>,
+    picker: &gpui::Entity<Picker>,
+    name: &str,
+    delete: bool,
+) {
+    search(cx, view, picker, name);
+    let position = gpui::VisualTestContext::from_window(view.into(), cx)
+        .debug_bounds("branch-row-0")
+        .unwrap()
+        .center();
+
+    cx.update_window(view.into(), |_, window, cx| {
+        window.dispatch_event(
+            gpui::MouseDownEvent {
+                button: gpui::MouseButton::Right,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+                first_mouse: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        window.dispatch_event(
+            gpui::MouseUpEvent {
+                button: gpui::MouseButton::Right,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+            }
+            .to_platform_input(),
+            cx,
+        );
+    })
+    .unwrap();
+    draw(cx, view);
+
+    if delete {
+        key(cx, view, "down");
+    }
+
+    key(cx, view, "enter");
+    settle(cx, view);
+}
+
+#[test]
+fn renames_through_native_context_menu_only_after_confirming_and_updates_duplicate_tabs() {
+    let f = fixture();
+    let (mut cx, view) = setup(&f);
+    let first = open(&mut cx, view, &f.root);
+    let second = open(&mut cx, view, &f.root);
+
+    for (tab, draft) in [(&first, "First draft"), (&second, "Second draft")] {
+        tab.update(&mut cx, |tab, cx| {
+            tab.summary
+                .update(cx, |input, cx| input.set_text(draft, cx));
+            tab.change_section(&"history".into(), cx);
+        });
+    }
+
+    draw(&mut cx, view);
+    let p = picker(&mut cx, view);
+    let mut before = contents(&f.root);
+
+    before.retain(|path, _| !path.starts_with(".git/"));
+    let index = fs::read(f.root.join(".git/index")).unwrap();
+
+    branch_context(&mut cx, view, &p, "main", false);
+    assert_eq!(head(&first, &cx), "main", "opening review must not rename");
+    p.read_with(&cx, |picker, cx| {
+        assert_eq!(picker.name.read(cx).text(), "main")
+    });
+    p.update(&mut cx, |picker, cx| {
+        picker
+            .name
+            .update(cx, |input, cx| input.set_text("renamed", cx))
+    });
+    confirm(&mut cx, view, &p);
+
+    for (tab, draft) in [(&first, "First draft"), (&second, "Second draft")] {
+        assert_eq!(head(tab, &cx), "renamed");
+        tab.read_with(&cx, |tab, cx| {
+            assert_eq!(tab.summary.read(cx).text(), draft);
+            assert_eq!(tab.section, Section::History);
+        });
+    }
+
+    let mut after = contents(&f.root);
+
+    after.retain(|path, _| !path.starts_with(".git/"));
+    assert_eq!(after, before);
+    assert_eq!(fs::read(f.root.join(".git/index")).unwrap(), index);
+}
+
+#[test]
+fn confirms_deletion_and_supports_cancelling_without_a_branch_write() {
+    let f = fixture();
+    let (mut cx, view) = setup(&f);
+    let tab = open(&mut cx, view, &f.root);
+    let p = picker(&mut cx, view);
+
+    branch_context(&mut cx, view, &p, "feature/ui", true);
+    assert!(!f.git(&["branch", "--list", "feature/ui"]).is_empty());
+    key(&mut cx, view, "escape");
+    assert!(p.read_with(&cx, |picker, _| matches!(picker.phase, Phase::List)));
+    assert!(!f.git(&["branch", "--list", "feature/ui"]).is_empty());
+    branch_context(&mut cx, view, &p, "feature/ui", true);
+    confirm(&mut cx, view, &p);
+    assert!(f.git(&["branch", "--list", "feature/ui"]).is_empty());
+    assert_eq!(head(&tab, &cx), "main");
+}
+
+#[test]
+fn edited_branch_stale_tip_and_unmerged_failure_preserve_draft_and_require_fresh_consent() {
+    let f = fixture();
+
+    f.git(&["switch", "-c", "unmerged"]);
+    f.write("new.txt", "new\n");
+    f.commit();
+    f.git(&["switch", "main"]);
+    let (mut cx, view) = setup(&f);
+    let tab = open(&mut cx, view, &f.root);
+
+    tab.update(&mut cx, |tab, cx| {
+        tab.summary
+            .update(cx, |input, cx| input.set_text("Keep this draft", cx))
+    });
+    let p = picker(&mut cx, view);
+
+    branch_context(&mut cx, view, &p, "unmerged", true);
+    confirm(&mut cx, view, &p);
+    assert!(!f.git(&["branch", "--list", "unmerged"]).is_empty());
+    p.read_with(&cx, |picker, cx| {
+        assert!(picker.error.is_some());
+        assert!(picker.dialog.read(cx).is_open());
+        assert_eq!(picker.name.read(cx).text(), "unmerged");
+        assert!(
+            picker
+                .error
+                .as_ref()
+                .unwrap()
+                .contains("Close and reopen Branches")
+        );
+    });
+    confirm(&mut cx, view, &p);
+    tab.read_with(&cx, |tab, cx| {
+        assert_eq!(tab.summary.read(cx).text(), "Keep this draft");
+        assert!(tab.write_job.is_none());
+    });
+    key(&mut cx, view, "escape");
+    key(&mut cx, view, "escape");
+    view.update(&mut cx, |_, _, cx| {
+        tab.update(cx, |tab, cx| tab.refresh(cx))
+    })
+    .unwrap();
+    settle(&mut cx, view);
+    let p = picker(&mut cx, view);
+
+    branch_context(&mut cx, view, &p, "feature/ui", false);
+    f.git(&["update-ref", "refs/heads/feature/ui", "unmerged"]);
+    p.update(&mut cx, |picker, cx| {
+        picker
+            .name
+            .update(cx, |input, cx| input.set_text("must-not-create", cx))
+    });
+    confirm(&mut cx, view, &p);
+    assert!(f.git(&["branch", "--list", "must-not-create"]).is_empty());
+    assert!(!f.git(&["branch", "--list", "feature/ui"]).is_empty());
+    assert!(p.read_with(&cx, |picker, _| {
+        picker
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("Close and reopen Branches")
+    }));
+    tab.read_with(&cx, |tab, cx| {
+        assert_eq!(tab.summary.read(cx).text(), "Keep this draft")
+    });
+}
+
+#[test]
+fn acknowledged_rename_keeps_navigation_change_and_blocks_uncertain_peer_refresh_without_replaying()
+{
+    use crate::workspace::write;
+
+    let f = fixture();
+    let linked = f.directory.path().join("broken-linked");
+
+    f.git(&["worktree", "add", "-b", "linked", linked.to_str().unwrap()]);
+    let source = f.load();
+
+    let peer =
+        std::sync::Arc::new(onegit_git::Repository::open(&linked, f.process(), None).unwrap());
+
+    fs::remove_file(linked.join(".git")).unwrap();
+    let request = onegit_git::BranchRequest::new(
+        onegit_git::BranchAction::Rename {
+            name: "main".into(),
+            new_name: "renamed".into(),
+            expected_target: source.snapshot.status.head.oid.clone().unwrap(),
+        },
+        &source.snapshot,
+    );
+
+    let outcome = write::run(
+        source,
+        write::Operation::Branch {
+            request,
+            peers: vec![peer],
+        },
+    );
+
+    assert!(outcome.result.is_err());
+    let event = outcome.branch_action.unwrap();
+
+    assert!(event.needs_review);
+    assert!(matches!(
+        event.change,
+        Some(crate::workspace::branches::RefChange::Rename { .. })
+    ));
+    assert_eq!(event.snapshots.len(), 2);
+    assert_eq!(
+        f.load().snapshot.status.head.branch.as_deref(),
+        Some("renamed")
+    );
+}
+
+#[test]
+fn keyboard_branch_actions_fit_attached_form_settle_motion_and_focus_cancel_for_deletion() {
+    let f = fixture();
+    let (mut cx, view) = setup(&f);
+
+    open(&mut cx, view, &f.root);
+    let p = picker(&mut cx, view);
+
+    search(&mut cx, view, &p, "feature/ui");
+    key(&mut cx, view, "down");
+    key(&mut cx, view, "shift-f10");
+    key(&mut cx, view, "enter");
+    settle(&mut cx, view);
+    assert!(p.read_with(&cx, |picker, _| matches!(
+        picker.phase,
+        Phase::Edit {
+            kind: crate::workspace::branches::EditKind::Rename,
+            ..
+        }
+    )));
+    let body = gpui::VisualTestContext::from_window(view.into(), &cx)
+        .debug_bounds("workspace-branch-body")
+        .unwrap();
+
+    assert_eq!(body.size, gpui::size(px(288.), px(150.)));
+    let guidance = gpui::VisualTestContext::from_window(view.into(), &cx)
+        .debug_bounds("branch-edit-guidance")
+        .unwrap();
+
+    let actions = gpui::VisualTestContext::from_window(view.into(), &cx)
+        .debug_bounds("branch-form-actions")
+        .unwrap();
+
+    assert!(
+        guidance.bottom() <= actions.top(),
+        "guidance must not be clipped by the footer"
+    );
+    assert_eq!(actions.bottom(), body.bottom() - px(4.));
+    cx.executor().advance_clock(Duration::from_secs(1));
+    draw(&mut cx, view);
+    cx.update_window(view.into(), |_, window, cx| window.simulate_next_frame(cx))
+        .unwrap();
+    draw(&mut cx, view);
+    assert_eq!(
+        cx.update_window(view.into(), |_, window, cx| window.simulate_next_frame(cx))
+            .unwrap(),
+        0
+    );
+    key(&mut cx, view, "escape");
+    cx.update(|cx| cx.set_reduce_motion(true));
+    settle(&mut cx, view);
+    key(&mut cx, view, "down");
+    key(&mut cx, view, "shift-f10");
+    key(&mut cx, view, "down");
+    key(&mut cx, view, "enter");
+    draw(&mut cx, view);
+    assert!(p.read_with(&cx, |picker, _| matches!(
+        picker.phase,
+        Phase::Edit {
+            kind: crate::workspace::branches::EditKind::Delete,
+            ..
+        }
+    )));
+    let body = gpui::VisualTestContext::from_window(view.into(), &cx)
+        .debug_bounds("workspace-branch-body")
+        .unwrap();
+
+    assert_eq!(body.size.height, px(150.));
+    key(&mut cx, view, "enter");
+    assert!(p.read_with(&cx, |picker, _| matches!(picker.phase, Phase::List)));
+    assert!(!f.git(&["branch", "--list", "feature/ui"]).is_empty());
+}
+
+#[test]
+fn branch_context_actions_disable_checked_out_deletion_and_other_worktree_edits() {
+    let f = fixture();
+    let linked = f.directory.path().join("occupied-branch-menu");
+
+    f.git(&["worktree", "add", linked.to_str().unwrap(), "feature/ui"]);
+    let (mut cx, view) = setup(&f);
+    let tab = open(&mut cx, view, &f.root);
+    let p = picker(&mut cx, view);
+
+    // Delete is disabled for the current branch; keyboard navigation can only review Rename.
+    branch_context(&mut cx, view, &p, "main", true);
+    assert!(p.read_with(&cx, |picker, _| matches!(
+        picker.phase,
+        Phase::Edit {
+            kind: crate::workspace::branches::EditKind::Rename,
+            ..
+        }
+    )));
+    key(&mut cx, view, "escape");
+    settle(&mut cx, view);
+    branch_context(&mut cx, view, &p, "feature/ui", false);
+    assert!(p.read_with(&cx, |picker, _| matches!(picker.phase, Phase::List)));
+    assert!(tab.read_with(&cx, |tab, _| tab.write_job.is_none()));
+    assert_eq!(head(&tab, &cx), "main");
+    assert_eq!(
+        String::from_utf8(f.git(&["branch", "--list", "main", "feature/ui"]))
+            .unwrap()
+            .lines()
+            .count(),
+        2
+    );
+}

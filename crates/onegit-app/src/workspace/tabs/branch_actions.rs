@@ -1,4 +1,4 @@
-//! Branch results update every tab for the exact worktree without disposing its retained state.
+//! Branch results update related worktree tabs without disposing their retained state.
 use super::{RepositoryState, Workspace, gpui};
 use crate::workspace::{branches, write};
 
@@ -57,9 +57,42 @@ impl Workspace {
                 _ => None,
             };
 
-            if root.is_some_and(|root| !self.busy(&root, cx)) {
+            if root.as_ref().is_some_and(|root| {
+                !self.busy(root, cx)
+                    && self
+                        .related(root, cx)
+                        .iter()
+                        .all(|tab| !tab.read(cx).refresh_blocked)
+            }) {
+                let peers = self
+                    .related(root.as_ref().expect("available branch source"), cx)
+                    .iter()
+                    .filter_map(|tab| match &tab.read(cx).state {
+                        RepositoryState::Ready(source) => Some((
+                            source.snapshot.repository.root.clone(),
+                            source.repository.clone(),
+                        )),
+                        _ => None,
+                    })
+                    .collect::<std::collections::HashMap<_, _>>();
+
+                for root in peers.keys() {
+                    if let Some(monitor) = self.monitors.get_mut(root) {
+                        monitor.read = None;
+                        monitor.timer = None;
+                        monitor.queue.invalidate(cx.background_executor().now());
+                    }
+                }
+
                 target.update(cx, |view, cx| {
-                    view.start_write(write::Operation::Branch(event.request.clone()), window, cx)
+                    view.start_write(
+                        write::Operation::Branch {
+                            request: event.request.clone(),
+                            peers: peers.into_values().collect(),
+                        },
+                        window,
+                        cx,
+                    )
                 });
 
                 target.read(cx).write_job.is_some()
@@ -71,7 +104,7 @@ impl Workspace {
         };
 
         if !accepted {
-            self.branches.update(cx,|picker,cx|picker.finish(Err("The repository is busy or unavailable. Finish the current operation, then reopen Branches.".into()),None,window,cx));
+            self.branches.update(cx,|picker,cx|picker.finish(Err("The repository is busy or unavailable. Finish the current operation, then reopen Branches.".into()),None,false,window,cx));
         }
 
         self.reconcile(cx);
@@ -85,57 +118,44 @@ impl Workspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
-        match &event.loaded {
-            Ok(loaded) => {
-                let origin = self
-                    .tabs
-                    .iter()
-                    .find(|tab| tab.id == id)
-                    .map(|tab| tab.workspace.entity_id());
-
-                for tab in self.matching(&event.root, cx) {
-                    if Some(tab.entity_id()) == origin {
-                        continue;
-                    }
-
-                    tab.update(cx, |view, cx| {
-                        view.load_job = None;
-
-                        if matches!(view.state, RepositoryState::Ready(_)) {
-                            view.apply_automatic(loaded.clone(), cx);
-                        } else {
-                            view.apply_loaded(loaded.clone(), view.selected.clone(), cx);
-                            cx.notify();
-                        }
-                    });
-                }
-
-                self.home
-                    .update(cx, |home, cx| home.refresh_overview(&loaded.snapshot, cx));
-                let linked = self
-                    .related(&event.root, cx)
-                    .iter()
-                    .filter_map(|tab| match &tab.read(cx).state {
-                        RepositoryState::Ready(source)
-                            if source.snapshot.repository.root != event.root =>
-                        {
-                            Some(source.snapshot.repository.root.clone())
-                        }
-                        _ => None,
-                    })
-                    .collect::<std::collections::HashSet<_>>();
-
-                for root in linked {
-                    self.invalidate(&root, cx);
-                }
+        if let Some(change) = &event.change {
+            for tab in self.related(&event.root, cx) {
+                tab.update(cx, |view, cx| {
+                    view.graph
+                        .update(cx, |graph, cx| graph.branch_changed(change, cx))
+                });
             }
-            Err(error) => {
-                self.report(
-                    &event.root,
-                    &format!("Could not refresh after the branch operation: {error}"),
-                    cx,
-                );
-                self.invalidate(&event.root, cx);
+        }
+
+        self.refresh_written_tabs(id, &event.snapshots, cx);
+        // Graph's create-at action has no peer list; invalidate any linked worktrees as before.
+        let linked = self
+            .related(&event.root, cx)
+            .iter()
+            .filter_map(|tab| match &tab.read(cx).state {
+                RepositoryState::Ready(source)
+                    if !event
+                        .snapshots
+                        .iter()
+                        .any(|(root, _)| root == &source.snapshot.repository.root) =>
+                {
+                    Some(source.snapshot.repository.root.clone())
+                }
+                _ => None,
+            })
+            .collect::<std::collections::HashSet<_>>();
+
+        for root in linked {
+            self.invalidate(&root, cx);
+        }
+
+        if event.needs_review {
+            for tab in self.related(&event.root, cx) {
+                tab.update(cx,|view,cx|{
+                    view.refresh_blocked=true;
+                    view.refresh_error=Some("The branch action needs review. Inspect Branches and refresh before writing again.".into());
+                    cx.notify();
+                });
             }
         }
 
@@ -144,6 +164,7 @@ impl Workspace {
                 picker.finish(
                     event.result.clone(),
                     event.loaded.as_ref().ok().map(|loaded| loaded.as_ref()),
+                    event.needs_review,
                     window,
                     cx,
                 );

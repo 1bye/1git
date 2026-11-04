@@ -1265,3 +1265,86 @@ exec git "$@""#).with_environment([
             .any(|file| file.index_status == FileStatus::Added)
     );
 }
+
+#[test]
+fn reviewed_branch_edits_reject_unmerged_tips_dirty_work_and_cancelled_or_stale_source() {
+    let fixture = fixture();
+    let repository = open(&fixture);
+
+    fixture.git(&["switch", "-c", "unmerged"]);
+    fixture.write("unmerged.txt", "retain\n");
+    fixture.commit("Unmerged");
+    let target = repository
+        .snapshot(false, None)
+        .unwrap()
+        .status
+        .head
+        .oid
+        .unwrap();
+
+    fixture.git(&["switch", "main"]);
+    let delete = request(
+        &repository,
+        BranchAction::Delete {
+            name: "unmerged".into(),
+            expected_target: target.clone(),
+        },
+    );
+
+    let before = files_under(&fixture.root);
+    let index = fs::read(fixture.root.join(".git/index")).unwrap();
+
+    assert!(repository.change_branch(&delete, None).is_err());
+    assert_eq!(
+        repository
+            .branches(None)
+            .unwrap()
+            .branches
+            .iter()
+            .find(|b| b.name == "unmerged")
+            .unwrap()
+            .oid,
+        target
+    );
+    assert_eq!(files_under(&fixture.root), before);
+    assert_eq!(fs::read(fixture.root.join(".git/index")).unwrap(), index);
+    let rename = request(
+        &repository,
+        BranchAction::Rename {
+            name: "feature/ui".into(),
+            new_name: "safe".into(),
+            expected_target: delete.expected.oid.clone().unwrap(),
+        },
+    );
+
+    let cancel = onegit_git::Cancellation::default();
+
+    cancel.cancel();
+    assert_eq!(
+        repository
+            .change_branch(&rename, Some(&cancel))
+            .unwrap_err()
+            .failure
+            .phase,
+        WritePhase::BeforeCommand
+    );
+    fixture.write("dirty", "keep");
+    assert_eq!(
+        repository
+            .change_branch(&rename, None)
+            .unwrap_err()
+            .failure
+            .phase,
+        WritePhase::BeforeCommand
+    );
+    fixture.git(&["add", "dirty"]);
+    fixture.commit("Moved HEAD");
+    assert_eq!(
+        repository
+            .change_branch(&rename, None)
+            .unwrap_err()
+            .failure
+            .phase,
+        WritePhase::BeforeCommand
+    );
+}

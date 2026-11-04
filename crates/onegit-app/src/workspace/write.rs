@@ -21,7 +21,10 @@ pub(super) enum Operation {
         peers: Vec<Arc<onegit_git::Repository>>,
     },
     File(ChangedFile),
-    Branch(onegit_git::BranchRequest),
+    Branch {
+        request: onegit_git::BranchRequest,
+        peers: Vec<Arc<onegit_git::Repository>>,
+    },
     GraphBranch(super::graph::Submit),
     Stash {
         request: onegit_git::StashRequest,
@@ -62,7 +65,7 @@ impl Operation {
             Self::StageAll => "Staging all changes…",
             Self::UnstageAll => "Unstaging all changes…",
             Self::Commit { .. } => "Creating commit…",
-            Self::Branch(_) | Self::GraphBranch(_) => "Updating branch…",
+            Self::Branch { .. } | Self::GraphBranch(_) => "Updating branch…",
             Self::Stash { .. } => "Updating saved work…",
             Self::Discard {
                 action: super::discard::Action::Restore(_),
@@ -83,7 +86,7 @@ impl Operation {
             Self::StageAll => "Changes staged",
             Self::UnstageAll => "Changes unstaged",
             Self::Commit { .. } => "Commit created",
-            Self::Branch(_) | Self::GraphBranch(_) => "Branch updated",
+            Self::Branch { .. } | Self::GraphBranch(_) => "Branch updated",
             Self::Stash { .. } => "Stash updated",
             Self::Discard { .. } => "Files updated",
         }
@@ -97,7 +100,7 @@ pub(super) struct Outcome {
     pub replay_completion: Option<super::replay::Completed>,
     pub staging_completion: Option<super::staging::Completed>,
     pub committed: bool,
-    pub branch_action: bool,
+    pub branch_action: Option<super::branches::WriteResult>,
     pub stash_completion: Option<super::stashes::Completed>,
     pub conflict_completion: Option<super::conflicts::Completed>,
     pub discard_completion: Option<super::discard::Completed>,
@@ -152,11 +155,11 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             .create_branch_at_commit(&request.name, &request.oid, None)
             .map_err(Into::into);
 
-        return branch_outcome(loaded, result);
+        return branch_outcome(loaded, result, None, &[]);
     }
 
-    if let Operation::Branch(request) = &operation {
-        return run_branch(loaded, request);
+    if let Operation::Branch { request, peers } = &operation {
+        return run_branch(loaded, request, peers);
     }
 
     let repository = &loaded.repository;
@@ -229,7 +232,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             Operation::Stash { .. } => {
                 unreachable!("stash operations use their reviewed write guard")
             }
-            Operation::Branch(_) | Operation::GraphBranch(_) => {
+            Operation::Branch { .. } | Operation::GraphBranch(_) => {
                 unreachable!("branch operations use their reviewed write guard")
             }
             Operation::Conflict { .. } => {
@@ -276,7 +279,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             replay_completion: None,
             recovery_completion: None,
             committed,
-            branch_action: false,
+            branch_action: None,
             stash_completion: None,
             discard_completion: None,
             conflict_completion: None,
@@ -307,7 +310,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                 replay_completion: None,
                 recovery_completion: None,
                 committed: false,
-                branch_action: false,
+                branch_action: None,
                 stash_completion: None,
                 discard_completion: None,
                 conflict_completion: None,
@@ -316,21 +319,60 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
     }
 }
 
-fn run_branch(loaded: Arc<Loaded>, request: &onegit_git::BranchRequest) -> Outcome {
+fn run_branch(
+    loaded: Arc<Loaded>,
+    request: &onegit_git::BranchRequest,
+    peers: &[Arc<onegit_git::Repository>],
+) -> Outcome {
     let repository = &loaded.repository;
 
     let result = repository.change_branch(request, None);
 
-    branch_outcome(loaded, result)
+    branch_outcome(loaded, result, Some(&request.action), peers)
 }
 
 fn branch_outcome(
     loaded: Arc<Loaded>,
     result: Result<onegit_git::BranchMutation, onegit_git::BranchError>,
+    action: Option<&onegit_git::BranchAction>,
+    peers: &[Arc<onegit_git::Repository>],
 ) -> Outcome {
     let repository = &loaded.repository;
 
-    match result {
+    let editing = matches!(
+        action,
+        Some(onegit_git::BranchAction::Rename { .. } | onegit_git::BranchAction::Delete { .. })
+    );
+
+    let mut needs_review = editing
+        && result.as_ref().err().is_some_and(|error| {
+            error.failure.phase != WritePhase::BeforeCommand
+                || matches!(
+                    error.failure.error,
+                    onegit_git::RepositoryError::Conflict(_)
+                )
+        });
+
+    let change = if result.is_ok() {
+        match action {
+            Some(onegit_git::BranchAction::Rename { name, new_name, .. }) => {
+                Some(super::branches::RefChange::Rename {
+                    from: format!("refs/heads/{name}"),
+                    to: format!("refs/heads/{new_name}"),
+                })
+            }
+            Some(onegit_git::BranchAction::Delete { name, .. }) => Some(
+                super::branches::RefChange::Delete(format!("refs/heads/{name}")),
+            ),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    let acknowledged = result.is_ok();
+
+    let mut outcome = match result {
         Ok(result) => {
             let detail = if let Some(saved) = &result.saved_changes {
                 format!(
@@ -349,7 +391,7 @@ fn branch_outcome(
                 replay_completion: None,
                 recovery_completion: None,
                 committed: false,
-                branch_action: true,
+                branch_action: None,
                 stash_completion: None,
                 discard_completion: None,
                 conflict_completion: None,
@@ -382,13 +424,44 @@ fn branch_outcome(
                 replay_completion: None,
                 recovery_completion: None,
                 committed: false,
-                branch_action: true,
+                branch_action: None,
                 stash_completion: None,
                 discard_completion: None,
                 conflict_completion: None,
             }
         }
+    };
+
+    let mut snapshots = vec![(repository.info().root.clone(), outcome.loaded.clone())];
+
+    for peer in peers {
+        if snapshots.iter().any(|(root, _)| root == &peer.info().root) {
+            continue;
+        }
+
+        let loaded = peer
+            .snapshot(false, None)
+            .map(|snapshot| read::from_snapshot(peer.clone(), snapshot))
+            .map_err(read::message);
+
+        snapshots.push((peer.info().root.clone(), loaded));
     }
+
+    let failed = snapshots.iter().any(|(_, loaded)| loaded.is_err());
+
+    needs_review |= editing && acknowledged && failed;
+
+    if acknowledged && failed {
+        outcome.result=Err("The branch was updated, but a related worktree could not be refreshed. Inspect Branches and refresh before writing again.".into());
+    }
+
+    outcome.branch_action = Some(super::branches::WriteResult {
+        change,
+        snapshots,
+        needs_review,
+    });
+
+    outcome
 }
 
 fn run_stash(
@@ -473,7 +546,7 @@ fn run_stash(
         replay_completion: None,
         recovery_completion: None,
         committed: false,
-        branch_action: false,
+        branch_action: None,
         discard_completion: None,
         conflict_completion: None,
         stash_completion: Some(super::stashes::Completed {
