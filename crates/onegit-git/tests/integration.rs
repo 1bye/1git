@@ -269,6 +269,27 @@ fn reviewed_integrations_preserve_target_worktree_and_rebase_recovery_ref() {
         ]);
         let result = repository.integrate_branch(&request, None).unwrap();
 
+        let prefix = match kind {
+            IntegrationKind::Merge => "merge",
+            IntegrationKind::SquashMerge => "squash-merge",
+            IntegrationKind::Rebase => "rebase",
+        };
+
+        let saved = text(
+            &fixture,
+            &[
+                "for-each-ref",
+                "--format=%(objectname)",
+                &format!("refs/1git/{prefix}/"),
+            ],
+        );
+
+        assert_eq!(
+            saved,
+            request.expected.oid.as_deref().unwrap(),
+            "retain the exact pre-integration tip for {kind:?}"
+        );
+
         assert_eq!(result.snapshot.operation, OperationState::Normal);
         assert_eq!(result.snapshot.status.head.branch.as_deref(), Some("main"));
         assert!(result.snapshot.status.files.is_empty());
@@ -1277,4 +1298,46 @@ fn reviewed_rebase_and_retained_recovery_tips_support_sha256_repositories() {
         ),
         request.expected.oid.unwrap()
     );
+}
+
+#[test]
+fn integration_errors_expose_durable_original_tip_and_rejection_has_no_recovery_ref() {
+    for kind in [
+        IntegrationKind::Merge,
+        IntegrationKind::Rebase,
+        IntegrationKind::SquashMerge,
+    ] {
+        let (fixture, repository) = fixture();
+
+        diverge(&fixture, true);
+        let request = review(&repository, kind);
+        let error = repository.integrate_branch(&request, None).unwrap_err();
+
+        assert_eq!(error.phase, WritePhase::Command);
+        let reference = error.recovery_ref.unwrap();
+
+        assert_eq!(
+            text(&fixture, &["rev-parse", &reference]),
+            request.expected.oid.as_deref().unwrap()
+        );
+        let reopened = Repository::open(&fixture.root, fixture.process(), None).unwrap();
+
+        reopened
+            .finish_operation(&paused(&reopened, FinishKind::Abort), None)
+            .unwrap();
+        assert_eq!(
+            text(&fixture, &["rev-parse", &reference]),
+            request.expected.oid.as_deref().unwrap()
+        );
+        let mut stale = request;
+
+        stale.expected_target = "0".repeat(40);
+        assert!(
+            reopened
+                .integrate_branch(&stale, None)
+                .unwrap_err()
+                .recovery_ref
+                .is_none()
+        );
+    }
 }

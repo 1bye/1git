@@ -35,6 +35,40 @@ pub struct IntegrationRequest {
     pub message: Option<String>,
 }
 
+/// Confirmed integration state and the durable pre-operation tip.
+#[derive(Clone, Debug)]
+pub struct IntegrationMutation {
+    /// Fresh local and remote-tracking branch metadata.
+    pub branches: crate::BranchCollection,
+    /// Fresh working-tree and operation state.
+    pub snapshot: Snapshot,
+    /// Persistent original tip, retained on success and after conflict recovery.
+    pub recovery_ref: String,
+}
+
+/// Integration failure with any recovery ref created before the failure.
+#[derive(Debug)]
+pub struct IntegrationError {
+    /// Whether the action was rejected, started, or completed before refresh failed.
+    pub phase: WritePhase,
+    /// Original Git, validation or filesystem failure.
+    pub error: RepositoryError,
+    /// Exact original-tip ref, when its creation was acknowledged.
+    pub recovery_ref: Option<String>,
+}
+
+impl std::fmt::Display for IntegrationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+impl std::error::Error for IntegrationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
+}
+
 fn conflict(message: &'static str) -> WriteError {
     failure(
         WritePhase::BeforeCommand,
@@ -110,15 +144,47 @@ impl Repository {
     }
 
     /// Integrate exact reviewed tips on a clean attached source branch. Never check
-    /// out/delete the target or force a ref. Rebase retains its original tip in
-    /// `refs/1git/rebase/<uuid>` and refuses known published or merge history.
+    /// out/delete the target or force a ref. Every mode retains its original tip in
+    /// `refs/1git/<mode>/<uuid>`. Rebase refuses known published or merge history.
     /// Squash retains the reviewed message in Git's SQUASH_MSG on conflict/hook
     /// failure. App writes stay coordinated through the fresh result read; arbitrary
     /// external Git/filesystem writes remain outside this queue's exclusion.
+    ///
+    /// # Errors
+    /// Rejects stale, dirty, detached, active or unavailable reviews before writing.
+    /// Rebase also rejects known published and merge history. After a backup is
+    /// created, failures include its exact ref and require inspection, never replay.
     pub fn integrate_branch(
         &self,
         request: &IntegrationRequest,
         cancellation: Option<&Cancellation>,
+    ) -> Result<IntegrationMutation, IntegrationError> {
+        let mut recovery_ref = None;
+
+        match self.integrate_reviewed(request, cancellation, &mut recovery_ref) {
+            Ok(result) => Ok(IntegrationMutation {
+                branches: result.branches,
+                snapshot: result.snapshot,
+                recovery_ref: recovery_ref
+                    .expect("successful integration retained its original tip"),
+            }),
+            Err(error) => Err(IntegrationError {
+                phase: if recovery_ref.is_some() && error.phase == WritePhase::BeforeCommand {
+                    WritePhase::Command
+                } else {
+                    error.phase
+                },
+                error: error.error,
+                recovery_ref,
+            }),
+        }
+    }
+
+    fn integrate_reviewed(
+        &self,
+        request: &IntegrationRequest,
+        cancellation: Option<&Cancellation>,
+        recovery_ref: &mut Option<String>,
     ) -> Result<BranchMutation, WriteError> {
         let _write = self.mutations.enter();
         let target = self.review_integration(request, cancellation)?;
@@ -188,20 +254,37 @@ impl Repository {
                     "This branch contains merge commits. Use Merge or an external Git tool to preserve that history.",
                 ));
             }
+        }
 
-            self.protect_ignored_integration(request, cancellation)?;
-            self.review_integration(request, cancellation)?;
-            let id = recovery_id().map_err(|error| failure(WritePhase::BeforeCommand, error))?;
+        self.protect_ignored_integration(request, cancellation)?;
+        self.review_integration(request, cancellation)?;
+        let id = recovery_id().map_err(|error| failure(WritePhase::BeforeCommand, error))?;
 
-            let transaction = format!(
-                "start\nverify refs/heads/{source_branch} {source_oid}\ncreate refs/1git/rebase/{id} {source_oid}\nprepare\ncommit\n"
-            );
+        let mode = match request.kind {
+            IntegrationKind::Merge => "merge",
+            IntegrationKind::Rebase => "rebase",
+            IntegrationKind::SquashMerge => "squash-merge",
+        };
 
-            self.integration_command(
-                ["update-ref", "-m", "1git: retain rebased branch", "--stdin"],
-                Some(transaction.as_bytes()),
-                cancellation,
-            )?;
+        let reference = format!("refs/1git/{mode}/{id}");
+
+        let transaction = format!(
+            "start\nverify refs/heads/{source_branch} {source_oid}\ncreate {reference} {source_oid}\nprepare\ncommit\n"
+        );
+
+        self.integration_command(
+            [
+                "update-ref",
+                "-m",
+                "1git: retain integrated branch",
+                "--stdin",
+            ],
+            Some(transaction.as_bytes()),
+            cancellation,
+        )?;
+        *recovery_ref = Some(reference);
+
+        if request.kind == IntegrationKind::Rebase {
             // A retained backup is itself a write. Any later failure requires
             // inspection; leave the durable ref and never automatically replay.
             self.integration_command(
@@ -221,8 +304,6 @@ impl Repository {
                 error
             })?;
         } else if request.kind == IntegrationKind::SquashMerge {
-            self.protect_ignored_integration(request, cancellation)?;
-            self.review_integration(request, cancellation)?;
             let merged = self.integration_command(
                 [
                     "merge",
@@ -278,8 +359,6 @@ impl Repository {
                 })?;
             }
         } else {
-            self.protect_ignored_integration(request, cancellation)?;
-            self.review_integration(request, cancellation)?;
             let message = format!("Merge branch '{}' into {source_branch}", target.name);
 
             self.integration_command(

@@ -10,6 +10,8 @@ mod discard_actions;
 mod discard_tests;
 #[cfg(all(test, feature = "test-support"))]
 mod graph_tests;
+#[cfg(all(test, feature = "test-support"))]
+mod integration_tests;
 mod motion;
 mod recovery_actions;
 #[cfg(all(test, feature = "test-support"))]

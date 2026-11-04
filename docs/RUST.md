@@ -144,8 +144,36 @@ Related tabs and linked worktrees refresh together, retaining independent drafts
 selection and scroll. Graph filters follow renamed refs, including saved workspace
 sessions; deleting a scoped branch clears its filter while retaining immutable
 commit details. Failed or stale reviews keep their entered name, require renewed
-consent, and never replay automatically. Branch integration and worktree
-management are separate UI work.
+consent, and never replay automatically. Worktree management is separate UI work.
+
+Choose **Merge or rebase…** from Branches to integrate another locally known
+branch into the current branch. The attached review offers Merge, Squash merge
+and Rebase, branch search and a target selection. Selecting a target does not
+write Git; the bottom action is the explicit confirmation. Search clears target
+consent. Targets in other worktrees are allowed because their working files and
+branch tips stay unchanged. Squash merge requires a first-line commit summary
+and leaves the ordinary commit draft alone.
+
+Integration requires a clean, committed, attached branch in a normal Git state.
+The worker rechecks the reviewed root, source branch/HEAD and exact target ref/OID.
+Rebase refuses commits reachable from known remote-tracking branches and refuses
+merge history; fetch first when another tool may have published commits.
+No mode force-switches, overwrites ignored destination files or silently stashes.
+
+Each accepted integration retains its original tip under
+`refs/1git/merge/<id>`, `refs/1git/squash-merge/<id>` or `refs/1git/rebase/<id>`.
+Feedback names the exact recovery ref, including failures after backup creation.
+Inspect it with git log or git show; refs remain until explicitly removed.
+Cancelled or rejected reviews do not create backup refs.
+
+Related tabs and linked worktrees refresh after success and failure while
+retaining their own drafts, panes, immutable historical selection and diff scroll.
+If Git pauses, the origin opens Changes with the existing conflict previews,
+resolution, Continue and confirmed Abort actions. Recovery refs survive either
+choice and restart. Unknown outcomes require review and a successful refresh;
+the request is never automatically replayed. The integration form uses the
+picker's 160ms gpui-ce-motion transition, snaps with reduced motion and stops
+requesting frames at rest.
 
 The **History** tab browses locally available commits reachable from the checked-out
 HEAD. It loads 50 commits at a time; **Load more commits** appends the next page.

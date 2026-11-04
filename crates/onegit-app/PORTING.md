@@ -1327,3 +1327,112 @@ selection and no confirmation open.
 No Rename/Delete confirmation was accepted in the shared comparison fixture.
 Its original branch/tag refs remain intact and its working-tree status is clean.
 Accepted branch edits ran only in disposable automated test repositories.
+
+
+## Merge, Squash merge and Rebase from Branches (2026-11-04)
+
+The reference is WorkspaceMergeForm in workspace-merge-form.tsx, its containing
+workspace-menu.tsx and RepositoryBranches.write in repository-branches.ts.
+The port retains all three source modes in the same attached picker.
+
+| Source API / behavior | Rust mapping |
+| --- | --- |
+| WorkspaceMenu mergeSource and canMerge | Picker Phase::Integrate and can_integrate |
+| WorkspaceMergeForm query, selection and message | branches/integration.rs retained inputs and exact Branch target |
+| onMerge explicit confirmation | integration_request, Request::Integrate and window-owned Submit |
+| RepositoryBranches.write reviewed integration | Repository::integrate_branch |
+| Window refresh and Changes recovery | write::run_integration, branch_completed and existing conflicts module |
+
+The 288 by 440 review uses the same heading, three modes, 30px search field,
+28px target rows, optional 54px squash editor with 11/16 typography, summary and
+small footer controls. Native input text_role selects the existing theme preset;
+default input typography is unchanged.
+The empty search uses the original 80 by 56 SVG. Current local branch exclusion,
+all other local/remote-tracking targets, case-insensitive search, clearing selection
+on search and resetting the squash message when selecting a target are preserved.
+Selecting a branch never switches or starts integration. Default mode is Merge.
+Squash merge defaults to Squash merge <target> into <current>; a blank first-line
+summary or NUL disables confirmation. Ordinary drafts remain separate.
+
+The source repository, source branch/HEAD and exact target ref/OID remain immutable
+until reopening. The shared window rejects replaced roots, busy/blocked peer tabs
+and amend mode. Native input and backend guards reject dirty, detached, unborn,
+active or changed state. Rebase rejects known published ancestors and merge
+history before creating recovery refs, disables autostash/updateRefs/fork-point,
+and leaves other branches alone. Ignored destination collision checks remain in
+the backend. Arbitrary external Git can still race outside the app mutation queue;
+the target command is pinned to the reviewed object rather than following a moved
+ref, and the original tip is verified in the recovery-ref transaction.
+
+All modes now retain durable pre-integration refs. This extends the original
+rebase-only backup behavior as requested. The public backend result changes from
+Result<BranchMutation, WriteError> to Result<IntegrationMutation, IntegrationError>;
+the result exposes recovery_ref alongside branches/snapshot, and errors expose
+phase, error and an optional acknowledged recovery_ref. Before-command rejection
+has no backup. Errors after backup retain its exact name and require inspection.
+No automatic abort, reset, retry or ref deletion occurs.
+
+A confirmed write stays window-owned through distinct related-worktree reads.
+Duplicate and linked tabs refresh together, retaining independent drafts,
+selection, diff mode and pixel scroll. A paused integration opens Changes only
+in its origin; the existing ours/theirs resolver and reviewed Continue/Abort also
+support SquashMerge. Uncertain peer refreshes retain the acknowledged recovery ref
+and block writes pending a fresh read. Failed forms keep their selected intent
+but require renewed review. Pending forms and accepted requests are never saved
+as restartable commands. Git operation markers and recovery refs survive restart.
+
+| Original test / requirement | Rust coverage |
+| --- | --- |
+| reviews and confirms merge without switching | merge_picker_requires_confirmation_and_preserves_duplicate_and_linked_tab_drafts |
+| reviews rebase/squash without losing ordinary draft | integration_modes_confirm_once_preserve_drafts_and_keep_exact_recovery_tips |
+| searches/selects another worktree with keyboard | integration_search_clears_consent_keyboard_selects_occupied_target_and_modes_fit_with_settled_motion |
+| clears selected target on search and cancellation | same native search test |
+| rejects dirty, paused and detached state | integration_is_unavailable_for_dirty_detached_and_paused_repositories |
+| locks pending integration and rejects duplicate writes | native modes test |
+| shows conflicts in Changes with Continue/Abort | integration_pauses_in_changes_and_existing_resolution_continue_and_abort_keep_drafts_and_recovery |
+| stale/published review cannot rewrite | integration_rejects_stale_tips_and_published_rebase_without_replaying_or_creating_recovery_refs |
+| preserve historical selected file and real viewport | integration_preserves_immutable_history_file_and_nonzero_split_diff_scroll |
+| unknown peer read must not replay acknowledged integration | acknowledged_integration_reports_recovery_and_requires_review_when_a_peer_refresh_fails |
+
+The backend integration suite additionally covers source/target replacement,
+published ancestors, merge history, SHA-256, ignored collisions across replayed
+paths, hooks/signing failures, cancellation, uncertain command/read results,
+worktree write coordination and continuation/abort after reopening. Added
+assertions verify original-tip refs for every mode, exact error recovery refs,
+retention after abort and absence of backup metadata on stale rejection.
+
+Deliberate differences: native focus remains visible. All modes have persistent
+recovery refs, and stale/uncertain forms retain their intent but require reopening,
+where the original closes after failed submission. The source remote branches
+used by publication guards are local knowledge; this picker performs no hidden
+network fetch. Worktree creation/removal remains outside this pass.
+
+The Rust crates remain unpublished, so no changeset or version bump is required.
+No dependencies were added.
+
+
+Native comparison (macOS): both apps used diff-parity-o_cgtiu3, History,
+Baseline diff preview, docs/README.md, the same source branch codex/rewrite-parity
+and target main. Full-size native captures covered selected Merge, Rebase and
+Squash merge reviews. The comparison corrected the mode widths, target-list
+inset and squash editor typography. The final 288 by 440 forms match the source
+heading, search, rows, guidance, message field and footer geometry. Rust retains
+its visible input focus indicator. Different window sizes and open-tab counts
+mean this verifies the matching review surfaces, not whole-window pixel identity.
+
+Both apps' reviews were cancelled; no integration was accepted in the shared
+fixture. Its branch/tag tips remain unchanged and its worktree is clean.
+Accepted operations, conflict recovery and publication/stale guards were tested
+only in disposable repositories. The signed final development app is running
+with the restored History selection and no confirmation open.
+
+
+Verification: the two original workspace-menu / repository-branches suites pass
+103 tests (652 assertions). Rust workspace all-target/all-feature tests pass
+699 tests across 50 suites, including 226 app tests and 20 backend integration
+tests. After the final squash typography adjustment, the affected native mode
+test and all six input tests pass again. Twelve workspace doctests pass.
+The locked offline app build, cargo fmt --all --check, strict workspace
+all-target/all-feature Clippy, warning-denied workspace docs and logical spacing
+checks pass. Spacing also checks Windows/Linux Git code. Native app checks ran
+on macOS; CI and Windows/Linux runtime tests were not run for this task.

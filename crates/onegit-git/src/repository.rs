@@ -117,8 +117,8 @@ pub use ignore::{IgnoreFile, IgnoreRule, ignore_extension, ignore_folders, ignor
 pub use conflicts::{ConflictPreview, ConflictReview, ConflictSide, ResolveConflict};
 
 pub use integration::{
-    FastForward, FinishKind, FinishOperation, IntegrationKind, IntegrationRequest, MergeOptions,
-    RebaseOptions,
+    FastForward, FinishKind, FinishOperation, IntegrationError, IntegrationKind,
+    IntegrationMutation, IntegrationRequest, MergeOptions, RebaseOptions,
 };
 
 pub use worktree_mutations::{CreateWorktree, WorktreeBranch, WorktreeMutation, WorktreeRequest};

@@ -63,6 +63,7 @@ struct Config {
     variant: InputVariant,
     validation: InputValidation,
     size: ControlSize,
+    text_role: Option<TextRole>,
     rows: u16,
     height: Option<gpui::Pixels>,
 }
@@ -78,6 +79,7 @@ impl Default for Config {
             variant: InputVariant::Outlined,
             validation: InputValidation::Valid,
             size: ControlSize::Medium,
+            text_role: None,
             rows: 5,
             height: None,
         }
@@ -118,6 +120,8 @@ macro_rules! field {
             pub validation: InputValidation,
             /// Compact control geometry; multiline fields use its padding.
             pub size: ControlSize,
+            /// Optional typography preset; defaults to body text, or small text for plain editors.
+            pub text_role: Option<TextRole>,
             /// Optional logical height for compact native toolbars; text remains at least one line tall.
             pub height: Option<gpui::Pixels>,
             $(/// Visible multiline rows, clamped to at least one.
@@ -129,14 +133,14 @@ macro_rules! field {
             pub fn new(id:impl Into<ElementId>, state:&Entity<InputState>, label:impl Into<SharedString>) -> Self {
                 Self {id:id.into(),state:state.clone(),label:label.into(),show_label:true,placeholder:"".into(),
                     description:None,availability:InputAvailability::Enabled,variant:InputVariant::Outlined,validation:InputValidation::Valid,
-                    size:ControlSize::Medium,height:None,$($row:5,)?}
+                    size:ControlSize::Medium,text_role:None,height:None,$($row:5,)?}
             }
         }
         impl RenderOnce for $name {
             fn render(self, _: &mut gpui::Window, cx:&mut gpui::App) -> impl IntoElement {
                 let description=self.description.clone().unwrap_or_default();
                 let config=Config {kind:Kind::$kind,label:self.label.clone(),placeholder:self.placeholder,
-                    description,availability:self.availability,variant:self.variant,validation:self.validation.clone(),size:self.size,height:self.height,rows:field_rows!(self $(,$row)?)};
+                    description,availability:self.availability,variant:self.variant,validation:self.validation.clone(),size:self.size,text_role:self.text_role,height:self.height,rows:field_rows!(self $(,$row)?)};
                 let theme=Theme::current();
                 self.state.update(cx,|state,cx|state.configure(config,theme,cx));
                 let focus=self.state.read(cx).focus_handle(cx);

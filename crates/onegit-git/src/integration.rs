@@ -13,7 +13,7 @@ use std::fs;
 #[path = "integration/reviewed.rs"]
 mod reviewed;
 
-pub use reviewed::{IntegrationKind, IntegrationRequest};
+pub use reviewed::{IntegrationError, IntegrationKind, IntegrationMutation, IntegrationRequest};
 
 /// Ordinary Git merge fast-forward policy.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

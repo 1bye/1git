@@ -5,7 +5,7 @@ use super::{
     same_theme,
 };
 
-use crate::{Icon, IconButton, IconName, IconSize, Theme};
+use crate::{Icon, IconButton, IconName, IconSize, TextRole, Theme};
 use rake::gpui::{self, accesskit, prelude::*, px};
 use std::{ops::Range, rc::Rc, time::Duration};
 
@@ -600,7 +600,20 @@ impl Render for InputState {
 
         let plain = self.config.variant == InputVariant::Plain;
         let filled = self.config.variant == InputVariant::Filled;
-        let typography = if plain { theme.small } else { theme.body };
+
+        let typography = match self.config.text_role.unwrap_or(if plain {
+            TextRole::Small
+        } else {
+            TextRole::Body
+        }) {
+            TextRole::Body => theme.body,
+            TextRole::Small => theme.small,
+            TextRole::Caption => theme.caption,
+            TextRole::Title => theme.title,
+            TextRole::Heading => theme.heading,
+            TextRole::Code => theme.code,
+        };
+
         let line_height = typography.line_height.unwrap_or(px(18.)).max(px(1.));
 
         let padding = px(if plain {

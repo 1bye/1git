@@ -575,6 +575,7 @@ fn branch_rename_refreshes_linked_tabs_and_restores_graph_scopes_drafts_and_navi
         workspace.submit_branch(
             &branches::Submit {
                 tab,
+                root: source.snapshot.repository.root.clone(),
                 request: BranchRequest::new(
                     BranchAction::Rename {
                         name: "main".into(),
@@ -582,7 +583,8 @@ fn branch_rename_refreshes_linked_tabs_and_restores_graph_scopes_drafts_and_navi
                         expected_target: oid.clone(),
                     },
                     &source.snapshot,
-                ),
+                )
+                .into(),
             },
             window,
             cx,

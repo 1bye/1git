@@ -71,6 +71,7 @@ pub(super) fn finish_request(snapshot: &Snapshot, kind: FinishKind) -> Option<Ac
     if !matches!(
         snapshot.operation,
         OperationState::Merge
+            | OperationState::SquashMerge
             | OperationState::Rebase
             | OperationState::CherryPick
             | OperationState::Revert

@@ -114,6 +114,7 @@ impl RepositoryWorkspace {
         let supported = matches!(
             snapshot.operation,
             OperationState::Merge
+                | OperationState::SquashMerge
                 | OperationState::Rebase
                 | OperationState::CherryPick
                 | OperationState::Revert
@@ -127,6 +128,8 @@ impl RepositoryWorkspace {
 
         let title = if snapshot.operation == OperationState::Merge {
             "Merge"
+        } else if snapshot.operation == OperationState::SquashMerge {
+            "Squash merge"
         } else if snapshot.operation == OperationState::Rebase {
             "Rebase"
         } else if snapshot.operation == OperationState::CherryPick {

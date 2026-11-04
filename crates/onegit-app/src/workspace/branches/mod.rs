@@ -1,5 +1,6 @@
 //! Attached branch navigation; accepted writes remain owned by the repository workspace.
 mod edit;
+mod integration;
 pub(super) mod model;
 mod view;
 
@@ -28,6 +29,10 @@ use std::{
 
 pub(super) enum Phase {
     List,
+    Integrate {
+        kind: onegit_git::IntegrationKind,
+        target: Option<onegit_git::Branch>,
+    },
     Edit {
         branch: onegit_git::Branch,
         kind: EditKind,
@@ -43,9 +48,22 @@ pub(super) enum Phase {
     Restore(SavedBranchChanges),
 }
 
+#[derive(Clone)]
+pub(super) enum Request {
+    Branch(BranchRequest),
+    Integrate(onegit_git::IntegrationRequest),
+}
+
+impl From<BranchRequest> for Request {
+    fn from(request: BranchRequest) -> Self {
+        Self::Branch(request)
+    }
+}
+
 pub(super) struct Submit {
     pub tab: u64,
-    pub request: BranchRequest,
+    pub root: std::path::PathBuf,
+    pub request: Request,
 }
 
 impl gpui::EventEmitter<Submit> for Picker {}
@@ -57,6 +75,9 @@ pub(super) struct Picker {
     tab: Option<u64>,
     pub(super) query: gpui::Entity<InputState>,
     pub(super) name: gpui::Entity<InputState>,
+    pub(super) integration_query: gpui::Entity<InputState>,
+    pub(super) integration_message: gpui::Entity<InputState>,
+    pub(super) integration_blocked: bool,
     pub(super) data: Option<BranchCollection>,
     pub(super) saved: Vec<SavedBranchChanges>,
     pub(super) visible: Vec<usize>,
@@ -95,7 +116,28 @@ impl Picker {
         let query = cx.new(|cx| InputState::new("", window, cx));
         let name = cx.new(|cx| InputState::new("", window, cx));
 
+        let integration_query = cx.new(|cx| InputState::new("", window, cx));
+        let integration_message = cx.new(|cx| InputState::new("", window, cx));
+
         let subscriptions = vec![
+            cx.subscribe_in(
+                &integration_query,
+                window,
+                |this: &mut Self, _, event, window, cx| {
+                    if *event == InputEvent::Changed {
+                        if let Phase::Integrate { target, .. } = &mut this.phase {
+                            *target = None;
+                        }
+                        this.filter(cx);
+                    } else if *event == InputEvent::Submitted {
+                        this.confirm(window, cx);
+                    }
+                },
+            ),
+            cx.subscribe(
+                &integration_message,
+                |_: &mut Self, _, _: &InputEvent, cx| cx.notify(),
+            ),
             cx.subscribe(&dialog, |this: &mut Self, _, _: &DialogEvent, cx| {
                 this.read = None;
                 if !this.busy {
@@ -141,6 +183,9 @@ impl Picker {
             tab: None,
             query,
             name,
+            integration_query,
+            integration_message,
+            integration_blocked: false,
             data: None,
             saved: Vec::new(),
             visible: Vec::new(),
@@ -263,7 +308,24 @@ impl Picker {
         self.visible = self
             .data
             .as_ref()
-            .map(|data| model::visible(data, self.query.read(cx).text(), self.expanded))
+            .map(|data| {
+                if matches!(self.phase, Phase::Integrate { .. }) {
+                    let query = self.integration_query.read(cx).text().trim().to_lowercase();
+
+                    data.branches
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, branch)| {
+                            !(branch.kind == onegit_git::BranchKind::Local
+                                && Some(&branch.name) == data.current.as_ref())
+                        })
+                        .filter(|(_, branch)| branch.name.to_lowercase().contains(&query))
+                        .map(|(index, _)| index)
+                        .collect()
+                } else {
+                    model::visible(data, self.query.read(cx).text(), self.expanded)
+                }
+            })
             .unwrap_or_default();
         self.highlighted = None;
         self.scroll
@@ -283,6 +345,11 @@ impl Picker {
     }
 
     fn blocked(&self, index: usize) -> Option<String> {
+        if matches!(self.phase, Phase::Integrate { .. }) {
+            return (!self.can_integrate())
+                .then(|| "Refresh and review this integration again.".into());
+        }
+
         let data = self.data.as_ref()?;
         let branch = data.branches.get(index)?;
 
@@ -318,6 +385,14 @@ impl Picker {
         let Some(branch) = self.data.as_ref().and_then(|data| data.branches.get(index)) else {
             return;
         };
+
+        if matches!(self.phase, Phase::Integrate { .. }) {
+            let branch = branch.clone();
+
+            self.select_integration(branch, cx);
+
+            return;
+        }
 
         if branch.checked_out {
             self.close(window, cx);
@@ -435,6 +510,11 @@ impl Picker {
                     );
                 }
             }
+            Phase::Integrate { .. } => {
+                if let Some(request) = self.integration_request(cx) {
+                    self.submit(Request::Integrate(request), cx);
+                }
+            }
             Phase::Edit { branch, kind } => {
                 if let Some(request) = self.edit_request(branch, *kind, cx) {
                     self.submit(request, cx);
@@ -444,14 +524,22 @@ impl Picker {
         }
     }
 
-    fn submit(&mut self, request: BranchRequest, cx: &mut gpui::Context<Self>) {
+    fn submit(&mut self, request: impl Into<Request>, cx: &mut gpui::Context<Self>) {
         if let Some(tab) = self.tab {
             self.busy = true;
             self.dialog.update(cx, |dialog, cx| {
                 dialog.set_availability(onegit_ui::DialogAvailability::Busy, cx)
             });
             self.error = None;
-            cx.emit(Submit { tab, request });
+
+            if let Some(source) = &self.source {
+                cx.emit(Submit {
+                    tab,
+                    root: source.snapshot.repository.root.clone(),
+                    request: request.into(),
+                });
+            }
+
             cx.notify();
         }
     }
@@ -509,6 +597,7 @@ impl Picker {
             self.phase = Phase::List;
             self.highlighted = None;
             self.error = None;
+            self.filter(cx);
             window.focus(&self.query.read(cx).focus_handle(cx), cx);
             cx.notify();
         }
@@ -528,7 +617,15 @@ impl Picker {
 
         if key == "escape" && !matches!(self.phase, Phase::List) {
             self.back(window, cx);
-        } else if matches!(self.phase, Phase::List)
+        } else if matches!(self.phase, Phase::Integrate { .. }) && matches!(key, "enter" | "space")
+        {
+            if key == "enter" {
+                self.confirm(window, cx);
+            } else if let Some(index) = self.highlighted.and_then(|i| self.visible.get(i).copied())
+            {
+                self.choose(index, window, cx);
+            }
+        } else if matches!(self.phase, Phase::List | Phase::Integrate { .. })
             && matches!(key, "down" | "up" | "enter" | "home" | "end")
         {
             if key == "enter" {
@@ -577,7 +674,13 @@ impl Picker {
                     self.scroll
                         .scroll_to_item(index, gpui::ScrollStrategy::Nearest);
                 } else {
-                    window.focus(&self.query.read(cx).focus_handle(cx), cx);
+                    let focus = if matches!(self.phase, Phase::Integrate { .. }) {
+                        self.integration_query.read(cx).focus_handle(cx)
+                    } else {
+                        self.query.read(cx).focus_handle(cx)
+                    };
+
+                    window.focus(&focus, cx);
                 }
 
                 cx.notify();
@@ -598,12 +701,14 @@ pub(super) enum RefChange {
 }
 
 pub(super) struct WriteResult {
+    pub integration: Option<onegit_git::IntegrationKind>,
     pub change: Option<RefChange>,
     pub snapshots: Vec<(std::path::PathBuf, Result<Arc<Loaded>, String>)>,
     pub needs_review: bool,
 }
 
 pub(super) struct Completed {
+    pub integration: Option<onegit_git::IntegrationKind>,
     pub change: Option<RefChange>,
     pub snapshots: Vec<(std::path::PathBuf, Result<Arc<Loaded>, String>)>,
     pub needs_review: bool,

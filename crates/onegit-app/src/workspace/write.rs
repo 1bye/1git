@@ -25,6 +25,10 @@ pub(super) enum Operation {
         request: onegit_git::BranchRequest,
         peers: Vec<Arc<onegit_git::Repository>>,
     },
+    Integration {
+        request: onegit_git::IntegrationRequest,
+        peers: Vec<Arc<onegit_git::Repository>>,
+    },
     GraphBranch(super::graph::Submit),
     Stash {
         request: onegit_git::StashRequest,
@@ -65,6 +69,13 @@ impl Operation {
             Self::StageAll => "Staging all changes…",
             Self::UnstageAll => "Unstaging all changes…",
             Self::Commit { .. } => "Creating commit…",
+            Self::Integration { request, .. } => {
+                if request.kind == onegit_git::IntegrationKind::Rebase {
+                    "Rebasing…"
+                } else {
+                    "Merging…"
+                }
+            }
             Self::Branch { .. } | Self::GraphBranch(_) => "Updating branch…",
             Self::Stash { .. } => "Updating saved work…",
             Self::Discard {
@@ -86,6 +97,7 @@ impl Operation {
             Self::StageAll => "Changes staged",
             Self::UnstageAll => "Changes unstaged",
             Self::Commit { .. } => "Commit created",
+            Self::Integration { .. } => "Branches integrated",
             Self::Branch { .. } | Self::GraphBranch(_) => "Branch updated",
             Self::Stash { .. } => "Stash updated",
             Self::Discard { .. } => "Files updated",
@@ -156,6 +168,10 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             .map_err(Into::into);
 
         return branch_outcome(loaded, result, None, &[]);
+    }
+
+    if let Operation::Integration { request, peers } = &operation {
+        return run_integration(loaded, request, peers);
     }
 
     if let Operation::Branch { request, peers } = &operation {
@@ -232,7 +248,9 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             Operation::Stash { .. } => {
                 unreachable!("stash operations use their reviewed write guard")
             }
-            Operation::Branch { .. } | Operation::GraphBranch(_) => {
+            Operation::Branch { .. }
+            | Operation::Integration { .. }
+            | Operation::GraphBranch(_) => {
                 unreachable!("branch operations use their reviewed write guard")
             }
             Operation::Conflict { .. } => {
@@ -317,6 +335,72 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             }
         }
     }
+}
+
+fn run_integration(
+    loaded: Arc<Loaded>,
+    request: &onegit_git::IntegrationRequest,
+    peers: &[Arc<onegit_git::Repository>],
+) -> Outcome {
+    let result = loaded.repository.integrate_branch(request, None);
+
+    let recovery = match &result {
+        Ok(result) => Some(result.recovery_ref.clone()),
+        Err(error) => error.recovery_ref.clone(),
+    };
+
+    let result = result
+        .map(|result| onegit_git::BranchMutation {
+            branches: result.branches,
+            snapshot: result.snapshot,
+            saved_changes: None,
+        })
+        .map_err(|error| {
+            onegit_git::BranchError::from(onegit_git::WriteError {
+                phase: error.phase,
+                error: error.error,
+            })
+        });
+
+    let mut outcome = branch_outcome(loaded, result, None, peers);
+
+    let paused = outcome
+        .loaded
+        .as_ref()
+        .is_ok_and(|source| source.snapshot.operation != onegit_git::OperationState::Normal);
+
+    let failed_refresh = outcome
+        .branch_action
+        .as_ref()
+        .is_some_and(|event| event.snapshots.iter().any(|(_, source)| source.is_err()));
+
+    let completion = outcome
+        .branch_action
+        .as_mut()
+        .expect("branch outcome has completion");
+
+    completion.integration = Some(request.kind);
+    completion.needs_review = outcome.result.is_err() && (!paused || failed_refresh);
+
+    if let Ok(detail) = &mut outcome.result {
+        *detail = match request.kind {
+            onegit_git::IntegrationKind::Merge => "Merge completed",
+            onegit_git::IntegrationKind::Rebase => "Rebase completed",
+            onegit_git::IntegrationKind::SquashMerge => "Squash merge completed",
+        }
+        .into();
+    }
+
+    if let Some(reference) = recovery {
+        match &mut outcome.result {
+            Ok(detail) | Err(detail) => {
+                detail.push_str("\nRecovery ref: ");
+                detail.push_str(&reference);
+            }
+        }
+    }
+
+    outcome
 }
 
 fn run_branch(
@@ -456,6 +540,7 @@ fn branch_outcome(
     }
 
     outcome.branch_action = Some(super::branches::WriteResult {
+        integration: None,
         change,
         snapshots,
         needs_review,

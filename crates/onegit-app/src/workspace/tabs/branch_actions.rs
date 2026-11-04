@@ -26,9 +26,12 @@ impl Workspace {
         }
 
         let id = tab.id;
+        let integration_blocked = tab.workspace.read(cx).amend.is_some();
         let source = source.clone();
 
         self.branches.update(cx, |picker, cx| {
+            picker.integration_blocked = integration_blocked;
+
             picker.open(
                 id,
                 source,
@@ -58,7 +61,10 @@ impl Workspace {
             };
 
             if root.as_ref().is_some_and(|root| {
-                !self.busy(root, cx)
+                *root == event.root
+                    && !self.busy(root, cx)
+                    && (!matches!(event.request, branches::Request::Integrate(_))
+                        || target.read(cx).amend.is_none())
                     && self
                         .related(root, cx)
                         .iter()
@@ -85,14 +91,20 @@ impl Workspace {
                 }
 
                 target.update(cx, |view, cx| {
-                    view.start_write(
-                        write::Operation::Branch {
-                            request: event.request.clone(),
-                            peers: peers.into_values().collect(),
+                    let peers = peers.into_values().collect();
+
+                    let operation = match &event.request {
+                        branches::Request::Branch(request) => write::Operation::Branch {
+                            request: request.clone(),
+                            peers,
                         },
-                        window,
-                        cx,
-                    )
+                        branches::Request::Integrate(request) => write::Operation::Integration {
+                            request: request.clone(),
+                            peers,
+                        },
+                    };
+
+                    view.start_write(operation, window, cx)
                 });
 
                 target.read(cx).write_job.is_some()
@@ -162,7 +174,15 @@ impl Workspace {
         self.branches.update(cx, |picker, cx| {
             if picker.owns(id) {
                 picker.finish(
-                    event.result.clone(),
+                    if event.integration.is_some()
+                        && event.loaded.as_ref().is_ok_and(|source| {
+                            source.snapshot.operation != onegit_git::OperationState::Normal
+                        })
+                    {
+                        Ok(())
+                    } else {
+                        event.result.clone()
+                    },
                     event.loaded.as_ref().ok().map(|loaded| loaded.as_ref()),
                     event.needs_review,
                     window,

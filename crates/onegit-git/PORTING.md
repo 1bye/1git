@@ -237,3 +237,21 @@ selection versus Revert ancestry, moved target tips, and occupied worktrees;
 the existing reviewed-finish integration test covers both Continue and Abort for
 both sequencers plus changed operation tokens. The app adds related-tab refresh,
 confirmation and native state-preservation coverage. No dependencies changed.
+
+
+## Integration recovery metadata
+
+The Merge/Rebase picker now consumes IntegrationMutation / IntegrationError from
+integrate_branch rather than BranchMutation / WriteError. Existing snapshot and
+branch fields remain directly available; failures keep their phase and original
+RepositoryError. Success carries the exact persistent original-tip ref, and an
+error after acknowledged backup creation carries that ref too.
+
+The requested recovery protection applies to Merge and SquashMerge as well as
+Rebase. Guards, history publication checks and ignored-file checks precede backup
+creation. The update-ref transaction verifies the original local tip and creates
+a new refs/1git/<mode>/<id>; no existing name is overwritten. Later failure never
+removes it, and a post-backup cancellation/identity failure is a Command boundary,
+preventing a false claim that no mutation occurred. Continue and Abort retain refs.
+The integration tests characterize these additions alongside the original modes,
+tip pinning, conflict restart, signing, cancellation and queue coordination.

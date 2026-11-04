@@ -144,9 +144,11 @@ impl gpui::Render for Picker {
                     + if more { 28. } else { 0. }
                     + 9.
                     + 28.
+                    + 28.
                     + if restore.is_some() { 28. } else { 0. }
             }
             Phase::Create { .. } | Phase::Edit { .. } => 150.,
+            Phase::Integrate { .. } => 440.,
             Phase::Changes { .. } => 300.,
             Phase::Restore(_) => 164.,
         } + if self.error.is_some() {
@@ -157,7 +159,11 @@ impl gpui::Render for Picker {
             0.
         };
 
-        let max = if self.expanded { 650. } else { 398. };
+        let max = if self.expanded || matches!(self.phase, Phase::Integrate { .. }) {
+            650.
+        } else {
+            398.
+        };
 
         let target = target
             .min(max)
@@ -207,11 +213,20 @@ impl gpui::Render for Picker {
                 _ => false,
             };
 
+        let integration = if matches!(self.phase, Phase::Integrate { .. }) {
+            Some(self.integration_form(cx))
+        } else {
+            None
+        };
+
+        let can_integrate = self.can_integrate();
+
         let body=rake::view! {
             <div class="size-full min-h-0 flex flex-col p-1" focus={&self.list_focus}
-                style={|s|s.opacity(opacity.value()as f32).debug_selector(||"workspace-branch-body".into())}
+                style={|s|s.opacity(opacity.value()as f32).debug_selector(||"workspace-branch-body".into()).capture_key_down(cx.listener(|this,event,window,cx|this.integration_key(event,window,cx)))}
                 on:key-down={cx.listener(|this,event:&gpui::KeyDownEvent,window,cx|this.key(event,window,cx))}>
-                if matches!(self.phase,Phase::List) {
+                if let Some(integration) = integration { {integration} }
+                else if matches!(self.phase,Phase::List) {
                     <div class="h-[32px] shrink-0"><TextInput show_label={false} size={ControlSize::Rail} placeholder={"Find a branch…".into()}
                         availability={if self.busy{InputAvailability::Disabled}else{InputAvailability::Enabled}}
                         {..TextInput::new("branch-search",&self.query,"Find a branch")}/></div>
@@ -228,6 +243,12 @@ impl gpui::Render for Picker {
                     <div class="h-[1px] my-1 bg-hairline shrink-0"/>
                     <ListRow variant={ListRowVariant::Menu} leading={Some(rake::view!{<Icon size={IconSize::Supporting} {..Icon::new("new-icon",IconName::Plus)}/>}.into_any_element())} state={if can_create{ControlState::Enabled}else{ControlState::Disabled}}
                         on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.create(window,cx))))} {..ListRow::new("new-branch","New Branch")}/>
+                    <div class="shrink-0" style={|s|s.debug_selector(||"branch-integrate".into())}>
+                        <ListRow variant={ListRowVariant::Menu} state={if can_integrate{ControlState::Enabled}else{ControlState::Disabled}}
+                            leading={Some(rake::view!{<Icon size={IconSize::Supporting} {..Icon::new("integration-icon",IconName::Branch)}/>}.into_any_element())}
+                            on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.integrate(window,cx))))}
+                            {..ListRow::new("integrate-branches","Merge or rebase…")}/>
+                    </div>
                     if let Some(saved)=restore {<ListRow variant={ListRowVariant::Menu} state={if can_create{ControlState::Enabled}else{ControlState::Disabled}}
                         on_press={Some(Box::new(cx.listener(move|this,_,_,cx|{this.phase=Phase::Restore(saved.clone());cx.notify();})))} {..ListRow::new("restore-branch-work","Restore saved changes…")}/>}
                 } else {
@@ -279,7 +300,7 @@ impl gpui::Render for Picker {
 
         rake::view!{<Dialog trigger_preview={preview} width={px(288.)} presentation={DialogPresentation::Attached{origin:self.origin,height:px(height.value()as f32)}}
             dismissal={DialogDismissal::EscapeAndOutside} availability={if self.busy{DialogAvailability::Busy}else{DialogAvailability::Ready}}
-            initial_focus={Some(if matches!(self.phase,Phase::List){self.query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Create{..}|Phase::Edit{kind:EditKind::Rename,..}){self.name.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Edit{kind:EditKind::Delete,..}){self.cancel_focus.clone()}else{self.list_focus.clone()})}
+            initial_focus={Some(if matches!(self.phase,Phase::List){self.query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Integrate{..}){self.integration_query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Create{..}|Phase::Edit{kind:EditKind::Rename,..}){self.name.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Edit{kind:EditKind::Delete,..}){self.cancel_focus.clone()}else{self.list_focus.clone()})}
             {..Dialog::new("workspace-branches",&self.dialog,"Workspace branches")}>
             {body}
         </Dialog>}.into_any_element()

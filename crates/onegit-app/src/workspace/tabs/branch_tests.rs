@@ -12,7 +12,7 @@ use onegit_git::{BranchChanges, RecordType};
 use rake::gpui::{Focusable, InputEvent as _};
 use std::{fs, time::Duration};
 
-fn fixture() -> Fixture {
+pub(super) fn fixture() -> Fixture {
     let f = Fixture::new();
 
     f.write("a.txt", "base a\n");
@@ -23,13 +23,13 @@ fn fixture() -> Fixture {
     f
 }
 
-fn settle(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>) {
+pub(super) fn settle(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>) {
     draw(cx, view);
     cx.executor().advance_clock(Duration::from_millis(200));
     draw(cx, view);
 }
 
-fn picker(
+pub(super) fn picker(
     cx: &mut gpui::TestAppContext,
     view: gpui::WindowHandle<Workspace>,
 ) -> gpui::Entity<Picker> {
@@ -61,7 +61,7 @@ fn search(
     settle(cx, view);
 }
 
-fn choose(
+pub(super) fn choose(
     cx: &mut gpui::TestAppContext,
     view: gpui::WindowHandle<Workspace>,
     picker: &gpui::Entity<Picker>,
@@ -84,7 +84,7 @@ fn choose(
     .unwrap();
 }
 
-fn confirm(
+pub(super) fn confirm(
     cx: &mut gpui::TestAppContext,
     view: gpui::WindowHandle<Workspace>,
     picker: &gpui::Entity<Picker>,
@@ -96,7 +96,7 @@ fn confirm(
     settle(cx, view);
 }
 
-fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>, value: &str) {
+pub(super) fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>, value: &str) {
     cx.update_window(view.into(), |_, window, cx| {
         let keystroke = gpui::Keystroke::parse(value).unwrap();
 
@@ -115,7 +115,7 @@ fn key(cx: &mut gpui::TestAppContext, view: gpui::WindowHandle<Workspace>, value
     draw(cx, view);
 }
 
-fn click(
+pub(super) fn click(
     cx: &mut gpui::TestAppContext,
     view: gpui::WindowHandle<Workspace>,
     selector: &'static str,

@@ -832,6 +832,7 @@ impl RepositoryWorkspace {
         let discard_completion = outcome.discard_completion;
 
         let branch_completion = outcome.branch_action.map(|branch| branches::Completed {
+            integration: branch.integration,
             change: branch.change,
             snapshots: branch.snapshots,
             needs_review: branch.needs_review,
@@ -1005,6 +1006,15 @@ impl RepositoryWorkspace {
         }
 
         if let Some(completion) = branch_completion {
+            if completion.integration.is_some()
+                && completion.loaded.as_ref().is_ok_and(|source| {
+                    source.snapshot.operation != onegit_git::OperationState::Normal
+                })
+            {
+                self.change_section(&"changes".into(), cx);
+                self.refresh_error = completion.result.as_ref().err().cloned();
+            }
+
             let form = self.graph.read(cx).form.clone();
 
             form.update(cx, |form, cx| {
