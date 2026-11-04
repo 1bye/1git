@@ -17,10 +17,19 @@ use std::{rc::Rc, sync::Arc};
 
 impl HistoryWorkspace {
     fn revisions(&self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
+        let commits = self.commits.clone();
+        let owner = cx.entity().downgrade();
+
+        let blocked = self.actions_blocked
+            || self
+                .source
+                .as_ref()
+                .is_none_or(|source| super::super::replay::unavailable(source).is_some());
+
         rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
                 <div class="flex-1 min-w-0 min-h-0 pl-1.5 pr-3">
-                    <CommitList state={Some(self.list_state.clone())} type_badges={true} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
+                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),blocked,owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
                         on_select={Some(Box::new(cx.listener(|this,oid:&gpui::SharedString,_,cx|this.select_commit(oid.clone(),cx))))}
                         {..CommitList::new("history-commits","Repository commit history",self.data.clone())}/>
                 </div>
@@ -283,7 +292,7 @@ impl Render for HistoryWorkspace {
                     <onegit_ui::Tooltip {..onegit_ui::Tooltip::new("history-search-unavailable","History search is not ported to Rust yet")}><div class="size-6 flex items-center justify-center text-muted-ink"><onegit_ui::Icon label={Some("History search unavailable".into())} {..onegit_ui::Icon::new("history-search",IconName::Search)}/></div></onegit_ui::Tooltip>
                 </div>
                 <div class="flex-1 min-w-0 min-h-0">{panes}</div>
-                <div class="h-[32px] px-3.5 shrink-0 flex flex-row items-center justify-between"><Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("footer","Read-only · first-parent diffs")}/><Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("navigation","↑ ↓ Navigate")}/></div>
+                <div class="h-[32px] px-3.5 shrink-0 flex flex-row items-center justify-between"><Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("footer","First-parent diffs")}/><Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("navigation","↑ ↓ Navigate")}/></div>
             </div>
         }.into_any_element();
 

@@ -156,6 +156,7 @@ pub(in crate::workspace) fn run(
         stash_completion: None,
         discard_completion: None,
         conflict_completion: None,
+        replay_completion: None,
         recovery_completion: Some(Completed {
             snapshots,
             effect,

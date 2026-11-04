@@ -8,6 +8,10 @@ use onegit_git::{
 use std::sync::Arc;
 
 pub(super) enum Operation {
+    Replay {
+        action: super::replay::Action,
+        peers: Vec<Arc<onegit_git::Repository>>,
+    },
     Recovery {
         action: super::recovery::Action,
         peers: Vec<Arc<onegit_git::Repository>>,
@@ -42,6 +46,7 @@ pub(super) enum Operation {
 impl Operation {
     pub fn progress(&self) -> &'static str {
         match self {
+            Self::Replay { action, .. } => action.kind().title(),
             Self::Recovery {
                 action: super::recovery::Action::Amend { .. },
                 ..
@@ -69,6 +74,7 @@ impl Operation {
 
     fn success(&self) -> &'static str {
         match self {
+            Self::Replay { action, .. } => action.kind().title(),
             Self::Recovery { .. } => "Last commit updated",
             Self::Lines { .. } => "Selected changes updated",
             Self::File(file) if file.key.side == Side::Staged => "File unstaged",
@@ -88,6 +94,7 @@ pub(super) struct Outcome {
     pub loaded: Result<Arc<Loaded>, String>,
     pub result: Result<String, String>,
     pub recovery_completion: Option<super::recovery::Completed>,
+    pub replay_completion: Option<super::replay::Completed>,
     pub staging_completion: Option<super::staging::Completed>,
     pub committed: bool,
     pub branch_action: bool,
@@ -115,6 +122,10 @@ pub(super) fn staged_count(loaded: &Loaded) -> usize {
 }
 
 pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
+    if let Operation::Replay { action, peers } = &operation {
+        return super::replay::run(loaded, action, peers);
+    }
+
     if let Operation::Recovery { action, peers } = &operation {
         return super::recovery::run(loaded, action, peers);
     }
@@ -207,6 +218,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                     repository.stage(&paths, None)?
                 }
             }
+            Operation::Replay { .. } => unreachable!("replays use the reviewed sequencer writer"),
             Operation::Recovery { .. } => {
                 unreachable!("history edits use the reviewed transaction")
             }
@@ -261,6 +273,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             loaded: Ok(read::from_snapshot(repository.clone(), snapshot)),
             result: Ok(detail),
             staging_completion: None,
+            replay_completion: None,
             recovery_completion: None,
             committed,
             branch_action: false,
@@ -291,6 +304,7 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
                 loaded: refreshed,
                 result: Err(detail),
                 staging_completion: None,
+                replay_completion: None,
                 recovery_completion: None,
                 committed: false,
                 branch_action: false,
@@ -332,6 +346,7 @@ fn branch_outcome(
                 loaded: Ok(read::from_snapshot(repository.clone(), result.snapshot)),
                 result: Ok(detail),
                 staging_completion: None,
+                replay_completion: None,
                 recovery_completion: None,
                 committed: false,
                 branch_action: true,
@@ -364,6 +379,7 @@ fn branch_outcome(
                 loaded,
                 result: Err(detail),
                 staging_completion: None,
+                replay_completion: None,
                 recovery_completion: None,
                 committed: false,
                 branch_action: true,
@@ -454,6 +470,7 @@ fn run_stash(
         loaded: refreshed,
         result: result.clone().map(|()| message.into()),
         staging_completion: None,
+        replay_completion: None,
         recovery_completion: None,
         committed: false,
         branch_action: false,

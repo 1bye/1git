@@ -604,6 +604,11 @@ The repository layout also uses the same viewer inside its retained file tabs.
 
 ## Commit history
 
+Both `CommitList` and `CommitGraph` accept an optional `CommitMenuBuilder` in
+`context_menu`. It builds shared `DropdownMenu` actions for visible immutable
+commit IDs. Right-click targets that row without replacing controlled selection;
+Shift+F10 opens actions for the selected commit. Dismissal restores list focus.
+
 Build a `CommitListData` snapshot outside render and retain it in the owner. Its
 clones share the immutable entries and ID index. IDs are opaque, nonempty and
 unique within the snapshot; use full object IDs when adapting Git history.

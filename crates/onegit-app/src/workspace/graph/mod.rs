@@ -45,6 +45,7 @@ pub(super) struct Graph {
     refs: Arc<read::References>,
     refs_job: Option<ReadJob>,
     page_job: Option<ReadJob>,
+    actions_blocked: bool,
     dirty: bool,
     activated: bool,
     page_loaded: bool,
@@ -167,6 +168,7 @@ impl Graph {
             refs: Arc::default(),
             refs_job: None,
             page_job: None,
+            actions_blocked: true,
             dirty: false,
             activated: false,
             page_loaded: false,
@@ -207,6 +209,16 @@ impl Graph {
         {
             self.set_source(None, cx);
         }
+    }
+
+    pub fn configure_actions(&mut self, blocked: bool, cx: &mut gpui::Context<Self>) {
+        if self.actions_blocked != blocked {
+            self.actions_blocked = blocked;
+            cx.notify();
+        }
+
+        self.inspector
+            .update(cx, |view, cx| view.configure_actions(blocked, cx));
     }
 
     pub fn configure(&mut self, blocked: bool, cx: &mut gpui::Context<Self>) {

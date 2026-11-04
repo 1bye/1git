@@ -16,7 +16,10 @@ pub use data::{
 use rake::gpui::{self, ColorExt, accesskit, prelude::*, px};
 use std::rc::Rc;
 
-/// Request a commit selection; the owner updates `selected` and the corresponding preview.
+/// Builds actions for an available commit ID, for visible rows and loaded selection.
+pub type CommitMenuBuilder = Box<dyn Fn(&gpui::SharedString) -> crate::DropdownMenu>;
+
+/// Requests controlled selection and its corresponding preview.
 pub type CommitSelectionHandler =
     Box<dyn Fn(&gpui::SharedString, &mut gpui::Window, &mut gpui::App)>;
 
@@ -60,6 +63,8 @@ pub struct CommitList {
     pub empty_message: gpui::SharedString,
     /// Called once per request for an ID different from `selected`.
     pub on_select: Option<CommitSelectionHandler>,
+    /// Optional right-click and Shift+F10 actions without changing controlled selection.
+    pub context_menu: Option<CommitMenuBuilder>,
 }
 
 impl CommitList {
@@ -80,6 +85,7 @@ impl CommitList {
             density: CommitListDensity::default(),
             empty_message: "No commits to display.".into(),
             on_select: None,
+            context_menu: None,
         }
     }
 }
@@ -147,6 +153,15 @@ impl RenderOnce for CommitList {
         let focused = owns_focus && window.last_input_was_keyboard();
         let cursor = state.read(cx).cursor.clone();
         let scroll = state.read(cx).scroll.clone();
+        let menus = self.context_menu.map(Rc::new);
+
+        let keyboard_menu = menus
+            .as_ref()
+            .zip(selected.as_ref())
+            .map(|(build, id)| build(id));
+
+        let menu_focus = focus.clone();
+        let keyboard_focus_handle = focus.clone();
         let handler = self.on_select.map(Rc::new);
         let key_handler = handler.clone();
         let key_selected = selected.clone();
@@ -173,7 +188,9 @@ impl RenderOnce for CommitList {
                     let description=describe(&item);
                     let author_date=[item.author.as_deref(),item.date.as_deref()].into_iter().flatten().collect::<Vec<_>>().join(" · ");
 
-                    motion::surface(item.id.clone().into(),rest,hover,hover,true,move |paint| {
+                    let row_id=item.id.clone();
+
+                    let row = motion::surface(item.id.clone().into(),rest,hover,hover,true,move |paint| {
                         rake::view! {
                             <div id="row" role={accesskit::Role::ListBoxOption} aria-label={description}
                                 class="relative w-full min-w-0 flex flex-col justify-center gap-0.5 px-2 py-1 border-1 rounded-[6px] overflow-hidden"
@@ -205,12 +222,20 @@ impl RenderOnce for CommitList {
                                 </div>
                             </div>
                         }
-                    }).into_any_element()
+                    }).into_any_element();
+
+                    if let Some(build)=&menus {
+                        let mut context=crate::ContextMenu::new(build(&row_id),menu_focus.clone());
+
+                        context.children.push(row);
+
+                        context.into_any_element()
+                    } else { row }
                 }).collect()
             }).size_full().min_w_0().min_h_0().track_scroll(&scroll).with_sizing_behavior(gpui::ListSizingBehavior::Auto).into_any_element()
         };
 
-        rake::view! {
+        let content = rake::view! {
             <div id={self.id} role={accesskit::Role::ListBox} aria-label={self.label}
                 class="size-full min-w-0 min-h-0 bg-surface text-ink overflow-hidden"
                 style={|s| focusable(s).border_color(Theme::transparent()).track_focus(&pointer_focus).debug_selector(||"commit-list".into())
@@ -221,6 +246,18 @@ impl RenderOnce for CommitList {
                     })}>
                 {content}
             </div>
+        }.into_any_element();
+
+        if let Some(mut menu) = keyboard_menu {
+            menu.id = format!("keyboard-{:?}", menu.id).into();
+            let mut context = crate::ContextMenu::new(menu, keyboard_focus_handle);
+
+            context.fill = true;
+            context.children.push(content);
+
+            context.into_any_element()
+        } else {
+            content
         }
     }
 }

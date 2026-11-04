@@ -44,13 +44,24 @@ struct Graph {
     selected: Option<gpui::SharedString>,
     root: gpui::FocusHandle,
     accept: bool,
+    actions: Vec<gpui::SharedString>,
 }
 
 impl Render for Graph {
     fn render(&mut self, _: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+        let owner = cx.entity().downgrade();
+        let menu_data = self.data.clone();
+
         rake::view! {
             <div class="size-full" focus={&self.root} tab-navigation={true}>
-                <CommitGraph selected={self.selected.clone()} on_select={Some(Box::new(cx.listener(|this,id:&gpui::SharedString,_,cx|{
+                <CommitGraph context_menu={Some(Box::new(move|oid|{
+                    assert!(menu_data.position(oid).is_some(),"menus require available commit metadata");
+                    let mut menu=onegit_ui::DropdownMenu::new(format!("actions-{oid}"),"Commit actions");
+                    menu.entries=vec![onegit_ui::MenuItem::new("inspect","Inspect commit").into()];
+                    let target=oid.clone();let owner=owner.clone();
+                    menu.on_select=Some(Box::new(move|_,_,cx|{let _=owner.update(cx,|this,cx|{this.actions.push(target.clone());cx.notify();});}));
+                    menu
+                }))} selected={self.selected.clone()} on_select={Some(Box::new(cx.listener(|this,id:&gpui::SharedString,_,cx|{
                     if this.accept{this.selected=Some(id.clone());}cx.notify();
                 })))} {..CommitGraph::new("graph",self.data.clone(),&self.state)}/>
             </div>
@@ -74,6 +85,7 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Graph>) {
             data: data(0, 500),
             selected: None,
             accept: true,
+            actions: Vec::new(),
         }
     });
 
@@ -370,4 +382,76 @@ fn native_scrollbar_track_and_captured_drag_scroll_without_selecting_a_commit() 
     draw(&mut cx, v);
     assert!(state.read_with(&cx, |state, _| state.viewport().row) > 350);
     assert!(v.read_with(&cx, |view, _| view.selected.is_none()).unwrap());
+}
+
+#[test]
+fn context_actions_target_clicked_row_without_replacing_selection_and_support_shift_f10() {
+    let (mut cx, v) = setup();
+
+    click(&mut cx, v, "graph-row-0");
+    let position = bounds(&cx, v, "graph-row-1").unwrap().center();
+
+    cx.update_window(v.into(), |_, w, cx| {
+        w.dispatch_event(
+            gpui::MouseDownEvent {
+                button: gpui::MouseButton::Right,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+                first_mouse: false,
+            }
+            .to_platform_input(),
+            cx,
+        );
+        w.dispatch_event(
+            gpui::MouseUpEvent {
+                button: gpui::MouseButton::Right,
+                position,
+                modifiers: Default::default(),
+                click_count: 1,
+            }
+            .to_platform_input(),
+            cx,
+        );
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    key(&mut cx, v, "enter");
+    v.read_with(&cx, |graph, _| {
+        assert_eq!(
+            graph.actions.as_slice(),
+            &[gpui::SharedString::from("id-1")]
+        );
+        assert_eq!(graph.selected.as_deref(), Some("id-0"));
+    })
+    .unwrap();
+    key(&mut cx, v, "shift-f10");
+    key(&mut cx, v, "enter");
+    v.read_with(&cx, |graph, _| {
+        assert_eq!(
+            graph.actions.as_slice(),
+            &[
+                gpui::SharedString::from("id-1"),
+                gpui::SharedString::from("id-0")
+            ]
+        );
+        assert_eq!(graph.selected.as_deref(), Some("id-0"));
+    })
+    .unwrap();
+}
+
+#[test]
+fn restored_selection_waits_for_its_page_before_building_a_keyboard_menu() {
+    let (mut cx, v) = setup();
+
+    v.update(&mut cx, |graph, _, cx| {
+        graph.selected = Some("id-not-loaded".into());
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, v);
+    v.read_with(&cx, |graph, _| {
+        assert_eq!(graph.selected.as_deref(), Some("id-not-loaded"))
+    })
+    .unwrap();
 }

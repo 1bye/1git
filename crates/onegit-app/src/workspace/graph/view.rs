@@ -79,6 +79,15 @@ impl Graph {
     }
 
     fn table(&self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
+        let commits = self.commits.clone();
+        let owner = cx.entity().downgrade();
+
+        let blocked = self.actions_blocked
+            || self
+                .source
+                .as_ref()
+                .is_none_or(|source| super::super::replay::unavailable(source).is_some());
+
         rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
                 <div class="h-[34px] px-2 shrink-0 flex flex-row items-center gap-2 border-b-1 border-hairline">
@@ -91,7 +100,7 @@ impl Graph {
                 </div>
                 if let Some(error)=&self.page_error {<p role={accesskit::Role::Alert} class="px-2 py-1 text-caption text-danger">{error.clone()}</p>}
                 <div class="flex-1 min-w-0 min-h-0">
-                    <CommitGraph selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
+                    <CommitGraph context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits.iter().find(|commit|commit.oid==oid.as_ref()).expect("graph rows have commit metadata").clone(),blocked,owner.clone())))} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
                         on_select={Some(Box::new(cx.listener(|this,id:&gpui::SharedString,_,cx|this.select(id,cx))))}
                         {..CommitGraph::new("graph-table",self.data.clone(),&self.state)}/>
                 </div>

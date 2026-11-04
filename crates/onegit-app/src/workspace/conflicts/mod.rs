@@ -70,7 +70,10 @@ impl rake::gpui::EventEmitter<Completed> for super::RepositoryWorkspace {}
 pub(super) fn finish_request(snapshot: &Snapshot, kind: FinishKind) -> Option<Action> {
     if !matches!(
         snapshot.operation,
-        OperationState::Merge | OperationState::Rebase
+        OperationState::Merge
+            | OperationState::Rebase
+            | OperationState::CherryPick
+            | OperationState::Revert
     ) {
         return None;
     }

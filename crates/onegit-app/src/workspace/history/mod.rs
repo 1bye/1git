@@ -53,6 +53,7 @@ pub(super) struct HistoryWorkspace {
     description_expanded: bool,
     copied: bool,
     branch_available: bool,
+    actions_blocked: bool,
     source: Option<Arc<Loaded>>,
     data: CommitListData,
     list_state: gpui::Entity<onegit_ui::CommitListState>,
@@ -118,6 +119,7 @@ impl HistoryWorkspace {
             description_expanded: false,
             copied: false,
             branch_available: false,
+            actions_blocked: true,
             source: None,
             data: CommitListData::default(),
             list_state: cx.new(onegit_ui::CommitListState::new),
@@ -145,6 +147,13 @@ impl HistoryWorkspace {
             page_job: None,
             detail_job: None,
             patch_job: None,
+        }
+    }
+
+    pub fn configure_actions(&mut self, blocked: bool, cx: &mut gpui::Context<Self>) {
+        if self.actions_blocked != blocked {
+            self.actions_blocked = blocked;
+            cx.notify();
         }
     }
 
@@ -242,10 +251,9 @@ impl HistoryWorkspace {
         if new_head {
             let activated = self.page_loaded || self.page_job.is_some() || self.selected.is_some();
 
-            self.commits
-                .retain(|oid, _| self.selected.as_ref() == Some(oid));
+            // Keep rendered rows until their replacement arrives, preserving the list anchor.
+            self.restore_rows = Some(self.data.items().len().clamp(50, 10_000));
             self.page_job = None;
-            self.data = CommitListData::default();
             self.page_loaded = false;
             self.total = None;
             self.next_offset = None;
@@ -285,7 +293,11 @@ impl HistoryWorkspace {
             0
         };
 
-        let previous = self.data.clone();
+        let previous = if offset == 0 {
+            CommitListData::default()
+        } else {
+            self.data.clone()
+        };
 
         self.page_error = None;
         let limit = self.restore_rows.unwrap_or(50).max(50);
@@ -293,11 +305,16 @@ impl HistoryWorkspace {
         self.page_job = Some(spawn_read(
             cx,
             move |cancel| read::page_with_limit(&source, offset, previous, limit, &cancel),
-            |this, result, cx| {
+            move |this, result, cx| {
                 this.page_job = None;
 
                 match result {
                     Ok(page) => {
+                        if offset == 0 {
+                            this.commits
+                                .retain(|oid, _| this.selected.as_ref() == Some(oid));
+                        }
+
                         this.commits.extend(
                             page.commits
                                 .into_iter()

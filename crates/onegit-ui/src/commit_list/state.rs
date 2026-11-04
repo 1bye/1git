@@ -34,10 +34,8 @@ impl ListFocus {
         let selection_changed = self.selected != selected;
         let old_cursor = self.cursor.as_ref().and_then(|id| self.data.position(id));
 
-        let old_top = (-f32::from(self.scroll.0.borrow().base_handle.offset().y)
-            / self.density.height())
-        .floor()
-        .max(0.) as usize;
+        let old_pixels = -f32::from(self.scroll.0.borrow().base_handle.offset().y);
+        let old_top = (old_pixels / self.density.height()).floor().max(0.) as usize;
 
         let anchor = self
             .data
@@ -72,8 +70,20 @@ impl ListFocus {
             }
             .unwrap_or(old_top.min(data.items().len().saturating_sub(1)));
 
-            self.scroll
-                .scroll_to_item_strict(target, gpui::ScrollStrategy::Top);
+            if !selection_changed && !self.data.items().is_empty() {
+                // Retain the partial row as well as its immutable commit anchor.
+                let remainder = (old_pixels - old_top as f32 * self.density.height()).max(0.);
+                let mut scroll = self.scroll.0.borrow_mut();
+
+                scroll.deferred_scroll_to_item = None;
+                scroll.base_handle.set_offset(gpui::point(
+                    px(0.),
+                    px(-(target as f32 * density.height() + remainder)),
+                ));
+            } else {
+                self.scroll
+                    .scroll_to_item_strict(target, gpui::ScrollStrategy::Top);
+            }
         } else if selection_changed && let Some(index) = selected_index {
             self.scroll
                 .scroll_to_item(index, gpui::ScrollStrategy::Nearest);
@@ -135,5 +145,47 @@ impl ListFocus {
         cx.stop_propagation();
 
         Some(id)
+    }
+}
+
+#[cfg(all(test, feature = "test-support"))]
+mod tests {
+    use super::*;
+    use crate::CommitItem;
+    use rake::gpui::AppContext;
+
+    fn data(ids: &[&str]) -> CommitListData {
+        CommitListData::new(ids.iter().map(|id| CommitItem::new(*id, *id)).collect()).unwrap()
+    }
+
+    #[test]
+    fn refreshed_history_retains_the_same_commit_and_partial_row_pixels() {
+        let cx = gpui::TestAppContext::single();
+
+        cx.update(|cx| {
+            let state = cx.new(ListFocus::new);
+
+            state.update(cx, |state, _| {
+                state.reconcile(
+                    data(&["a", "b", "c", "d"]),
+                    Some("c".into()),
+                    CommitListDensity::Compact,
+                );
+                state.scroll.0.borrow_mut().deferred_scroll_to_item = None;
+                state
+                    .scroll
+                    .0
+                    .borrow()
+                    .base_handle
+                    .set_offset(gpui::point(px(0.), px(-55.)));
+                state.reconcile(
+                    data(&["new", "a", "b", "c", "d"]),
+                    Some("c".into()),
+                    CommitListDensity::Compact,
+                );
+                assert_eq!(state.scroll.0.borrow().base_handle.offset().y, px(-103.));
+                assert_eq!(state.cursor.as_deref(), Some("c"));
+            });
+        });
     }
 }

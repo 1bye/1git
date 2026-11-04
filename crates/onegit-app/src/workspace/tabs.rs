@@ -15,6 +15,9 @@ mod recovery_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod recovery_tests;
 mod refresh;
+mod replay_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod replay_tests;
 pub(in crate::workspace) mod session;
 mod staging_actions;
 #[cfg(all(test, feature = "test-support"))]
@@ -396,6 +399,20 @@ impl Workspace {
                 this.recovery_completed(id, event, window, cx)
             },
         ));
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::replay::Submit, window, cx| {
+                this.submit_replay(id, event, window, cx)
+            },
+        ));
+        state.push(cx.subscribe_in(
+            &workspace,
+            window,
+            move |this: &mut Self, _, event: &super::replay::Completed, _, cx| {
+                this.refresh_written_tabs(id, &event.snapshots, cx)
+            },
+        ));
         let view = workspace.read(cx);
         let history = view.history.clone();
         let graph = view.graph.clone();
@@ -662,6 +679,7 @@ impl Workspace {
                 }
 
                 view.configure_recovery(cx);
+                view.configure_replay(cx);
             });
         }
 
@@ -933,6 +951,7 @@ impl gpui::Render for Workspace {
             for tab in &self.tabs {<div id={("conflict-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).conflicts.clone()}</div>}
             for tab in &self.tabs {<div id={("discard-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).discard.clone()}</div>}
             for tab in &self.tabs {<div id={("recovery-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).recovery.clone()}</div>}
+            for tab in &self.tabs {<div id={("replay-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).replay.clone()}</div>}
             for tab in &self.tabs {<div id={("graph-branch-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).graph.read(cx).form.clone()}</div>}
             for tab in &self.tabs {<div id={("stash-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).stashes.read(cx).form.clone()}</div>}
             for entry in self.syncs.values() {<div id={("sync",entry.state.entity_id())} class="absolute inset-0">{entry.state.clone()}</div>}

@@ -93,6 +93,8 @@ pub struct CommitGraph {
     pub state: gpui::Entity<CommitGraphState>,
     /// Called when a different commit is selected.
     pub on_select: Option<CommitSelectionHandler>,
+    /// Optional contextual actions, also available with Shift+F10 on the selected commit.
+    pub context_menu: Option<crate::CommitMenuBuilder>,
     /// Status when no rows exist.
     pub empty_message: gpui::SharedString,
 }
@@ -111,6 +113,7 @@ impl CommitGraph {
             selected: None,
             state: state.clone(),
             on_select: None,
+            context_menu: None,
             empty_message: "No commits yet".into(),
         }
     }
@@ -145,6 +148,18 @@ impl RenderOnce for CommitGraph {
         let owns = focus.is_focused(window);
         let keyboard_focus = owns && window.last_input_was_keyboard();
         let cursor = self.state.read(cx).cursor.clone();
+        let menus = self.context_menu.map(Rc::new);
+
+        let keyboard_menu = menus
+            .as_ref()
+            .zip(
+                self.selected
+                    .as_ref()
+                    .filter(|id| self.data.position(id).is_some()),
+            )
+            .map(|(build, id)| build(id));
+
+        let menu_focus = focus.clone();
         let handler = self.on_select.map(Rc::new);
         let key_handler = handler.clone();
         let key_selected = self.selected.clone();
@@ -188,7 +203,9 @@ impl RenderOnce for CommitGraph {
                 let refs=item.references.clone();let badges=if refs.first().is_some_and(|r|r.label=="HEAD"){2}else{1};let id=item.id.clone();let labels=refs.iter().map(|reference|if reference.label=="HEAD"{"HEAD · Current commit".to_owned()}else{format!("{}: {}",match reference.kind{CommitRefKind::Branch=>"Local branch",CommitRefKind::Remote=>"Remote branch",CommitRefKind::Tag=>"Tag"},reference.label)}).collect::<Vec<_>>().join("\n");
                 let rest=if selected{theme.selection}else{theme.surface};
 
-                gpui::div().h(px(ROW_HEIGHT)).px(px(6.)).child(motion::surface(gpui::ElementId::Name(format!("graph-{}",item.id).into()),Surface::new(rest),Surface::new(rest.blend(&theme.hover)),Surface::new(theme.pressed),true,move|surface|{
+                let row_id=item.id.clone();
+
+                let row=gpui::div().h(px(ROW_HEIGHT)).px(px(6.)).child(motion::surface(gpui::ElementId::Name(format!("graph-{}",item.id).into()),Surface::new(rest),Surface::new(rest.blend(&theme.hover)),Surface::new(theme.pressed),true,move|surface|{
                     rake::view!{
                         <div id={("row",index)} role={accesskit::Role::ListBoxOption} aria-label={description}
                             class="h-[36px] min-w-0 w-full flex flex-row items-center gap-2 px-2 border-1 rounded-[6px] overflow-hidden"
@@ -219,7 +236,15 @@ impl RenderOnce for CommitGraph {
                             if date {<div class="w-[95px] shrink-0 text-caption text-faint-ink">{item.date.unwrap_or_default()}</div>}
                         </div>
                     }
-                })).into_any_element()
+                })).into_any_element();
+
+                if let Some(build)=&menus {
+                    let mut context=crate::ContextMenu::new(build(&row_id),menu_focus.clone());
+
+                    context.children.push(row);
+
+                    context.into_any_element()
+                }else{row}
             }).w_full().h_full().min_w(width).with_sizing_behavior(gpui::ListSizingBehavior::Auto).into_any_element()
         };
 
@@ -253,7 +278,7 @@ impl RenderOnce for CommitGraph {
             })
             .child(content);
 
-        gpui::div()
+        let content = gpui::div()
             .relative()
             .size_full()
             .min_w_0()
@@ -261,5 +286,18 @@ impl RenderOnce for CommitGraph {
             .child(content)
             .child(measure)
             .child(scrollbars)
+            .into_any_element();
+
+        if let Some(mut menu) = keyboard_menu {
+            menu.id = format!("keyboard-{:?}", menu.id).into();
+            let mut context = crate::ContextMenu::new(menu, focus);
+
+            context.fill = true;
+            context.children.push(content);
+
+            context.into_any_element()
+        } else {
+            content
+        }
     }
 }

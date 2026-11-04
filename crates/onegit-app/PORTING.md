@@ -39,7 +39,7 @@ spacing checks described in `docs/RUST.md`.
 ## Intentional differences
 
 Rust retains index staging rather than the source app's selected-file inclusion
-workflow. It retains explicit page loading in History. Unported AI, graph, account and SSH actions are unavailable. History, stash and conflict diffs
+workflow. It retains explicit page loading in History. Unported AI, account, SSH, reset and tag-writing actions are unavailable. History, stash and conflict diffs
 support text selection and copying, but remain read-only.
 These are behavior gaps, not a claim that the full original application is ported.
 Only persisted source library/cache entries are imported; unsaved source runtime
@@ -513,8 +513,8 @@ reduced-motion geometry.
 
 Differences: the source's external-editor preference has not been ported;
 "Open editor" uses macOS's default text editor after validating a regular
-canonical path inside the repository; other platforms show manual-editor guidance. Shared context expansion and syntax highlighting are described below. Cherry-pick/revert and
-squash operation controls remain outside this merge/rebase slice.
+canonical path inside the repository; other platforms show manual-editor guidance. Shared context expansion and syntax highlighting are described below. Cherry-pick/revert controls are described in the replay port below; squash
+operation controls remain outside this merge/rebase slice.
 
 No changeset is required: these Rust crates are unpublished and no TypeScript
 release package is changed.
@@ -809,8 +809,8 @@ repository before submitting through the shared write queue. Creating the branch
 keeps HEAD, working files and index intact, preserves drafts and selections, and
 refreshes duplicate and linked-worktree tabs. Failures after the command boundary
 require reopening the form before retry. The form uses gpui-ce-motion opacity and
-height transitions; Cancel does not write. Reset, revert, cherry-pick and tag-write
-menus remain outside this graph/navigation port.
+height transitions; Cancel does not write. Reset and tag-write menus remain separate work. Cherry-pick and Revert are
+described in the replay port below.
 
 Matching native captures now use the same 1280×820 logical window, dark theme,
 repository and commit: onbot at `9bc01f3`, followed by the stable
@@ -885,3 +885,76 @@ for all workspace targets plus Windows/Linux Git code pass.
 The signed development build was checked locally. CI was not run for this
 validation. This comparison covers the shared diff styling and committed-file
 navigation, not a claim that every remaining app screen is pixel-identical.
+
+## Cherry-pick and Revert
+
+| Native source behavior | Rust path |
+| --- | --- |
+| History/Graph commit menu | Shared CommitList/CommitGraph context menus; workspace/replay |
+| RepositoryCherryPick branch search and exact destination consent | replay::Form and CherryPickCommit |
+| RepositoryRevert confirmation and current-branch consent | replay::Form and ReplayCommit |
+| Window-owned write and related-tab refresh | replay::worker, tabs/replay_actions, refresh_written_tabs |
+| Continue/Abort paused cherry-pick/revert | Existing conflicts previews, resolution writer and finish_operation |
+
+Both views expose right-click, Control-click and Shift+F10 actions. Context actions
+retain the previous selection while targeting the clicked immutable commit.
+Confirmations retain the exact source root, branch, HEAD and commit; cherry-pick
+also retains the selected destination tip. Search excludes the current branch and
+branches occupied by worktrees. Destination selection is explicit. Revert retains
+published history and requires source ancestry; cherry-pick accepts an exact Graph
+commit from any local ref. Merge commits require an external mainline choice,
+matching the source. The existing Rust cherry-pick ancestry guard was narrowed to
+Revert after a new regression test demonstrated the Graph mismatch.
+
+Accepted work uses the shared Git mutation queue. Stale/dirty/busy/occupied
+destinations fail before execution; command-boundary errors never replay. A
+cherry-pick failure after switching remains on its destination for inspection,
+including after Abort. Started actions show Changes for progress/conflict
+recovery while retaining Graph/History state. Ordinary drafts are never cleared.
+Related and duplicate tabs refresh through snapshots without replacing their
+drafts, selected commits/files, diff state or viewports. History keeps old rows
+until refreshed rows arrive; the shared list retains its commit anchor and partial
+row pixel offset. Confirmations use
+gpui-ce-motion opacity/height transitions of 120 ms, honor reduced motion and
+request no frames after settling.
+
+Test mappings: sequences.rs adds cross-ref Graph replay versus ancestry-guarded
+Revert, moved destination and occupied-worktree cases. replay::tests covers stale
+consent, cherry-pick resolve/continue, revert abort and outdated recovery tokens;
+the existing finish_operation integration case covers Continue and Abort for
+both sequencers. Native form tests cover search, explicit choice, exact consent,
+duplicate submissions, stale review and reduced motion. tabs/replay_tests covers
+drafts, immutable selections and scroll across duplicate/linked tabs. UI graph
+tests cover right-click targeting and Shift+F10 without changing selection,
+and defer keyboard menu creation for restored selections whose page is not yet
+loaded. The latter regression reproduces the native startup panic found during
+matching-screen verification.
+
+The Rust menu exposes the implemented copy/replay actions; unrelated reset,
+squash/reorder and tag actions remain separate ports. No new dependency or
+changeset is required: these Rust crates are unpublished.
+
+### Replay verification (2026-11-03)
+
+The complete workspace/all-target/all-feature suite passes 640 tests, including
+the fractional History anchor regression. A separate final Graph run passes all
+eight tests, including the newly reproduced unloaded-selection startup case;
+the final native replay run passes eight cases. Strict workspace Clippy, rustdoc
+with warnings denied, rustfmt, Git whitespace, and logical spacing for workspace
+targets plus Windows/Linux Git code pass. The signed development bundle starts
+successfully after restoring both Graph and History sessions. Temporary startup
+diagnostics were removed.
+
+Compared actual reference and Rust screens in dark mode at 1280 by 820 logical
+pixels, on diff-parity-o_cgtiu3 at 68ba2a5f047b897c495846111cfab6501c11f517 with
+src/main.rs selected: Graph Revert (420 by 174 logical-pixel confirmation) and
+History Cherry-pick (420 by 410 confirmation), including typography, buttons,
+list rows, spacing and destination choices. Live search for “rel” and Down-arrow
+selection choose release, enable confirmation and display the source/destination
+summary; Escape cancels while preserving commit/file selection. Both comparison
+confirmations were cancelled. QA HEAD, index SHA-256 and all working-file hashes
+remain unchanged. The fixture contains preview/release branches created solely
+for destination review. The native Rust app is running on the compared Graph.
+
+Validation was local; CI was not run. No changeset is needed for unpublished
+Rust crates; no TypeScript release package changed.

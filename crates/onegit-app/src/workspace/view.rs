@@ -561,6 +561,7 @@ impl Render for RepositoryWorkspace {
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
         self.configure_recovery(cx);
+        self.configure_replay(cx);
         let conflict_blocked = !self.conflict_available();
 
         self.conflicts
@@ -653,7 +654,7 @@ impl Render for RepositoryWorkspace {
         }.into_any_element();
 
         if let Some(host) = &self.discard_host {
-            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}{self.conflicts.clone()}{self.recovery.clone()}{self.graph.read(cx).form.clone()}</onegit_ui::DialogHost> }.into_any_element()
+            rake::view! { <onegit_ui::DialogHost state={host.clone()} body={page}>{self.discard.clone()}{self.conflicts.clone()}{self.recovery.clone()}{self.replay.clone()}{self.graph.read(cx).form.clone()}</onegit_ui::DialogHost> }.into_any_element()
         } else {
             page
         }

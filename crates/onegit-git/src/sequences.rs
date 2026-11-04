@@ -47,7 +47,7 @@ pub struct RevertOptions<'a> {
 /// Exact commit and source branch identity reviewed in History.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReplayCommit {
-    /// Full commit object ID, reachable from the reviewed source HEAD.
+    /// Full commit object ID; revert additionally requires source-HEAD reachability.
     pub commit: String,
     /// Source HEAD and named branch captured during review.
     pub expected: BranchIdentity,
@@ -178,7 +178,8 @@ impl Repository {
         cancellation: Option<&Cancellation>,
     ) -> Result<Snapshot, WriteError> {
         self.mutate(cancellation, || {
-            self.review_replay(&request.review,cancellation).map_err(before)?;
+            self.review_clean_branch(&request.review.expected,cancellation).map_err(before)?;
+            self.review_exact_commit(&request.review.commit,cancellation).map_err(before)?;
             require_revision(&request.target_branch).map_err(before)?;
             self.run(["check-ref-format","--branch",&request.target_branch],cancellation).map_err(before)?;
             let branches=self.branches_uncoordinated(cancellation).map_err(before)?;
@@ -212,20 +213,8 @@ impl Repository {
         request: &ReplayCommit,
         cancellation: Option<&Cancellation>,
     ) -> Result<CommitInfo, RepositoryError> {
-        if !full_oid(&request.commit) {
-            return Err(RepositoryError::InvalidInput(
-                "Select an exact commit from History.",
-            ));
-        }
-
         self.review_clean_branch(&request.expected, cancellation)?;
-        let commit = self.commit_uncoordinated(&request.commit, cancellation)?;
-
-        if commit.parent_oids.len() > 1 {
-            return Err(RepositoryError::InvalidInput(
-                "Merge commits require an external Git tool to choose the mainline parent.",
-            ));
-        }
+        let commit = self.review_exact_commit(&request.commit, cancellation)?;
 
         if !self.is_ancestor(
             &request.commit,
@@ -234,6 +223,28 @@ impl Repository {
         )? {
             return Err(RepositoryError::InvalidInput(
                 "The selected commit is no longer in the reviewed History.",
+            ));
+        }
+
+        Ok(commit)
+    }
+
+    fn review_exact_commit(
+        &self,
+        oid: &str,
+        cancellation: Option<&Cancellation>,
+    ) -> Result<CommitInfo, RepositoryError> {
+        if !full_oid(oid) {
+            return Err(RepositoryError::InvalidInput(
+                "Select an exact commit from History.",
+            ));
+        }
+
+        let commit = self.commit_uncoordinated(oid, cancellation)?;
+
+        if commit.oid != oid || commit.parent_oids.len() > 1 {
+            return Err(RepositoryError::InvalidInput(
+                "Merge commits require an external Git tool to choose the mainline parent.",
             ));
         }
 

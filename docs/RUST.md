@@ -149,7 +149,15 @@ Empty commits, an unborn branch, binary files and oversized patches have explici
 states. History lists and committed file lists virtualize rows and support keyboard
 selection. Git reads and patch parsing run in the background with cancellation;
 failed pages retain existing rows and can be retried. Switching tabs preserves the
-commit draft and history selection. History never stages or changes files.
+commit draft and history selection. Browsing History does not write files. Right-click a commit in History or Graph
+(or press Shift+F10 on the selected commit) to **Cherry-pick commit…** or **Revert
+commit…**. Each opens a confirmation pinned to the reviewed branch and commit.
+Cherry-pick searches available local destination branches, switches only after
+confirmation, and keeps the source branch unchanged. Revert adds a reversing
+commit to the current branch. Both require clean working files, reject stale
+reviews, preserve drafts and retained navigation, and refresh related tabs.
+Conflicts open Changes with the existing previews and explicit Continue/Abort
+controls. Aborting a cherry-pick keeps the checked-out destination branch.
 
 Remote machines and account management remain future app work.
 Loading status and previews does not mutate repository contents.

@@ -172,6 +172,7 @@ pub(super) fn run(
         discard_completion: None,
         conflict_completion: None,
         staging_completion: Some(Completed { snapshots }),
+        replay_completion: None,
         recovery_completion: None,
     }
 }

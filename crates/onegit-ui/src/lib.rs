@@ -48,7 +48,8 @@ pub use dialog::{
 
 pub use commit_list::{
     CommitItem, CommitList, CommitListData, CommitListDataError, CommitListDensity,
-    CommitListState, CommitRef, CommitRefKind, CommitSelectionHandler, CommitStatus,
+    CommitListState, CommitMenuBuilder, CommitRef, CommitRefKind, CommitSelectionHandler,
+    CommitStatus,
 };
 
 pub use diff_viewer::{

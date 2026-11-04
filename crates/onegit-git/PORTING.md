@@ -221,3 +221,19 @@ object type, branch name, duplicate refs, root identity and active-operation gua
 inside the shared mutation queue. Dirty working/index state is allowed and remains
 untouched. Integration tests cover dirty and detached repositories, duplicate and
 invalid inputs, and refusal during unfinished operations.
+
+## Graph cherry-pick consent
+
+The app replay port reuses `cherry_pick_commit`, `revert_commit` and
+`finish_operation`. Like the source `Repository.cherryPickCommit`, cherry-pick
+accepts an exact non-merge commit selected from any Graph reference, even when it
+is not an ancestor of the checked-out source HEAD. Revert retains its ancestry
+guard. Both recheck the reviewed clean source identity under the mutation queue;
+cherry-pick also rechecks destination tip/worktree occupancy before switching.
+No replay failure switches back or retries automatically.
+
+The sequences integration suite passes seven cases. New cases map cross-ref Graph
+selection versus Revert ancestry, moved target tips, and occupied worktrees;
+the existing reviewed-finish integration test covers both Continue and Abort for
+both sequencers plus changed operation tokens. The app adds related-tab refresh,
+confirmation and native state-preservation coverage. No dependencies changed.

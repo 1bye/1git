@@ -198,3 +198,84 @@ fn selected_commit_streams_lifecycle_and_output_without_allowing_observers_to_br
     assert!(bytes.get() > 0);
     assert!(!f.root.join(".git/index.lock").exists());
 }
+
+#[test]
+fn graph_cherry_pick_accepts_an_exact_commit_outside_source_history_but_revert_does_not() {
+    let f = Fixture::new();
+
+    f.write("base", "base");
+    f.commit("Base");
+    let base = oid(&f);
+
+    f.git(&["branch", "target"]);
+    f.git(&["switch", "-c", "feature"]);
+    f.write("feature", "copy me");
+    f.commit("Feature");
+    let commit = oid(&f);
+
+    f.git(&["switch", "main"]);
+    let r = Repository::open(&f.root, f.process(), None).unwrap();
+    let expected = BranchIdentity::from_snapshot(&r.snapshot(false, None).unwrap());
+    let review = ReplayCommit { commit, expected };
+
+    assert!(r.revert_commit(&review, None).is_err());
+    assert_eq!(oid(&f), base);
+    r.cherry_pick_commit(
+        &CherryPickCommit {
+            review,
+            target_branch: "target".into(),
+            expected_target: base.clone(),
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read(f.root.join("feature")).unwrap(), b"copy me");
+    assert_eq!(
+        String::from_utf8(f.git(&["rev-parse", "main"]))
+            .unwrap()
+            .trim(),
+        base
+    );
+}
+
+#[test]
+fn reviewed_cherry_pick_refuses_stale_destination_and_occupied_worktree_without_switching() {
+    let f = Fixture::new();
+
+    f.write("base", "base");
+    f.commit("Base");
+    let base = oid(&f);
+
+    f.git(&["branch", "target"]);
+    f.write("feature", "copy me");
+    f.commit("Feature");
+    let r = Repository::open(&f.root, f.process(), None).unwrap();
+    let source = oid(&f);
+
+    let mut request = CherryPickCommit {
+        review: ReplayCommit {
+            commit: source.clone(),
+            expected: BranchIdentity::from_snapshot(&r.snapshot(false, None).unwrap()),
+        },
+        target_branch: "target".into(),
+        expected_target: source.clone(),
+    };
+
+    assert!(r.cherry_pick_commit(&request, None).is_err());
+    assert_eq!(oid(&f), source);
+    request.expected_target = base;
+    let linked = f.root.parent().unwrap().join("occupied");
+
+    f.git(&["worktree", "add", linked.to_str().unwrap(), "target"]);
+    assert!(r.cherry_pick_commit(&request, None).is_err());
+    assert_eq!(oid(&f), source);
+    assert_eq!(
+        r.snapshot(false, None)
+            .unwrap()
+            .status
+            .head
+            .branch
+            .as_deref(),
+        Some("main")
+    );
+}

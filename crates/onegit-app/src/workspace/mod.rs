@@ -9,6 +9,7 @@ mod home;
 mod native;
 mod read;
 mod recovery;
+mod replay;
 mod staging;
 mod stashes;
 mod sync;
@@ -98,6 +99,7 @@ pub(crate) struct RepositoryWorkspace {
     stashes: gpui::Entity<stashes::Stashes>,
     discard: gpui::Entity<discard::Form>,
     recovery: gpui::Entity<recovery::Form>,
+    replay: gpui::Entity<replay::Form>,
     amend: Option<recovery::Amend>,
     composer: recovery::Composer,
     conflicts: gpui::Entity<conflicts::Form>,
@@ -208,7 +210,24 @@ impl RepositoryWorkspace {
             recovery::Form::new(host.or(discard_host.as_ref()).expect("dialog host"), cx)
         });
 
+        let replay = cx.new(|cx| {
+            replay::Form::new(
+                host.or(discard_host.as_ref()).expect("dialog host"),
+                window,
+                cx,
+            )
+        });
+
         let mut subscriptions = vec![
+            cx.subscribe_in(&history,window,|this:&mut Self,_,event:&replay::Open,window,cx|this.open_replay(event,window,cx)),
+            cx.subscribe_in(&graph,window,|this:&mut Self,_,event:&replay::Open,window,cx|this.open_replay(event,window,cx)),
+            cx.subscribe_in(&replay,window,|this:&mut Self,_,event:&replay::Submit,window,cx|{
+                if this.hosted {cx.emit(event.clone());}
+                else {this.start_write(write::Operation::Replay{action:event.0.clone(),peers:Vec::new()},window,cx);
+                    if this.write_job.is_none(){this.replay.update(cx,|form,cx|form.finish(Err("The repository is busy. Cancel and review again.".into()),window,cx));}
+                }
+            }),
+
             cx.subscribe_in(&graph,window,|this:&mut Self,_,event:&graph::Submit,window,cx|{
                 let same=matches!(&this.state,RepositoryState::Ready(source) if source.snapshot.repository.root==event.root);
                 if same {this.start_write(write::Operation::GraphBranch(event.clone()),window,cx);}
@@ -347,6 +366,7 @@ impl RepositoryWorkspace {
             discard_host,
             conflicts,
             recovery,
+            replay,
             amend: None,
             composer: recovery::Composer::new(cx.background_executor().now()),
             conflict_side: onegit_git::ConflictSide::Ours,
@@ -654,6 +674,40 @@ impl RepositoryWorkspace {
         self.start_write(operation, window, cx);
     }
 
+    fn configure_replay(&mut self, cx: &mut gpui::Context<Self>) {
+        let source = match &self.state {
+            RepositoryState::Ready(source) => Some(source.clone()),
+            _ => None,
+        };
+
+        let blocked = !self.can_write() || self.amend.is_some();
+
+        self.replay
+            .update(cx, |form, cx| form.configure(source, blocked, cx));
+        self.history
+            .update(cx, |history, cx| history.configure_actions(blocked, cx));
+        self.graph
+            .update(cx, |graph, cx| graph.configure_actions(blocked, cx));
+    }
+
+    fn open_replay(
+        &mut self,
+        event: &replay::Open,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.configure_replay(cx);
+
+        if !self.can_write() || self.amend.is_some() {
+            return;
+        }
+
+        if let RepositoryState::Ready(source) = &self.state {
+            self.replay
+                .update(cx, |form, cx| form.open(source.clone(), event, window, cx));
+        }
+    }
+
     fn start_write(
         &mut self,
         operation: write::Operation,
@@ -749,6 +803,7 @@ impl RepositoryWorkspace {
                 .update(cx, |input, cx| input.set_text("", cx));
         }
 
+        let replay_completion = outcome.replay_completion;
         let recovery_completion = outcome.recovery_completion;
         let staging_completion = outcome.staging_completion;
         let conflict_completion = outcome.conflict_completion;
@@ -808,7 +863,8 @@ impl RepositoryWorkspace {
                     || discard_completion.is_some()
                     || conflict_completion.is_some()
                     || staging_completion.is_some()
-                    || recovery_completion.is_some() =>
+                    || recovery_completion.is_some()
+                    || replay_completion.is_some() =>
             {
                 self.apply_automatic(loaded, cx)
             }
@@ -818,7 +874,8 @@ impl RepositoryWorkspace {
                     || discard_completion.is_some()
                     || conflict_completion.is_some()
                     || staging_completion.is_some()
-                    || recovery_completion.is_some() =>
+                    || recovery_completion.is_some()
+                    || replay_completion.is_some() =>
             {
                 self.refresh_blocked = true;
                 self.refresh_error = Some(format!(
@@ -830,6 +887,26 @@ impl RepositoryWorkspace {
                 self.preview = PreviewState::Empty;
                 self.state = RepositoryState::Failed { path, error };
             }
+        }
+
+        if let Some(completion) = replay_completion {
+            self.replay.update(cx, |form, cx| {
+                form.finish(
+                    if completion.started {
+                        Ok(())
+                    } else {
+                        completion.result.clone()
+                    },
+                    window,
+                    cx,
+                )
+            });
+
+            if completion.started {
+                self.section = Section::Changes;
+            }
+
+            cx.emit(completion);
         }
 
         if let Some(completion) = recovery_completion {
