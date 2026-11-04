@@ -295,7 +295,7 @@ impl RenderOnce for Button {
                     .when_some(self.width, |s, width| s.w(width))}>
                 if glyph.is_some() { <div style={|s| s.size(px(icon_size.pixels())).flex_shrink_0()}/> }
                 if !icon_only {
-                    <p class={if self.variant==ButtonVariant::Alert {"text-body min-w-0 font-normal"}else{"text-body min-w-0 font-medium"}} wrap={false} ellipsis={true}>{self.label.clone()}</p>
+                    <p class={if self.variant==ButtonVariant::Alert {"text-body min-w-0 font-normal"}else if self.size==ControlSize::Small {"text-small min-w-0 font-medium"}else{"text-body min-w-0 font-medium"}} wrap={false} ellipsis={true}>{self.label.clone()}</p>
                 }
             </div>
         };
@@ -333,7 +333,7 @@ impl RenderOnce for Button {
                                     {..Icon::new("glyph", name)}/>
                             }
                             if !icon_only {
-                                <p class={if self.variant==ButtonVariant::Alert {"text-body min-w-0 font-normal"}else{"text-body min-w-0 font-medium"}} wrap={false} ellipsis={true}>{self.label}</p>
+                                <p class={if self.variant==ButtonVariant::Alert {"text-body min-w-0 font-normal"}else if self.size==ControlSize::Small {"text-small min-w-0 font-medium"}else{"text-body min-w-0 font-medium"}} wrap={false} ellipsis={true}>{self.label}</p>
                             }
                         </button>
                     }

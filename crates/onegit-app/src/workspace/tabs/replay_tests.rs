@@ -6,6 +6,15 @@ use std::{sync::Arc, time::Duration};
 
 #[test]
 fn replay_refreshes_duplicate_and_linked_tabs_preserving_drafts_graph_selection_and_viewport() {
+    check_refresh(false);
+}
+
+#[test]
+fn reset_refreshes_duplicate_and_linked_tabs_preserving_drafts_graph_selection_and_viewport() {
+    check_refresh(true);
+}
+
+fn check_refresh(reset: bool) {
     let f = Fixture::new();
 
     f.write("a", "base\n");
@@ -71,13 +80,23 @@ fn replay_refreshes_duplicate_and_linked_tabs_preserving_drafts_graph_selection_
         .collect();
 
     a.update(&mut cx, |_, cx| {
-        cx.emit(replay::Submit(replay::Action {
-            review: replay::Review {
-                root: source.snapshot.repository.root.clone(),
-                expected: onegit_git::BranchIdentity::from_snapshot(&source.snapshot),
-                commit: commit.clone(),
+        let review = replay::Review {
+            root: source.snapshot.repository.root.clone(),
+            expected: onegit_git::BranchIdentity::from_snapshot(&source.snapshot),
+            commit: if reset {
+                Arc::new(source.repository.commit(&base, None).unwrap())
+            } else {
+                commit.clone()
             },
-            destination: Some(("target".into(), base)),
+        };
+
+        cx.emit(replay::Submit(if reset {
+            replay::Action::Reset(review)
+        } else {
+            replay::Action::CherryPick {
+                review,
+                destination: ("target".into(), base.clone()),
+            }
         }))
     });
     draw(&mut cx, v);
@@ -85,8 +104,8 @@ fn replay_refreshes_duplicate_and_linked_tabs_preserving_drafts_graph_selection_
     draw(&mut cx, v);
 
     for (i, (tab, draft, branch)) in [
-        (&a, "origin", "target"),
-        (&b, "duplicate", "target"),
+        (&a, "origin", if reset { "main" } else { "target" }),
+        (&b, "duplicate", if reset { "main" } else { "target" }),
         (&c, "linked", "linked"),
     ]
     .into_iter()
@@ -129,4 +148,10 @@ fn replay_refreshes_duplicate_and_linked_tabs_preserving_drafts_graph_selection_
         assert_eq!(after.file, history_before.file);
     });
     assert_eq!(std::fs::read(linked.join("a")).unwrap(), b"feature\n");
+
+    if reset {
+        assert_eq!(f.load().snapshot.status.head.oid.as_ref(), Some(&base));
+        assert_eq!(std::fs::read(f.root.join("a")).unwrap(), b"feature\n");
+        assert!(!f.git(&["for-each-ref", "refs/1git/reset/"]).is_empty());
+    }
 }

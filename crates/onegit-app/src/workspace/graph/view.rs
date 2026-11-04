@@ -82,6 +82,11 @@ impl Graph {
         let commits = self.commits.clone();
         let owner = cx.entity().downgrade();
 
+        let head = self
+            .source
+            .as_ref()
+            .and_then(|s| s.snapshot.status.head.oid.clone());
+
         let blocked = self.actions_blocked
             || self
                 .source
@@ -100,7 +105,7 @@ impl Graph {
                 </div>
                 if let Some(error)=&self.page_error {<p role={accesskit::Role::Alert} class="px-2 py-1 text-caption text-danger">{error.clone()}</p>}
                 <div class="flex-1 min-w-0 min-h-0">
-                    <CommitGraph context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits.iter().find(|commit|commit.oid==oid.as_ref()).expect("graph rows have commit metadata").clone(),blocked,owner.clone())))} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
+                    <CommitGraph context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits.iter().find(|commit|commit.oid==oid.as_ref()).expect("graph rows have commit metadata").clone(),blocked,head.as_deref(),owner.clone())))} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
                         on_select={Some(Box::new(cx.listener(|this,id:&gpui::SharedString,_,cx|this.select(id,cx))))}
                         {..CommitGraph::new("graph-table",self.data.clone(),&self.state)}/>
                 </div>

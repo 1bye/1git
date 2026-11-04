@@ -20,6 +20,11 @@ impl HistoryWorkspace {
         let commits = self.commits.clone();
         let owner = cx.entity().downgrade();
 
+        let head = self
+            .source
+            .as_ref()
+            .and_then(|s| s.snapshot.status.head.oid.clone());
+
         let blocked = self.actions_blocked
             || self
                 .source
@@ -29,7 +34,7 @@ impl HistoryWorkspace {
         rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
                 <div class="flex-1 min-w-0 min-h-0 pl-1.5 pr-3">
-                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),blocked,owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
+                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),blocked,head.as_deref(),owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
                         on_select={Some(Box::new(cx.listener(|this,oid:&gpui::SharedString,_,cx|this.select_commit(oid.clone(),cx))))}
                         {..CommitList::new("history-commits","Repository commit history",self.data.clone())}/>
                 </div>

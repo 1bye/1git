@@ -159,7 +159,16 @@ fn guarded_reset_removes_only_unpublished_history_retains_index_files_and_recove
     assert_eq!(plan.commit_count, 2);
     let index = std::fs::read(f.root.join(".git/index")).unwrap();
 
-    r.reset_to_commit(&request, None).unwrap();
+    f.git(&["tag", "retained-tag", &ids[3]]);
+    f.git(&["branch", "retained-branch", &ids[3]]);
+    let result = r.reset_to_commit(&request, None).unwrap();
+
+    assert!(result.recovery_ref.starts_with("refs/1git/reset/"));
+    assert_eq!(text(&f, &["rev-parse", &result.recovery_ref]), ids[3]);
+    assert_eq!(text(&f, &["rev-parse", "retained-tag"]), ids[3]);
+    assert_eq!(text(&f, &["rev-parse", "retained-branch"]), ids[3]);
+    assert!(result.snapshot.is_some());
+    assert!(result.warning.is_none());
     assert_eq!(text(&f, &["rev-parse", "HEAD"]), ids[1]);
     assert_eq!(std::fs::read(f.root.join(".git/index")).unwrap(), index);
     assert!(f.root.join("Three").exists());
@@ -495,4 +504,54 @@ fn guarded_reset_counts_merge_side_commits_and_refuses_published_side_history() 
     assert_eq!(r.reset_commit_plan(&request, None).unwrap().commit_count, 4);
     f.git(&["update-ref", "refs/remotes/other/side", &side]);
     assert!(r.reset_to_commit(&request, None).is_err());
+}
+
+#[test]
+fn reset_rechecks_publication_head_branch_and_dirty_files_after_readonly_review() {
+    for change in ["publication", "head", "branch", "dirty"] {
+        let (f, r, ids, expected) = setup();
+
+        let request = ResetCommit {
+            target: ids[1].clone(),
+            expected,
+        };
+
+        let plan = r.reset_commit_plan(&request, None).unwrap();
+
+        assert_eq!(plan.commit_count, 2);
+        assert!(text(&f, &["for-each-ref", "refs/1git/reset/"]).is_empty());
+
+        match change {
+            "publication" => {
+                f.git(&["update-ref", "refs/remotes/origin/main", &ids[3]]);
+            }
+            "head" => {
+                f.git(&["commit", "--allow-empty", "-m", "external commit"]);
+            }
+            "branch" => {
+                f.git(&["switch", "-c", "external-branch"]);
+            }
+            "dirty" => {
+                f.write("Three", "external edit");
+            }
+            _ => unreachable!(),
+        }
+
+        let head = text(&f, &["rev-parse", "HEAD"]);
+        let branch = text(&f, &["symbolic-ref", "HEAD"]);
+        let index = std::fs::read(f.root.join(".git/index")).unwrap();
+        let file = std::fs::read(f.root.join("Three")).unwrap();
+        let result = r.reset_to_commit(&request, None).unwrap_err();
+
+        assert_eq!(
+            result.phase,
+            onegit_git::WritePhase::BeforeCommand,
+            "{change}"
+        );
+        assert_eq!(text(&f, &["rev-parse", "HEAD"]), head);
+        assert_eq!(text(&f, &["symbolic-ref", "HEAD"]), branch);
+        assert_eq!(std::fs::read(f.root.join(".git/index")).unwrap(), index);
+        assert_eq!(std::fs::read(f.root.join("Three")).unwrap(), file);
+        assert!(text(&f, &["for-each-ref", "refs/1git/reset/"]).is_empty());
+    }
 }

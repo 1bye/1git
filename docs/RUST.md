@@ -417,3 +417,31 @@ new writes until History is inspected and the repository is refreshed.
 Graph and History committed-file panes support tree/list layout, folder counts,
 compact directory chains and keyboard disclosure. The selected diff and draft
 survive layout changes; layout and collapsed folders restore with the session.
+
+
+## Reset to commit
+
+Graph and History expose **Reset to commit…** on an earlier commit. The confirmation
+reviews the exact branch/HEAD and target, shows how many later commits will be
+undone, and requires explicit consent. The current tip, dirty repositories, detached
+HEADs and active operations are unavailable. Review is cancellable and times out
+after ten seconds; no write occurs while reviewing.
+
+Reset changes only the current branch ref. Every working file and the exact index
+stay intact; the undone changes appear in Changes. Other branches and existing
+tags stay unchanged. An atomic transaction retains the original tip in
+`refs/1git/reset/<id>`, displayed in the result. Inspect retained history with
+`git log refs/1git/reset/<id>`; do not delete the ref until recovery is no longer
+needed.
+
+Publication guards use known remote-tracking refs. Fetch first if another tool may
+have pushed. The Git worker rechecks publication, ancestry, clean state and the
+reviewed branch/HEAD under the mutation queue before installing refs. Stale or
+failed consent must be reopened; uncertain results never retry and block new
+writes until an explicit refresh. Recovery feedback survives refresh failures.
+
+The originating tab shows Changes after confirmed success. Duplicate and linked
+worktree tabs refresh without replacing their own drafts, selected commits/files,
+diff modes, filters, pane sizes or scroll anchors. The retained historical
+selection stays readable through the recovery ref. Confirmation opacity and
+height use gpui-ce-motion, honor reduced motion and stop requesting frames at rest.

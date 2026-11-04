@@ -6,7 +6,7 @@ use crate::workspace::{
     write::Outcome,
 };
 
-use onegit_git::{Repository, WritePhase};
+use onegit_git::{CherryPickCommit, Repository, WritePhase};
 use std::sync::Arc;
 
 pub(in crate::workspace) fn run(
@@ -15,30 +15,76 @@ pub(in crate::workspace) fn run(
     peers: &[Arc<Repository>],
 ) -> Outcome {
     let mut started = false;
+    let mut needs_review = false;
+    let reset = action.kind() == Kind::Reset;
+    let mut recovery = None;
 
-    let result = if !action.review.matches(&source) {
+    let result = if !action.review().matches(&source) {
         Err("The repository or branch changed. Cancel and review the commit again.".to_owned())
+    } else if let Action::Reset(review) = action {
+        match source
+            .repository
+            .reset_to_commit(&review.reset_request(), None)
+        {
+            Ok(result) => {
+                started = true;
+                needs_review = result.warning.is_some() || result.snapshot.is_none();
+                recovery = Some(format!("Recovery ref: {}", result.recovery_ref));
+
+                if needs_review {
+                    Err(result.warning.unwrap_or_else(|| "The reset result could not be confirmed. Inspect History and refresh before writing again.".into()))
+                } else {
+                    Ok("History reset. Working files and staging were kept.".to_owned())
+                }
+            }
+            Err(error) => {
+                started = error.phase != WritePhase::BeforeCommand;
+                needs_review = started;
+
+                Err(format!(
+                    "{}\n{}",
+                    read::message(error.error),
+                    if started {
+                        "The reset result needs review. Inspect History and refresh; do not repeat this request."
+                    } else {
+                        "The reset did not start. Cancel and review the commit again."
+                    }
+                ))
+            }
+        }
     } else {
-        let result = if let Some(request) = action.cherry_pick() {
-            source.repository.cherry_pick_commit(&request, None)
-        } else {
-            source
-                .repository
-                .revert_commit(&action.review.request(), None)
+        let result = match action {
+            Action::CherryPick {
+                review,
+                destination: (branch, oid),
+            } => source.repository.cherry_pick_commit(
+                &CherryPickCommit {
+                    review: review.request(),
+                    target_branch: branch.clone(),
+                    expected_target: oid.clone(),
+                },
+                None,
+            ),
+            Action::Revert(review) => source.repository.revert_commit(&review.request(), None),
+            Action::Reset(_) => unreachable!("reset handled above"),
         };
 
         started = result
             .as_ref()
             .map_or_else(|error| error.phase != WritePhase::BeforeCommand, |_| true);
 
-        result.map(|_| ()).map_err(|error| {
+        result.map(|_| match action.kind() {
+            Kind::CherryPick => "Commit copied to the destination branch.".to_owned(),
+            Kind::Revert => "A new commit reverses the selected changes; existing history is intact.".to_owned(),
+            Kind::Reset => unreachable!("reset handled above"),
+        }).map_err(|error| {
             let boundary = match error.phase {
                 WritePhase::BeforeCommand => "The operation did not start. Cancel and review the commit again.",
                 WritePhase::Command => "Git may have switched branches or paused with conflicts. Inspect Changes and use Continue or Abort; do not replay this request.",
                 WritePhase::Refresh => "Git completed the operation, but its result could not be confirmed. Refresh and inspect Changes before writing again.",
             };
 
-            format!("{}\n{boundary}",read::message(error.error))
+            format!("{}\n{boundary}", read::message(error.error))
         })
     };
 
@@ -72,23 +118,25 @@ pub(in crate::workspace) fn run(
         .1
         .clone();
 
-    let result = if result.is_ok() && snapshots.iter().any(|(_, loaded)| loaded.is_err()) {
+    let refresh_failed = snapshots.iter().any(|(_, loaded)| loaded.is_err());
+
+    needs_review |= reset && started && refresh_failed;
+    let result = if result.is_ok() && refresh_failed {
         Err("Git completed, but a related repository could not be refreshed. Inspect Changes before writing again.".into())
     } else {
         result
     };
 
+    // Retain the acknowledged recovery ref even when the subsequent refresh fails.
+    let result = match (result, recovery) {
+        (Ok(message), Some(recovery)) => Ok(format!("{message}\n{recovery}")),
+        (Err(message), Some(recovery)) => Err(format!("{message}\n{recovery}")),
+        (result, None) => result,
+    };
+
     Outcome {
         loaded,
-        result: result.clone().map(|_| {
-            match action.kind() {
-                Kind::CherryPick => "Commit copied to the destination branch.",
-                Kind::Revert => {
-                    "A new commit reverses the selected changes; existing history is intact."
-                }
-            }
-            .into()
-        }),
+        result: result.clone(),
         committed: false,
         branch_action: false,
         recovery_completion: None,
@@ -98,8 +146,10 @@ pub(in crate::workspace) fn run(
         discard_completion: None,
         replay_completion: Some(Completed {
             snapshots,
-            result,
+            result: result.map(|_| ()),
             started,
+            kind: action.kind(),
+            needs_review,
         }),
     }
 }

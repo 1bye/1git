@@ -930,8 +930,8 @@ and defer keyboard menu creation for restored selections whose page is not yet
 loaded. The latter regression reproduces the native startup panic found during
 matching-screen verification.
 
-The Rust menu exposes the implemented copy/replay actions; unrelated reset,
-squash/reorder and tag actions remain separate ports. No new dependency or
+The Rust menu exposes the implemented copy/replay actions. Reset is described
+below; squash/reorder and tag actions remain separate ports. No new dependency or
 changeset is required: these Rust crates are unpublished.
 
 ### Replay verification (2026-11-03)
@@ -958,3 +958,75 @@ for destination review. The native Rust app is running on the compared Graph.
 
 Validation was local; CI was not run. No changeset is needed for unpublished
 Rust crates; no TypeScript release package changed.
+
+
+## Reset to commit
+
+| Native source behavior | Rust path |
+| --- | --- |
+| repository-history-reset.tsx frozen target and read-only count | replay::Form, Review, Repository::reset_commit_plan |
+| Graph and History context action | replay::menu shared by both retained views |
+| Window-owned reset with stale/publication guards and recovery | Action::Reset, replay::worker, Repository::reset_to_commit |
+| Related-tab refresh and uncertain-result exclusion | tabs/replay_actions, refresh_written_tabs |
+
+Ports apps/gpuix/tests/repository-history/reset.component.test.tsx behavior:
+readonly review/cancel, exact immutable target and current-branch consent,
+published/stale/dirty rejection, duplicate submission and renewed-review
+requirements. Reset uses the existing branch-ref-only library transaction rather
+than reimplementing it in the app. Merge targets are allowed; current HEAD is
+disabled. Reset does not offer hard/mixed variants or discard working bytes.
+The selected ancestor stays; all removed ancestry, including merge side commits,
+is counted. Local publication refs are rechecked at submission; no automatic
+network request is added.
+
+The existing Git transaction atomically creates refs/1git/reset/<uuid> at the
+original tip and compare-and-swaps only the reviewed branch ref, with an owned
+index lock. Files/index, other branches and existing tags stay unchanged.
+Acknowledged recovery refs remain visible even when refresh fails. Read/command
+errors cannot be replayed; uncertain command or refresh results block related
+tabs pending explicit refresh. Failed confirmations stay open and disabled.
+Cancellation restores focus; initial focus is Cancel. The read is cancelled on
+dismissal/reopen and bounded by ten seconds.
+
+Tests: history_rewrite.rs verifies exact recovery ref, unchanged files/index and
+other refs, merge counts/publication, and publication/HEAD/branch/dirty changes
+after read-only review, with no backup ref installed on rejection.
+replay::tests covers acknowledged success, publication arriving after review and
+recovery feedback retained when a peer cannot refresh. Native Form tests cover
+readonly count, Cancel focus, single frozen consent, failure requiring reopen,
+published/stale refusal and cancellation ignoring a late read. The shared
+tabs/replay_tests runs the duplicate/linked-tab draft, selected commit/file and
+viewport invariants for both Cherry-pick and Reset, including History refresh
+and a selected commit removed from the branch's visible history.
+
+The screen comparison also maps the source Button size=sm label to the Rust
+ControlSize::Small text-small token (11px); measurement and painting use the
+same typography, preserving automatic width motion.
+
+No dependency or changeset is needed: the Rust crates remain unpublished.
+
+
+### Reset verification (2026-11-04)
+
+The workspace/all-target/all-feature suite passes 649 tests. After the final
+small-button typography correction, the UI suite passes 141 tests (including
+nine doctests), and the focused app commit-action suite passes 15 tests.
+Strict workspace Clippy, rustdoc with warnings denied, rustfmt, Git whitespace
+and logical spacing for all workspace targets plus Windows/Linux Git code pass.
+
+Compared actual reference and signed Rust development screens in light mode at
+1280 by 820 logical pixels: both Graph and History, diff-parity-o_cgtiu3 at
+68ba2a5f047b897c495846111cfab6501c11f517, src/main.rs selected, with the Reset
+target 686a55437e341d8a3080c439f88b54b89feb0c55 (Baseline diff preview).
+The centered 420 by 214 confirmation matches its title, target, count, wrapped
+guidance, padding, gaps, control heights and label sizes. The initial comparison
+caught the larger small-button label; the rebuilt app was compared again after
+that correction. The current-tip menu action is visibly disabled. Escape cancels
+without replacing the existing commit/file selection in either view.
+
+Both apps' confirmations were cancelled. The QA HEAD, index SHA-1 and clean
+working-tree status are unchanged; no reset refs were installed in this shared
+comparison repository. Accepted resets and rejection paths were tested only in
+disposable fixtures. The final signed app starts and restores its session.
+CI and other native operating systems were not run in this pass. This comparison
+covers Reset confirmations on matching views, not every remaining app screen.

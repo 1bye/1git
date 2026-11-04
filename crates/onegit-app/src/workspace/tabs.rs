@@ -410,7 +410,7 @@ impl Workspace {
             &workspace,
             window,
             move |this: &mut Self, _, event: &super::replay::Completed, _, cx| {
-                this.refresh_written_tabs(id, &event.snapshots, cx)
+                this.replay_completed(id, event, cx)
             },
         ));
         let view = workspace.read(cx);

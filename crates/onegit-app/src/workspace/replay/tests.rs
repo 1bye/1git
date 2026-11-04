@@ -6,12 +6,17 @@ use onegit_git::{FinishKind, OperationState};
 fn action(f: &Fixture, destination: Option<(String, String)>) -> Action {
     let source = f.load();
 
-    Action {
-        review: Review::new(
-            &source,
-            Arc::new(source.repository.commit("HEAD", None).unwrap()),
-        ),
-        destination,
+    let review = Review::new(
+        &source,
+        Arc::new(source.repository.commit("HEAD", None).unwrap()),
+    );
+
+    match destination {
+        Some(destination) => Action::CherryPick {
+            review,
+            destination,
+        },
+        None => Action::Revert(review),
     }
 }
 
@@ -115,7 +120,11 @@ fn revert_conflict_can_abort_without_replaying_and_stale_operation_token_is_refu
     let source = f.load();
     let mut action = action;
 
-    action.review.expected = onegit_git::BranchIdentity::from_snapshot(&source.snapshot);
+    let Action::Revert(review) = &mut action else {
+        panic!("expected revert")
+    };
+
+    review.expected = onegit_git::BranchIdentity::from_snapshot(&source.snapshot);
     let result = run(source, &action, &[]);
 
     assert!(result.result.is_err());
@@ -136,4 +145,99 @@ fn revert_conflict_can_abort_without_replaying_and_stale_operation_token_is_refu
     assert!(result.result.is_ok(), "{:?}", result.result);
     assert_eq!(f.load().snapshot.operation, OperationState::Normal);
     assert_eq!(std::fs::read(f.root.join("a")).unwrap(), b"two\n");
+}
+
+fn reset(f: &Fixture) -> Action {
+    let source = f.load();
+
+    Action::Reset(Review::new(
+        &source,
+        Arc::new(source.repository.commit("HEAD^", None).unwrap()),
+    ))
+}
+
+#[test]
+fn reset_reports_recovery_ref_and_preserves_files_and_staging() {
+    let f = Fixture::new();
+
+    f.write("a", "base");
+    f.commit();
+    f.write("a", "later");
+    f.commit();
+    let source = f.load();
+    let old = source.snapshot.status.head.oid.clone().unwrap();
+    let action = reset(&f);
+    let index = std::fs::read(f.root.join(".git/index")).unwrap();
+    let result = run(source, &action, &[]);
+    let message = result.result.unwrap();
+    let recovery = message.split("Recovery ref: ").nth(1).unwrap();
+
+    assert!(recovery.starts_with("refs/1git/reset/"));
+    assert_eq!(
+        String::from_utf8(f.git(&["rev-parse", recovery]))
+            .unwrap()
+            .trim(),
+        old
+    );
+    assert_eq!(std::fs::read(f.root.join(".git/index")).unwrap(), index);
+    assert_eq!(std::fs::read(f.root.join("a")).unwrap(), b"later");
+    let completion = result.replay_completion.unwrap();
+
+    assert!(completion.started);
+    assert!(!completion.needs_review);
+    assert!(completion.result.is_ok());
+    assert_eq!(completion.kind, Kind::Reset);
+}
+
+#[test]
+fn reset_retains_recovery_feedback_and_blocks_writes_if_a_peer_refresh_fails() {
+    let f = Fixture::new();
+
+    f.write("a", "base");
+    f.commit();
+    f.write("a", "later");
+    f.commit();
+    let action = reset(&f);
+    let peer = Fixture::new();
+
+    peer.write("b", "peer");
+    peer.commit();
+    let repository = peer.load().repository.clone();
+
+    std::fs::rename(peer.root.join(".git"), peer.root.join("saved-git")).unwrap();
+    let result = run(f.load(), &action, &[repository]);
+    let message = result.result.unwrap_err();
+
+    assert!(message.contains("related repository"));
+    assert!(message.contains("Recovery ref: refs/1git/reset/"));
+    let completion = result.replay_completion.unwrap();
+
+    assert!(completion.started);
+    assert!(completion.needs_review);
+}
+
+#[test]
+fn reset_rejects_new_publication_after_confirmation_review() {
+    let f = Fixture::new();
+
+    f.write("a", "base");
+    f.commit();
+    f.write("a", "later");
+    f.commit();
+    let action = reset(&f);
+    let source = f.load();
+
+    source
+        .repository
+        .reset_commit_plan(&action.review().reset_request(), None)
+        .unwrap();
+    let old = source.snapshot.status.head.oid.clone().unwrap();
+
+    f.git(&["update-ref", "refs/remotes/origin/main", &old]);
+    let result = run(source, &action, &[]);
+
+    assert!(result.result.unwrap_err().contains("published"));
+    assert!(!result.replay_completion.unwrap().started);
+    assert_eq!(f.load().snapshot.status.head.oid.as_ref(), Some(&old));
+    assert!(f.git(&["for-each-ref", "refs/1git/reset/"]).is_empty());
 }

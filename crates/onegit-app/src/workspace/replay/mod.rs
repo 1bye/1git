@@ -6,7 +6,7 @@ mod worker;
 
 use super::read::Loaded;
 pub(super) use form::Form;
-use onegit_git::{BranchIdentity, CherryPickCommit, CommitInfo, ReplayCommit};
+use onegit_git::{BranchIdentity, CommitInfo, ReplayCommit, ResetCommit};
 use onegit_ui::{DropdownMenu, MenuEntry, MenuItem};
 use rake::gpui;
 use std::{path::PathBuf, sync::Arc};
@@ -16,6 +16,7 @@ pub(super) use worker::run;
 pub(super) enum Kind {
     CherryPick,
     Revert,
+    Reset,
 }
 
 impl Kind {
@@ -23,6 +24,7 @@ impl Kind {
         match self {
             Self::CherryPick => "Cherry-pick commit",
             Self::Revert => "Revert commit",
+            Self::Reset => "Reset to commit",
         }
     }
 }
@@ -54,6 +56,13 @@ impl Review {
             && self.expected == BranchIdentity::from_snapshot(&source.snapshot)
     }
 
+    fn reset_request(&self) -> ResetCommit {
+        ResetCommit {
+            target: self.commit.oid.clone(),
+            expected: self.expected.clone(),
+        }
+    }
+
     fn request(&self) -> ReplayCommit {
         ReplayCommit {
             commit: self.commit.oid.clone(),
@@ -63,28 +72,28 @@ impl Review {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct Action {
-    pub review: Review,
-    pub destination: Option<(String, String)>,
+pub(super) enum Action {
+    CherryPick {
+        review: Review,
+        destination: (String, String),
+    },
+    Revert(Review),
+    Reset(Review),
 }
 
 impl Action {
-    pub fn kind(&self) -> Kind {
-        if self.destination.is_some() {
-            Kind::CherryPick
-        } else {
-            Kind::Revert
+    pub fn review(&self) -> &Review {
+        match self {
+            Self::CherryPick { review, .. } | Self::Revert(review) | Self::Reset(review) => review,
         }
     }
 
-    fn cherry_pick(&self) -> Option<CherryPickCommit> {
-        self.destination
-            .as_ref()
-            .map(|(branch, oid)| CherryPickCommit {
-                review: self.review.request(),
-                target_branch: branch.clone(),
-                expected_target: oid.clone(),
-            })
+    pub fn kind(&self) -> Kind {
+        match self {
+            Self::CherryPick { .. } => Kind::CherryPick,
+            Self::Revert(_) => Kind::Revert,
+            Self::Reset(_) => Kind::Reset,
+        }
     }
 }
 
@@ -95,6 +104,8 @@ pub(super) struct Completed {
     pub snapshots: Vec<(PathBuf, Result<Arc<Loaded>, String>)>,
     pub result: Result<(), String>,
     pub started: bool,
+    pub kind: Kind,
+    pub needs_review: bool,
 }
 
 impl gpui::EventEmitter<Open> for super::history::HistoryWorkspace {}
@@ -123,15 +134,22 @@ pub(super) fn unavailable(source: &Loaded) -> Option<&'static str> {
 pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
     commit: Arc<CommitInfo>,
     blocked: bool,
+    head: Option<&str>,
     owner: gpui::WeakEntity<T>,
 ) -> DropdownMenu {
     let mut menu = DropdownMenu::new(format!("commit-actions-{}", commit.oid), "Commit actions");
     let merge = commit.parent_oids.len() > 1;
+    let reset_blocked = blocked || head == Some(commit.oid.as_str());
 
     menu.entries = vec![
         MenuItem::new("copy-sha", "Copy SHA").into(),
         MenuItem::new("copy-message", "Copy Message").into(),
         MenuEntry::Separator,
+        MenuItem {
+            disabled: reset_blocked,
+            ..MenuItem::new("reset", "Reset to commit…")
+        }
+        .into(),
         MenuItem {
             disabled: blocked || merge,
             ..MenuItem::new("cherry-pick", "Cherry-pick commit…")
@@ -163,10 +181,12 @@ pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
             } else {
                 commit.body.clone()
             }));
-        } else if !blocked && !merge {
-            let kind = if *id == gpui::ElementId::from("cherry-pick") {
+        } else if !blocked {
+            let kind = if *id == gpui::ElementId::from("reset") && !reset_blocked {
+                Kind::Reset
+            } else if *id == gpui::ElementId::from("cherry-pick") && !merge {
                 Kind::CherryPick
-            } else if *id == gpui::ElementId::from("revert") {
+            } else if *id == gpui::ElementId::from("revert") && !merge {
                 Kind::Revert
             } else {
                 return;

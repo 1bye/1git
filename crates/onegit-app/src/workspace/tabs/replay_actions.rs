@@ -28,7 +28,7 @@ impl Workspace {
         let root = &source.snapshot.repository.root;
         let related = self.related(root, cx);
 
-        let invalid = !event.0.review.matches(&source)
+        let invalid = !event.0.review().matches(&source)
             || self.busy(root, cx)
             || related.iter().any(|tab| tab.read(cx).refresh_blocked)
             || target.read(cx).amend.is_some();
@@ -84,5 +84,28 @@ impl Workspace {
 
         self.reconcile(cx);
         cx.notify();
+    }
+
+    pub(super) fn replay_completed(
+        &mut self,
+        id: u64,
+        event: &replay::Completed,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.refresh_written_tabs(id, &event.snapshots, cx);
+
+        if event.needs_review {
+            for (root, _) in &event.snapshots {
+                for tab in self.matching(root, cx) {
+                    tab.update(cx, |tab, cx| {
+                        tab.refresh_blocked = true;
+                        tab.refresh_error = Some("The reset result needs review. Inspect History and refresh before writing again.".into());
+                        cx.notify();
+                    });
+                }
+            }
+
+            self.reconcile(cx);
+        }
     }
 }
