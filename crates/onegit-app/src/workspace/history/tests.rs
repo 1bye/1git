@@ -708,4 +708,83 @@ mod native {
             0
         );
     }
+
+    #[test]
+    fn tag_only_refresh_updates_rows_and_selected_metadata_without_reloading_pages_or_diff() {
+        let f = Fixture::new();
+
+        f.write("a.txt", "base\n");
+        f.commit();
+        let (mut cx, v) = setup(&f);
+
+        click(&mut cx, v, "tab-history");
+        let before = v
+            .read_with(&cx, |view, cx| {
+                let history = view.history.read(cx);
+
+                (
+                    history.session(cx),
+                    history.diff_state.clone().unwrap(),
+                    history.data.items().len(),
+                )
+            })
+            .unwrap();
+
+        f.git(&["tag", "release-one"]);
+        f.git(&["tag", "release-two"]);
+        let source = f.load();
+
+        v.update(&mut cx, |view, _, cx| view.apply_automatic(source, cx))
+            .unwrap();
+        draw(&mut cx, v);
+
+        v.read_with(&cx, |view, cx| {
+            let history = view.history.read(cx);
+
+            assert_eq!(history.session(cx), before.0);
+            assert_eq!(
+                history.diff_state.as_ref().unwrap().entity_id(),
+                before.1.entity_id()
+            );
+            assert_eq!(history.data.items().len(), before.2);
+            assert_eq!(history.data.items()[0].references.len(), 2);
+            assert_eq!(
+                history.tags,
+                vec![
+                    gpui::SharedString::from("release-one"),
+                    gpui::SharedString::from("release-two")
+                ]
+            );
+        })
+        .unwrap();
+        assert!(
+            gpui::VisualTestContext::from_window(v.into(), &cx)
+                .debug_bounds("history-tags")
+                .is_some(),
+            "selected commit header must render refreshed tag labels"
+        );
+
+        f.git(&["tag", "-d", "release-one", "release-two"]);
+        let source = f.load();
+
+        v.update(&mut cx, |view, _, cx| view.apply_automatic(source, cx))
+            .unwrap();
+        draw(&mut cx, v);
+        assert!(
+            gpui::VisualTestContext::from_window(v.into(), &cx)
+                .debug_bounds("history-tags")
+                .is_none()
+        );
+        v.read_with(&cx, |view, cx| {
+            let history = view.history.read(cx);
+
+            assert_eq!(history.session(cx), before.0);
+            assert_eq!(
+                history.diff_state.as_ref().unwrap().entity_id(),
+                before.1.entity_id()
+            );
+            assert!(history.data.items()[0].references.is_empty());
+        })
+        .unwrap();
+    }
 }

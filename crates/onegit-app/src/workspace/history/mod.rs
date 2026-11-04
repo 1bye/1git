@@ -219,6 +219,7 @@ impl HistoryWorkspace {
             });
 
         self.source = source;
+        self.update_tag_labels();
 
         if same {
             return;
@@ -250,6 +251,7 @@ impl HistoryWorkspace {
             .is_none_or(|old| old.snapshot.status.head != source.snapshot.status.head);
 
         self.source = Some(source);
+        self.update_tag_labels();
 
         if new_head {
             let activated = self.page_loaded || self.page_job.is_some() || self.selected.is_some();
@@ -269,6 +271,48 @@ impl HistoryWorkspace {
         }
 
         cx.notify();
+    }
+
+    fn update_tag_labels(&mut self) {
+        let tags = self
+            .source
+            .as_ref()
+            .and_then(|source| source.local_tags.as_ref().ok());
+
+        let mut by_commit: HashMap<&str, Vec<onegit_ui::CommitRef>> = HashMap::new();
+
+        for tag in tags.into_iter().flat_map(|tags| tags.iter()) {
+            by_commit
+                .entry(&tag.target_oid)
+                .or_default()
+                .push(onegit_ui::CommitRef::new(
+                    onegit_ui::CommitRefKind::Tag,
+                    tag.name.clone(),
+                ));
+        }
+
+        let mut items = self.data.items().to_vec();
+
+        for item in &mut items {
+            item.references = by_commit.remove(item.id.as_ref()).unwrap_or_default();
+        }
+
+        self.data = CommitListData::new(items).expect("existing history IDs remain unique");
+        self.update_selected_tags();
+    }
+
+    fn update_selected_tags(&mut self) {
+        if self.presentation == Presentation::History {
+            self.tags = self
+                .source
+                .as_ref()
+                .and_then(|source| source.local_tags.as_ref().ok())
+                .into_iter()
+                .flat_map(|tags| tags.iter())
+                .filter(|tag| Some(tag.target_oid.as_str()) == self.selected.as_deref())
+                .map(|tag| tag.name.clone().into())
+                .collect();
+        }
     }
 
     pub fn activate(&mut self, cx: &mut gpui::Context<Self>) {
@@ -324,6 +368,7 @@ impl HistoryWorkspace {
                                 .map(|commit| (commit.oid.clone().into(), Arc::new(commit))),
                         );
                         this.data = page.data;
+                        this.update_tag_labels();
                         this.restore_rows = None;
 
                         if page.total.is_some() {

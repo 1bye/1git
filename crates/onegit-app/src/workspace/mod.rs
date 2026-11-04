@@ -219,6 +219,8 @@ impl RepositoryWorkspace {
         });
 
         let mut subscriptions = vec![
+            cx.subscribe_in(&history,window,|this:&mut Self,_,event:&replay::tags::Open,window,cx|this.open_tag(event,window,cx)),
+            cx.subscribe_in(&graph,window,|this:&mut Self,_,event:&replay::tags::Open,window,cx|this.open_tag(event,window,cx)),
             cx.subscribe_in(&history,window,|this:&mut Self,_,event:&replay::Open,window,cx|this.open_replay(event,window,cx)),
             cx.subscribe_in(&graph,window,|this:&mut Self,_,event:&replay::Open,window,cx|this.open_replay(event,window,cx)),
             cx.subscribe_in(&replay,window,|this:&mut Self,_,event:&replay::Submit,window,cx|{
@@ -690,6 +692,25 @@ impl RepositoryWorkspace {
             .update(cx, |graph, cx| graph.configure_actions(blocked, cx));
     }
 
+    fn open_tag(
+        &mut self,
+        event: &replay::tags::Open,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.configure_replay(cx);
+
+        if !self.can_write() || self.amend.is_some() {
+            return;
+        }
+
+        if let RepositoryState::Ready(source) = &self.state {
+            self.replay.update(cx, |form, cx| {
+                form.open_tag(source.clone(), event, window, cx)
+            });
+        }
+    }
+
     fn open_replay(
         &mut self,
         event: &replay::Open,
@@ -890,7 +911,7 @@ impl RepositoryWorkspace {
         }
 
         if let Some(completion) = replay_completion {
-            let show_changes = if completion.kind.is_rewrite() {
+            let show_changes = if completion.kind.is_rewrite() || completion.kind.is_tag() {
                 false
             } else if completion.kind == replay::Kind::Reset {
                 completion.result.is_ok()
@@ -900,7 +921,7 @@ impl RepositoryWorkspace {
 
             if completion.needs_review {
                 self.refresh_blocked = true;
-                self.refresh_error = Some("The history edit needs review. Inspect History and refresh before writing again.".into());
+                self.refresh_error = Some("The Git action needs review. Inspect History and refresh before writing again.".into());
             }
 
             self.replay.update(cx, |form, cx| {

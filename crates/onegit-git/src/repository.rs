@@ -36,6 +36,11 @@ pub use history_rewrite::{
     ResetCommitPlan, ResetCommitResult, SquashCommits,
 };
 
+#[path = "reviewed_tags.rs"]
+mod reviewed_tags;
+
+pub use reviewed_tags::{DeleteReviewedTag, ReviewedTag};
+
 #[path = "network.rs"]
 mod network;
 

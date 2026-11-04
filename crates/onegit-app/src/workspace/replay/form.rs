@@ -20,6 +20,7 @@ use std::{
 pub(in crate::workspace) struct Form {
     dialog: gpui::Entity<DialogState>,
     rewrite: gpui::Entity<super::rewrite::Form>,
+    tags: gpui::Entity<super::tags::Form>,
     pub(super) query: gpui::Entity<InputState>,
     review: Option<Review>,
     kind: Kind,
@@ -50,6 +51,7 @@ impl Form {
     ) -> Self {
         let query = cx.new(|cx| InputState::new("", window, cx));
 
+        let tags = cx.new(|cx| super::tags::Form::new(host, window, cx));
         let rewrite = cx.new(|cx| super::rewrite::Form::new(host, window, cx));
 
         let mut events =
@@ -76,7 +78,14 @@ impl Form {
             cx.notify();
         }));
 
+        events.push(cx.subscribe(&tags, |this, _, event: &Submit, cx| {
+            this.busy = true;
+            cx.emit(event.clone());
+            cx.notify();
+        }));
+
         Self {
+            tags,
             rewrite,
             dialog: host.dialog(cx),
             query,
@@ -108,6 +117,8 @@ impl Form {
         blocked: bool,
         cx: &mut gpui::Context<Self>,
     ) {
+        self.tags
+            .update(cx, |form, cx| form.configure(source.clone(), blocked, cx));
         self.rewrite
             .update(cx, |form, cx| form.configure(source.clone(), blocked, cx));
         let changed = self.blocked != blocked
@@ -131,6 +142,27 @@ impl Form {
         if changed {
             cx.notify();
         }
+    }
+
+    pub fn open_tag(
+        &mut self,
+        source: Arc<Loaded>,
+        event: &super::tags::Open,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if self.busy || self.blocked {
+            return;
+        }
+
+        self.kind = if event.tag.is_some() {
+            Kind::DeleteTag
+        } else {
+            Kind::CreateTag
+        };
+        self.tags
+            .update(cx, |form, cx| form.open(source, event, window, cx));
+        cx.notify();
     }
 
     pub fn open(
@@ -174,7 +206,9 @@ impl Form {
             Kind::CherryPick => 410.,
             Kind::Revert => 174.,
             Kind::Reset => 214.,
-            Kind::Squash | Kind::Reorder => unreachable!("range actions use their own form"),
+            Kind::Squash | Kind::Reorder | Kind::CreateTag | Kind::DeleteTag => {
+                unreachable!("range actions use their own form")
+            }
         });
         self.dialog.update(cx, |dialog, cx| dialog.open(window, cx));
 
@@ -355,7 +389,7 @@ impl Form {
                 }
             }
             Kind::Revert => Action::Revert(review),
-            Kind::Squash | Kind::Reorder => return,
+            Kind::Squash | Kind::Reorder | Kind::CreateTag | Kind::DeleteTag => return,
             Kind::Reset => {
                 if self
                     .reset_plan
@@ -383,6 +417,14 @@ impl Form {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        if self.kind.is_tag() {
+            self.busy = false;
+            self.tags
+                .update(cx, |form, cx| form.finish(result, window, cx));
+
+            return;
+        }
+
         if self.kind.is_rewrite() {
             self.busy = false;
             self.rewrite
@@ -417,7 +459,9 @@ impl Form {
 
     #[cfg(test)]
     pub(in crate::workspace) fn is_open(&self, cx: &gpui::App) -> bool {
-        if self.kind.is_rewrite() {
+        if self.kind.is_tag() {
+            self.tags.read(cx).is_open(cx)
+        } else if self.kind.is_rewrite() {
             self.rewrite.read(cx).is_open(cx)
         } else {
             self.dialog.read(cx).is_open()
@@ -475,6 +519,10 @@ impl Render for Form {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> impl IntoElement {
+        if self.kind.is_tag() {
+            return self.tags.clone().into_any_element();
+        }
+
         if self.kind.is_rewrite() {
             return self.rewrite.clone().into_any_element();
         }
@@ -521,7 +569,9 @@ impl Render for Form {
                 Kind::CherryPick => 410.,
                 Kind::Revert => 174.,
                 Kind::Reset => 214.,
-                Kind::Squash | Kind::Reorder => unreachable!("range actions use their own form"),
+                Kind::Squash | Kind::Reorder | Kind::CreateTag | Kind::DeleteTag => {
+                    unreachable!("range actions use their own form")
+                }
             } + if error.is_some() { 64. } else { 0. },
             Transition::Tween(Duration::from_millis(120), Easing::EaseOut),
             time,

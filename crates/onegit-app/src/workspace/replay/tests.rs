@@ -368,3 +368,44 @@ fn acknowledged_range_recovery_survives_peer_refresh_failure_and_stale_consent_n
         );
     }
 }
+
+#[test]
+fn acknowledged_tag_creation_keeps_success_feedback_and_blocks_retries_when_peer_refresh_fails() {
+    let f = Fixture::new();
+
+    f.write("a", "base");
+    f.commit();
+    let source = f.load();
+
+    let review = Review::new(
+        &source,
+        Arc::new(source.repository.commit("HEAD", None).unwrap()),
+    );
+
+    let peer = Fixture::new();
+
+    peer.write("a", "peer");
+    peer.commit();
+    let repository = peer.load().repository.clone();
+
+    std::fs::remove_dir_all(peer.root.join(".git")).unwrap();
+    let outcome = run(
+        source,
+        &Action::Tag(tags::Action {
+            review,
+            change: tags::Change::Create {
+                name: "reviewed".into(),
+                annotation: None,
+            },
+            cancel: Cancellation::default(),
+        }),
+        &[repository],
+    );
+
+    assert!(outcome.result.is_err());
+    let completed = outcome.replay_completion.unwrap();
+
+    assert!(completed.started);
+    assert!(completed.needs_review);
+    assert_eq!(f.load().local_tags.as_ref().unwrap()[0].name, "reviewed");
+}

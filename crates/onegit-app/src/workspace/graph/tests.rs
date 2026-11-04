@@ -478,3 +478,67 @@ fn full_workspace_opens_range_confirmation_from_graph_and_cancels_without_a_writ
             .is_empty()
     );
 }
+
+#[test]
+fn tag_actions_from_graph_and_history_open_exact_targets_and_cancel_without_writes() {
+    let f = merge_fixture();
+
+    f.write("keep", "dirty");
+    let source = f.load();
+    let commit = Arc::new(source.repository.commit("feature", None).unwrap());
+    let tag = source.local_tags.as_ref().unwrap()[0].clone();
+    let index = std::fs::read(f.root.join(".git/index")).unwrap();
+    let before = contents(&f.root);
+    let (mut cx, v) = setup(&f);
+
+    for section in ["graph", "history"] {
+        for deleting in [false, true] {
+            v.update(&mut cx, |view, _, cx| {
+                view.change_section(&section.into(), cx);
+                let event = crate::workspace::replay::tags::Open {
+                    commit: commit.clone(),
+                    tag: deleting.then(|| tag.clone()),
+                };
+
+                if section == "graph" {
+                    view.graph.update(cx, |_, cx| cx.emit(event));
+                } else {
+                    view.history.update(cx, |_, cx| cx.emit(event));
+                }
+            })
+            .unwrap();
+            draw(&mut cx, v);
+            v.read_with(&cx, |view, cx| assert!(view.replay.read(cx).is_open(cx)))
+                .unwrap();
+            cx.update_window(v.into(), |_, w, cx| {
+                use gpui::InputEvent as _;
+                let keystroke = gpui::Keystroke::parse("escape").unwrap();
+
+                w.dispatch_event(
+                    gpui::KeyDownEvent {
+                        keystroke: keystroke.clone(),
+                        is_held: false,
+                        prefer_character_input: false,
+                    }
+                    .to_platform_input(),
+                    cx,
+                );
+                w.dispatch_event(gpui::KeyUpEvent { keystroke }.to_platform_input(), cx);
+            })
+            .unwrap();
+            draw(&mut cx, v);
+            v.read_with(&cx, |view, cx| {
+                assert!(!view.replay.read(cx).is_open(cx));
+                assert!(view.write_job.is_none());
+            })
+            .unwrap();
+        }
+    }
+
+    assert_eq!(contents(&f.root), before);
+    assert_eq!(std::fs::read(f.root.join(".git/index")).unwrap(), index);
+    assert_eq!(
+        f.load().local_tags.as_ref().unwrap().as_ref(),
+        source.local_tags.as_ref().unwrap().as_ref()
+    );
+}

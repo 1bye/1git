@@ -16,11 +16,26 @@ pub(in crate::workspace) fn run(
 ) -> Outcome {
     let mut started = false;
     let mut needs_review = false;
-    let history_edit = action.kind() == Kind::Reset || action.kind().is_rewrite();
+
+    let history_edit =
+        action.kind() == Kind::Reset || action.kind().is_rewrite() || action.kind().is_tag();
+
     let mut recovery = None;
 
     let result = if !action.review().matches(&source) {
         Err("The repository or branch changed. Cancel and review the commit again.".to_owned())
+    } else if let Action::Tag(request) = action {
+        request.run(&source).map_err(|error| {
+            started = error.phase != WritePhase::BeforeCommand;
+            needs_review = started;
+
+            format!(
+                "{}\nCancel and refresh History before trying again. Do not repeat an unconfirmed tag action.",
+                read::message(error.error)
+            )
+        }).inspect(|_| {
+            started = true;
+        })
     } else if let Action::Reset(review) = action {
         match source
             .repository
@@ -122,7 +137,7 @@ pub(in crate::workspace) fn run(
                 None,
             ),
             Action::Revert(review) => source.repository.revert_commit(&review.request(), None),
-            Action::Reset(_) | Action::Squash { .. } | Action::Reorder { .. } => {
+            Action::Tag(_) | Action::Reset(_) | Action::Squash { .. } | Action::Reorder { .. } => {
                 unreachable!("history edits handled above")
             }
         };
@@ -134,7 +149,7 @@ pub(in crate::workspace) fn run(
         result.map(|_| match action.kind() {
             Kind::CherryPick => "Commit copied to the destination branch.".to_owned(),
             Kind::Revert => "A new commit reverses the selected changes; existing history is intact.".to_owned(),
-            Kind::Reset|Kind::Squash|Kind::Reorder => unreachable!("history edits handled above"),
+            Kind::CreateTag|Kind::DeleteTag|Kind::Reset|Kind::Squash|Kind::Reorder => unreachable!("history edits handled above"),
         }).map_err(|error| {
             let boundary = match error.phase {
                 WritePhase::BeforeCommand => "The operation did not start. Cancel and review the commit again.",
@@ -176,7 +191,10 @@ pub(in crate::workspace) fn run(
         .1
         .clone();
 
-    let refresh_failed = snapshots.iter().any(|(_, loaded)| loaded.is_err());
+    let refresh_failed = snapshots.iter().any(|(_, loaded)| match loaded {
+        Ok(loaded) => action.kind().is_tag() && loaded.local_tags.is_err(),
+        Err(_) => true,
+    });
 
     needs_review |= history_edit && started && refresh_failed;
     let result = if result.is_ok() && refresh_failed {

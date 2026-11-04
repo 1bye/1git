@@ -116,6 +116,7 @@ impl HistoryWorkspace {
         self.detail_job = None;
         self.patch_job = None;
         self.selected = Some(oid.clone());
+        self.update_selected_tags();
         self.detail = DetailState::Loading;
         self.file = None;
         self.restoring_file = preferred;

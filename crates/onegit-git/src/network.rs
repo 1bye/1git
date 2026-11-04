@@ -1,12 +1,12 @@
 //! Ordinary transport commands and reviewed, single-destination synchronization/tag writes.
-use super::metadata_writes::{before, remote_url, text};
+use super::metadata_writes::{before, remote_url};
 
 use super::{
     BranchIdentity, BranchKind, OperationState, Repository, RepositoryError, Snapshot, WriteError,
     WritePhase,
 };
 
-use crate::validation::{full_oid, require_revision};
+use crate::validation::require_revision;
 use crate::{Cancellation, GitCommand, HttpAuthentication, RecordType, TransferProgress};
 use std::ffi::OsString;
 
@@ -400,56 +400,15 @@ impl Repository {
         request: &CreateReleaseTag<'_>,
         cancellation: Option<&Cancellation>,
     ) -> Result<Snapshot, WriteError> {
-        self.mutate(cancellation, || {
-            self.review_tag(request.name, request.expected, cancellation)
-                .map_err(before)?;
-            text(request.message).map_err(before)?;
-
-            if request.message.trim().is_empty() || !full_oid(request.commit) {
-                return Err(before(RepositoryError::InvalidInput(
-                    "A tag message and exact commit ID are required.",
-                )));
-            }
-
-            let object = self
-                .run(["cat-file", "-t", request.commit], cancellation)
-                .map_err(before)?;
-
-            if object.stdout != b"commit\n"
-                || !self
-                    .is_ancestor(
-                        request.commit,
-                        request.expected.oid.as_deref().unwrap_or(""),
-                        cancellation,
-                    )
-                    .map_err(before)?
-            {
-                return Err(before(RepositoryError::InvalidInput(
-                    "Select an exact commit from the reviewed History before tagging.",
-                )));
-            }
-
-            if self
-                .tags_uncoordinated(cancellation)
-                .map_err(before)?
-                .iter()
-                .any(|t| t.name == request.name)
-            {
-                return Err(before(RepositoryError::InvalidInput(
-                    "A tag with this name already exists. Existing tags are never replaced.",
-                )));
-            }
-
-            self.review_tag(request.name, request.expected, cancellation)
-                .map_err(before)?;
-            self.write_command(
-                ["tag", "-a", "-F", "-", "--", request.name, request.commit],
-                format!("{}\n", request.message).as_bytes(),
-                cancellation,
-            )?;
-
-            self.written_snapshot(cancellation)
-        })
+        self.create_reviewed_tag(
+            &super::ReviewedTag {
+                name: request.name,
+                annotation: Some(request.message),
+                commit: request.commit,
+                expected: request.expected,
+            },
+            cancellation,
+        )
     }
 
     /// Push exactly one reviewed tag object/ref to one exact destination, without force or extra refs.
@@ -516,7 +475,7 @@ impl Repository {
         })
     }
 
-    fn review_tag(
+    pub(super) fn review_tag(
         &self,
         name: &str,
         expected: &BranchIdentity,

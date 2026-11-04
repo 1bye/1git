@@ -24,6 +24,16 @@ fn reorder_refreshes_duplicate_and_linked_tabs_without_replacing_history_or_draf
     check_refresh(replay::Kind::Reorder);
 }
 
+#[test]
+fn tag_creation_refreshes_duplicate_and_linked_tabs_preserving_drafts_and_viewports() {
+    check_refresh(replay::Kind::CreateTag);
+}
+
+#[test]
+fn tag_deletion_refreshes_duplicate_and_linked_tabs_preserving_drafts_and_viewports() {
+    check_refresh(replay::Kind::DeleteTag);
+}
+
 fn check_refresh(kind: replay::Kind) {
     let reset = kind == replay::Kind::Reset;
     let f = Fixture::new();
@@ -40,6 +50,11 @@ fn check_refresh(kind: replay::Kind) {
 
     f.write("a", "feature\n");
     f.commit();
+
+    if kind == replay::Kind::DeleteTag {
+        f.git(&["tag", "tag-qa"]);
+    }
+
     let source = f.load();
     let commit = Arc::new(source.repository.commit("HEAD", None).unwrap());
     let linked = f.directory.path().join("linked");
@@ -101,7 +116,31 @@ fn check_refresh(kind: replay::Kind) {
             },
         };
 
-        let action = if kind.is_rewrite() {
+        let action = if kind.is_tag() {
+            let change = if kind == replay::Kind::CreateTag {
+                replay::tags::Change::Create {
+                    name: "tag-qa".into(),
+                    annotation: Some("QA tag".into()),
+                }
+            } else {
+                replay::tags::Change::Delete(
+                    source
+                        .local_tags
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .find(|t| t.name == "tag-qa")
+                        .unwrap()
+                        .clone(),
+                )
+            };
+
+            replay::Action::Tag(replay::tags::Action {
+                review,
+                change,
+                cancel: onegit_git::Cancellation::default(),
+            })
+        } else if kind.is_rewrite() {
             let commits: Vec<_> = ["HEAD^^", "HEAD^^^"]
                 .into_iter()
                 .map(|id| Arc::new(source.repository.commit(id, None).unwrap()))
@@ -149,7 +188,7 @@ fn check_refresh(kind: replay::Kind) {
         (
             &a,
             "origin",
-            if reset || kind.is_rewrite() {
+            if reset || kind.is_rewrite() || kind.is_tag() {
                 "main"
             } else {
                 "target"
@@ -158,7 +197,7 @@ fn check_refresh(kind: replay::Kind) {
         (
             &b,
             "duplicate",
-            if reset || kind.is_rewrite() {
+            if reset || kind.is_rewrite() || kind.is_tag() {
                 "main"
             } else {
                 "target"
@@ -184,11 +223,24 @@ fn check_refresh(kind: replay::Kind) {
             assert_eq!(after.details.file, before[i].details.file);
             assert_eq!(after.anchor, before[i].anchor);
             assert_eq!(after.offset, before[i].offset);
+
+            if kind.is_tag() {
+                assert_eq!(
+                    source
+                        .local_tags
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .any(|t| t.name == "tag-qa"),
+                    kind == replay::Kind::CreateTag
+                );
+            }
+
             assert!(!tab.refresh_blocked);
             assert!(tab.write_job.is_none());
             assert_eq!(
                 tab.section,
-                if i == 0 && !kind.is_rewrite() {
+                if i == 0 && !kind.is_rewrite() && !kind.is_tag() {
                     Section::Changes
                 } else if i == 1 {
                     Section::History

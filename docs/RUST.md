@@ -475,3 +475,25 @@ drafts, selections, diff modes and scroll. Failed message/order edits remain
 visible, but require reopening for fresh consent. Uncertain results never retry
 and require an explicit refresh before further writes. Motion honors reduced
 motion and stops requesting frames after settling.
+
+
+### Local tags
+
+In History or Graph, right-click a commit (or press Shift+F10) and choose
+Create tag…. The form retains that exact commit while you edit the name and
+annotation. Annotated is the default; an empty message becomes Release <name>.
+Choose Lightweight in the type selector to create a direct commit label instead.
+Creation stays local, does not replace existing names and keeps files and staging.
+Dirty worktrees and detached HEAD are supported. Graph can tag commits visible
+only from another local branch, remote-tracking branch or existing tag.
+
+A tagged commit's menu also offers Delete tag <name>…. The confirmation identifies
+the local name and exact object; it does not remove the commit or a remote tag.
+A changed tag object, moved HEAD/branch, replaced repository or active Git
+operation rejects stale consent. Cancellation makes no change.
+
+Both actions keep drafts, selection, pane sizes and diff scroll, refresh all
+related tabs and update tag labels without reloading unchanged commit pages.
+If the result cannot be confirmed, inspect local tags and refresh before opening
+a new review. No tag operation is automatically retried or restored after restart.
+These controls do not publish or delete remote tags.

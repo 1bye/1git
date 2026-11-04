@@ -100,6 +100,9 @@ impl Graph {
             .as_ref()
             .and_then(|s| s.snapshot.status.head.oid.clone());
 
+        let tag_context =
+            super::super::replay::tags::context(self.source.as_ref(), self.actions_blocked);
+
         let blocked = self.actions_blocked
             || self
                 .source
@@ -116,9 +119,12 @@ impl Graph {
                             {..Button::new("graph-load-more",if self.page_error.is_some(){"Retry commits"}else{"Load older commits"})}/>
                     }
                 </div>
+                if let Some(error)=self.source.as_ref().and_then(|source|source.local_tags.as_ref().err()) {
+                    <p role={accesskit::Role::Alert} class="shrink-0 px-2 py-1 text-caption text-danger">{format!("Tags unavailable: {error}. Refresh the repository to retry.")}</p>
+                }
                 if let Some(error)=&self.page_error {<p role={accesskit::Role::Alert} class="px-2 py-1 text-caption text-danger">{error.clone()}</p>}
                 <div class="flex-1 min-w-0 min-h-0">
-                    <CommitGraph context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits.iter().find(|commit|commit.oid==oid.as_ref()).expect("graph rows have commit metadata").clone(),range.clone(),blocked,head.as_deref(),owner.clone())))} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
+                    <CommitGraph context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits.iter().find(|commit|commit.oid==oid.as_ref()).expect("graph rows have commit metadata").clone(),range.clone(),blocked,head.as_deref(),tag_context.clone(),owner.clone())))} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
                         on_select_modified={Some(Box::new(cx.listener(|this,event:&onegit_ui::CommitSelectionEvent,_,cx|{
       this.selection.choose(event.id.clone(),&event.modifiers,this.data.commits().iter().map(|commit|commit.item.id.clone()),this.selected.as_ref());
       if this.selected.as_ref()!=Some(&event.id){this.select(&event.id,cx);}cx.notify();

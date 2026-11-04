@@ -4,6 +4,7 @@ mod rewrite;
 mod selection;
 #[cfg(test)]
 mod selection_tests;
+pub(super) mod tags;
 #[cfg(test)]
 mod tests;
 mod worker;
@@ -30,11 +31,17 @@ pub(super) enum Kind {
     Reset,
     Squash,
     Reorder,
+    CreateTag,
+    DeleteTag,
 }
 
 impl Kind {
     pub fn is_rewrite(self) -> bool {
         matches!(self, Self::Squash | Self::Reorder)
+    }
+
+    pub fn is_tag(self) -> bool {
+        matches!(self, Self::CreateTag | Self::DeleteTag)
     }
 
     pub fn title(self) -> &'static str {
@@ -44,6 +51,8 @@ impl Kind {
             Self::Reset => "Reset to commit",
             Self::Squash => "Squash commits",
             Self::Reorder => "Reorder commits",
+            Self::CreateTag => "Create tag",
+            Self::DeleteTag => "Delete tag",
         }
     }
 }
@@ -133,6 +142,7 @@ fn consecutive(commits: &[Arc<CommitInfo>]) -> bool {
 
 #[derive(Clone, Debug)]
 pub(super) enum Action {
+    Tag(tags::Action),
     CherryPick {
         review: Review,
         destination: (String, String),
@@ -154,6 +164,7 @@ pub(super) enum Action {
 impl Action {
     pub fn review(&self) -> &Review {
         match self {
+            Self::Tag(action) => &action.review,
             Self::CherryPick { review, .. } | Self::Revert(review) | Self::Reset(review) => review,
             Self::Squash { review, .. } | Self::Reorder { review, .. } => &review.source,
         }
@@ -161,6 +172,7 @@ impl Action {
 
     pub fn kind(&self) -> Kind {
         match self {
+            Self::Tag(action) => action.kind(),
             Self::CherryPick { .. } => Kind::CherryPick,
             Self::Revert(_) => Kind::Revert,
             Self::Reset(_) => Kind::Reset,
@@ -204,11 +216,12 @@ pub(super) fn unavailable(source: &Loaded) -> Option<&'static str> {
     }
 }
 
-pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
+pub(super) fn menu<T: gpui::EventEmitter<Open> + gpui::EventEmitter<tags::Open> + 'static>(
     commit: Arc<CommitInfo>,
     selected: Vec<Arc<CommitInfo>>,
     blocked: bool,
     head: Option<&str>,
+    tag_context: tags::MenuContext,
     owner: gpui::WeakEntity<T>,
 ) -> DropdownMenu {
     let mut menu = DropdownMenu::new(format!("commit-actions-{}", commit.oid), "Commit actions");
@@ -254,6 +267,35 @@ pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
         .into(),
     ];
 
+    menu.entries.push(MenuEntry::Separator);
+    menu.entries.push(
+        MenuItem {
+            disabled: !tag_context.enabled,
+            ..MenuItem::new("create-tag", "Create tag…")
+        }
+        .into(),
+    );
+    let tags: Vec<_> = tag_context
+        .tags
+        .iter()
+        .filter(|t| t.target_oid == commit.oid)
+        .cloned()
+        .collect();
+
+    for tag in &tags {
+        menu.entries.push(
+            MenuItem {
+                disabled: !tag_context.enabled,
+                tone: onegit_ui::ButtonTone::Danger,
+                ..MenuItem::new(
+                    format!("delete-tag-{}", tag.name),
+                    format!("Delete tag {}…", tag.name),
+                )
+            }
+            .into(),
+        );
+    }
+
     if merge {
         menu.entries.push(
             MenuItem {
@@ -273,6 +315,23 @@ pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
             } else {
                 commit.body.clone()
             }));
+        } else if tag_context.enabled
+            && (*id == gpui::ElementId::from("create-tag")
+                || tags
+                    .iter()
+                    .any(|t| *id == gpui::ElementId::from(format!("delete-tag-{}", t.name))))
+        {
+            let tag = tags
+                .iter()
+                .find(|t| *id == gpui::ElementId::from(format!("delete-tag-{}", t.name)))
+                .cloned();
+
+            let _ = owner.update(cx, |_, cx| {
+                cx.emit(tags::Open {
+                    commit: commit.clone(),
+                    tag,
+                })
+            });
         } else if !blocked {
             let kind = if *id == gpui::ElementId::from("squash") && !rewrite_blocked {
                 Kind::Squash

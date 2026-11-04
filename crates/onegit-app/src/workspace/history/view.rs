@@ -33,6 +33,9 @@ impl HistoryWorkspace {
             .as_ref()
             .and_then(|s| s.snapshot.status.head.oid.clone());
 
+        let tag_context =
+            super::super::replay::tags::context(self.source.as_ref(), self.actions_blocked);
+
         let blocked = self.actions_blocked
             || self
                 .source
@@ -41,8 +44,11 @@ impl HistoryWorkspace {
 
         rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
+                if let Some(error)=self.source.as_ref().and_then(|source|source.local_tags.as_ref().err()) {
+                    <p role={accesskit::Role::Alert} class="shrink-0 px-2 py-1 text-caption text-danger">{format!("Tags unavailable: {error}. Refresh the repository to retry.")}</p>
+                }
                 <div class="flex-1 min-w-0 min-h-0 pl-1.5 pr-3">
-                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),range.clone(),blocked,head.as_deref(),owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
+                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),range.clone(),blocked,head.as_deref(),tag_context.clone(),owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
                         on_select_modified={Some(Box::new(cx.listener(|this,event:&onegit_ui::CommitSelectionEvent,_,cx|{
       this.selection.choose(event.id.clone(),&event.modifiers,this.data.items().iter().map(|item|item.id.clone()),this.selected.as_ref());
       if this.selected.as_ref()!=Some(&event.id){this.select_commit(event.id.clone(),cx);}cx.notify();
@@ -160,8 +166,15 @@ impl HistoryWorkspace {
         }.into_any_element()
     }
 
-    fn metadata(details: &Details) -> gpui::AnyElement {
+    fn metadata(&self, details: &Details) -> gpui::AnyElement {
         let commit = &details.commit;
+
+        let tags = self
+            .tags
+            .iter()
+            .map(|tag| tag.as_ref())
+            .collect::<Vec<_>>()
+            .join(", ");
 
         rake::view! {
             <div id="commit-metadata" class="py-2.5 pl-3.5 pr-3 shrink-0 max-h-[160px] overflow-y-scroll flex flex-col gap-1 border-b-1 border-hairline">
@@ -170,6 +183,9 @@ impl HistoryWorkspace {
                     <p class="text-caption text-muted-ink" aria-label={format!("{} <{}>",commit.author.name,commit.author.email)}>{commit.author.name.clone()}</p>
                     <p class="text-caption text-faint-ink">{format!("· {}",chrono::DateTime::parse_from_rfc3339(&commit.authored_at).map(|date|date.with_timezone(&chrono::Local).format("%b %-d, %Y at %-I:%M %p").to_string()).unwrap_or_else(|_|commit.authored_at.clone()))}</p>
                     <button id="copy-sha" aria-label="Copy commit SHA" aria-description={commit.oid.clone()} class="h-5 px-1 rounded-[4px] text-caption text-muted-ink" on:click={{let oid=commit.oid.clone();move|_,_,cx|cx.write_to_clipboard(gpui::ClipboardItem::new_string(oid.clone()))}}>{commit.oid.chars().take(7).collect::<String>()}</button>
+                    if !tags.is_empty() {
+                        <p aria-label={format!("Tags: {tags}")} wrap={false} ellipsis={true} class="max-w-[180px] px-1 rounded-[3px] bg-surface-sunken text-caption text-muted-ink" style={|s|s.debug_selector(||"history-tags".into())}>{tags}</p>
+                    }
                 </div>
                 if let Some((_,body))=commit.body.split_once("\n\n"){<p class="text-small">{body}</p>}
                 if commit.parent_oids.len()>1{<Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("comparison","Changes against first parent")}/>}
@@ -288,7 +304,7 @@ impl Render for HistoryWorkspace {
             }
             DetailState::Ready(details) => {
                 let files = self.files(details.clone(), window, cx);
-                let metadata = Self::metadata(details);
+                let metadata = self.metadata(details);
                 let preview = self.preview(cx);
                 let detail=rake::view!{<div class="size-full min-w-0 min-h-0 flex flex-col">{metadata}<div class="flex-1 min-w-0 min-h-0">{preview}</div></div>}.into_any_element();
 

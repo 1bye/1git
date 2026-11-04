@@ -1147,3 +1147,104 @@ confirmation open. Every shared-fixture confirmation was cancelled: HEAD remains
 Squash/Reorder recovery refs were created. Accepted writes were exercised only
 in disposable automated fixtures. CI and native Windows/Linux runs were not
 performed in this pass.
+
+
+## Local tag management
+
+| Current app behavior | Rust path |
+| --- | --- |
+| RepositoryTag / TagReview | replay::tags::Form / frozen replay::Review |
+| RepositoryTags.create | Repository::create_reviewed_tag; create_release_tag remains a compatible annotated wrapper |
+| History and Graph Create tag menus | Shared replay menu and immutable tags::Open events |
+| createReleaseTag source guards | ReviewedTag, exact commit/branch/HEAD checks and named-ref reachability |
+| Window-owned pending write and linked-tab locks | Existing replay Submit/Completed queue and refresh_written_tabs |
+| Local tag metadata and same-HEAD labels | Background Loaded.local_tags and History decoration-only updates |
+
+The compact annotated form follows the source's 420px layout, selected commit
+summary and SHA, 30px name field, 70px annotation field, 12px gaps and small
+actions. Blank annotations use Release <trimmed name>, matching the source.
+Creation is local and never replaces an existing name. Dirty and detached
+worktrees are permitted; active operations, blocked refreshes, stale branch/HEAD
+and replaced roots are refused. Graph targets may be reachable only from another
+local branch, remote-tracking branch or tag; unreachable and noncommit objects
+are rejected.
+
+The requested additions are a lightweight/annotated selector and local deletion.
+Annotated is the default; lightweight hides the annotation editor and explicitly
+keeps that kind even when tag.gpgSign is configured. Annotated creation retains
+configured signing. Each existing tag on the clicked commit has its own Delete
+tag action. Confirmation shows its name, target and direct tag object; Cancel is
+the initial deletion focus. Git atomically verifies HEAD and the exact direct
+tag value before deletion, so a replacement cannot be removed by an old review.
+Remote tags, files, staging and commit history are never changed by these actions.
+
+Both views retain their section, ordinary draft, selected historical commit/file,
+range and diff viewport. Duplicate and linked tabs stay protected through the
+write and all refreshes. Tag labels refresh even with unchanged HEAD, without
+reloading immutable history pages or replacing scroll handles. Failed metadata
+reads are shown alongside the existing history. Failed or uncertain submissions
+retain name/message/type, require a fresh review and never retry automatically;
+uncertain writes or a failed peer refresh block related writes pending refresh.
+Pending forms are never saved in workspace sessions. Writes use a two-minute
+cancellation deadline. Opacity and type/error height changes use 120ms
+gpui-ce-motion tweens, snap with reduced motion, and stop requesting frames at rest.
+
+Test mapping: all 14 original tags.component, tags.integration and tags.unit cases
+pass. The applicable create/cancel/dirty-state/default-annotation guards map to
+tags_tests.rs and reviewed_tags.rs. Source Graph reachability cases for local,
+remote and tag refs map to the backend's corresponding three-fixture test.
+Tag push/account/destination cases remain covered in the existing backend
+network suite; remote tag publication is outside this UI pass. New deletion tests
+cover stale branch/HEAD/operation, cancellation and replaced annotation objects.
+Native tests cover both parent list event routes, retained failed intent, duplicate
+submission, busy dismissal, reduced motion and settled frames. Related-tab tests
+exercise real creation and deletion while preserving drafts and Graph/History
+selection and viewport. A peer refresh failure leaves the acknowledged local tag
+in place and blocks repeat writes.
+
+Deliberate differences: the source app only creates annotated tags and has no
+local deletion confirmation. Rust adds the requested kind selector and deletion
+using the same form style. Its local-only guidance does not offer an unported
+remote tag push action. Native input focus remains visibly indicated.
+
+No dependency or changeset is required: the Rust crates remain unpublished.
+
+
+### Local tag verification (2026-11-04)
+
+The complete workspace/all-target/all-feature suite passed 680 tests across 50
+suites. After the final layout and header corrections, all 29 affected app tests
+passed; the UI all-target/all-feature suite passed 137 tests and all nine UI
+doctests passed. Six reviewed-tag backend tests and the existing network suite
+pass. The original application's three tag suites pass all 14 tests. Strict
+workspace Clippy, rustdoc with warnings denied, rustfmt, Git whitespace and
+logical spacing across workspace targets plus Windows/Linux Git code pass.
+
+Compared actual original and signed Rust development screens in light mode on
+diff-parity-o_cgtiu3, codex/rewrite-parity at
+197033c5c8243ad23c22c8a65848d0d8121983c8. Graph and History Create tag reviews
+targeted Compare syntax and file navigation,
+68ba2a5f047b897c495846111cfab6501c11f517. History also selected docs/README.md
+with its four-file tree and two added lines. The shared 420 by 280 annotated
+dialog matches content geometry, typography, fields, padding, gaps and action
+sizes. The kind selector, visible native focus ring and truthful local-only
+guidance are the deliberate additions described above. This verifies the tag
+surfaces and matching repository states, not whole-window pixel identity across
+the different captured window sizes.
+
+Native inspection found a clipped lightweight footer and missing History header
+tags. A failing bounds test reproduced the clipping; shorter guidance keeps both
+actions visible in the 420 by 198 form. The 420 by 182 deletion form identifies
+the exact tag and retains Cancel as its initial focus. Corrected forms and
+neutral compact row/header badges were captured again. The tag-only refresh
+test retains the same immutable diff viewer entity and selected commit/file,
+updates both row and header metadata, then removes the labels when tags vanish.
+
+All shared-fixture confirmations were cancelled. HEAD remains
+197033c5c8243ad23c22c8a65848d0d8121983c8, main remains
+68ba2a5f047b897c495846111cfab6501c11f517, the only tag remains diff-parity at
+68ba2a5f047b897c495846111cfab6501c11f517, index SHA-1 remains
+2d6768433cfc195fdb65f7643bf7343b4c72738b and working-tree status is clean.
+Accepted writes and rejection paths ran only in disposable automated fixtures.
+The final signed app starts, restores its History selection and runs with no
+confirmation open. CI and native Windows/Linux execution were not run.

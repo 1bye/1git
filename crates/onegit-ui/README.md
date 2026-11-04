@@ -741,3 +741,8 @@ cursor and contextual menu.
 TextInput and TextArea support `InputVariant::Surface` for outlined confirmation
 fields painted on the surrounding surface. It keeps the same native editing,
 focus and sizing behavior as the default outlined variant.
+
+
+Tag-only CommitList decorations use neutral badges with the first tag and a
+remaining-count label. Accessibility still announces every tag name. Mixed
+branch/remote/tag decorations retain the two-badge layout.

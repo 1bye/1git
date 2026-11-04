@@ -82,6 +82,7 @@ impl ChangedFile {
 }
 
 pub(super) struct Loaded {
+    pub local_tags: Result<Arc<[onegit_git::Tag]>, String>,
     pub repository: Arc<Repository>,
     pub snapshot: Snapshot,
     pub last_commit: Option<Arc<onegit_git::CommitInfo>>,
@@ -242,7 +243,10 @@ pub(super) fn from_snapshot(repository: Arc<Repository>, snapshot: Snapshot) -> 
             .map(Arc::new)
     });
 
+    let local_tags = repository.tags(None).map(Into::into).map_err(message);
+
     Arc::new(Loaded {
+        local_tags,
         last_commit,
         last_commit_unavailable,
         repository,

@@ -209,6 +209,7 @@ impl RenderOnce for CommitList {
                     let handler=handler.clone();
                     let modified=modified.clone();
                     let focus=focus.clone();
+                    let visible_refs=if item.references.iter().all(|reference|reference.kind==CommitRefKind::Tag){1}else{2};
                     let description=describe(&item);
                     let author_date=[item.author.as_deref(),item.date.as_deref()].into_iter().flatten().collect::<Vec<_>>().join(" · ");
 
@@ -231,13 +232,13 @@ impl RenderOnce for CommitList {
                                 <div class="flex flex-row items-center gap-2 min-w-0">
                                     <div class="flex-1 min-w-0">if type_badges {<crate::CommitSubject {..crate::CommitSubject::new("subject",item.summary.clone())}/>}else{<Text role={TextRole::Small} max_lines={Some(1)} {..Text::new("subject",item.summary.clone())}/>}</div>
                                     <div class="flex flex-row gap-1 shrink-0 min-w-0 overflow-hidden" style={|s| s.max_w(gpui::relative(0.5))}>
-                                        for (index,reference) in item.references.iter().take(2).enumerate() {
+                                        for (index,reference) in item.references.iter().take(visible_refs).enumerate() {
                                             <div id={("ref",index)} class="rounded-[3px] px-1 text-caption min-w-0" style={|s| {
-                                                let ink=match reference.kind {CommitRefKind::Branch=>theme.accent,CommitRefKind::Remote=>theme.muted_ink,CommitRefKind::Tag=>theme.warning};
-                                                s.max_w(px(72.)).bg(ink.opacity(0.1)).text_color(ink)
+                                                let ink=match reference.kind {CommitRefKind::Branch=>theme.accent,CommitRefKind::Remote=>theme.muted_ink,CommitRefKind::Tag=>theme.muted_ink};
+                                                s.max_w(px(72.)).bg(ink.opacity(if reference.kind==CommitRefKind::Tag{0.05}else{0.1})).text_color(ink)
                                             }}><p wrap={false} ellipsis={true}>{reference.label.clone()}</p></div>
                                         }
-                                        if item.references.len()>2 {<Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("more-refs",format!("+{}",item.references.len()-2))}/>}
+                                        if item.references.len()>visible_refs {<Text role={TextRole::Caption} tone={TextTone::Muted} {..Text::new("more-refs",format!("+{}",item.references.len()-visible_refs))}/>}
                                     </div>
                                 </div>
                                 <div class="flex flex-row items-center gap-2 min-w-0">
