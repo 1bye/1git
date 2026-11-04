@@ -21,6 +21,9 @@ mod replay_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod replay_tests;
 pub(in crate::workspace) mod session;
+mod settings_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod settings_tests;
 mod staging_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod staging_tests;
@@ -48,6 +51,7 @@ pub(super) enum Request {
     Home,
     Pick,
     Fetch,
+    Settings,
     Activate(u64),
     Close(u64),
     Move(u64, u64),
@@ -100,6 +104,7 @@ pub(crate) struct Workspace {
     branch_host: onegit_ui::DialogHostState,
     syncs: HashMap<PathBuf, synchronization::Entry>,
     branches: gpui::Entity<super::branches::Picker>,
+    settings: gpui::Entity<super::settings::Panel>,
     welcome: gpui::Entity<RepositoryWorkspace>,
     tabs: Vec<Tab>,
     active: Option<u64>,
@@ -126,6 +131,12 @@ impl Workspace {
         let native_error = native::install(window, Theme::current().appearance).err();
         let home = cx.new(|cx| home::Home::new(window, cx, write_scope.clone()));
         let branch_host = onegit_ui::DialogHostState::new(cx);
+
+        let settings = cx.new(|cx| super::settings::Panel::new(&branch_host, window, cx));
+
+        let settings_events = cx.subscribe(&settings, |this: &mut Self, _, event, cx| {
+            this.settings_event(event, cx)
+        });
 
         let branches =
             cx.new(|cx| super::branches::Picker::new(&branch_host, home.clone(), window, cx));
@@ -176,6 +187,7 @@ impl Workspace {
         welcome.update(cx, |view, _| view.picker_error = native_error);
         let subscriptions = vec![
             branch_events,
+            settings_events,
             worktree_events,
             cx.subscribe_in(
                 &home,
@@ -217,6 +229,7 @@ impl Workspace {
             branch_host,
             syncs: HashMap::new(),
             branches,
+            settings,
             welcome,
             tabs: Vec::new(),
             active: None,
@@ -264,6 +277,13 @@ impl Workspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        if matches!(
+            request,
+            Request::Home | Request::Activate(_) | Request::Pick
+        ) {
+            self.settings.update(cx, |settings, cx| settings.hide(cx));
+        }
+
         match *request {
             Request::Home => {
                 self.presentation.borrow_mut().cancel();
@@ -272,6 +292,7 @@ impl Workspace {
             }
             Request::Pick => self.choose_repository(cx),
             Request::Fetch => self.fetch_shortcut(window, cx),
+            Request::Settings => self.open_settings(window, cx),
             Request::Branches(origin) => self.open_branches(origin, window, cx),
             Request::Activate(id) => {
                 self.activate(id, window, cx);
@@ -673,7 +694,11 @@ impl Workspace {
     }
 
     fn busy(&self, root: &std::path::Path, cx: &gpui::App) -> bool {
-        self.sync_busy(root, cx)
+        self.settings.read(cx).affects(
+            self.monitors
+                .get(root)
+                .map_or(root, |m| m.info.common_directory.as_path()),
+        ) || self.sync_busy(root, cx)
             || self.related(root, cx).iter().any(|tab| {
                 let view = tab.read(cx);
 
@@ -972,13 +997,21 @@ impl gpui::Render for Workspace {
             scroll: self.scroll.clone(),
         };
 
-        view.update(cx, |view, _| {
+        let settings_visible = self.settings.read(cx).visible;
+
+        view.update(cx, |view, cx| {
+            if view.settings_visible != settings_visible {
+                view.settings_visible = settings_visible;
+                cx.notify();
+            }
+
             view.tab_strip = Some(strip);
             view.session_error = self.session_error.clone();
         });
 
         rake::view! {<onegit_ui::DialogHost state={self.branch_host.clone()} body={view.into_any_element()}>
             {self.branches.clone()}
+            {self.settings.clone()}
             for tab in &self.tabs {<div id={("conflict-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).conflicts.clone()}</div>}
             for tab in &self.tabs {<div id={("discard-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).discard.clone()}</div>}
             for tab in &self.tabs {<div id={("recovery-form",tab.id)} class="absolute inset-0">{tab.workspace.read(cx).recovery.clone()}</div>}
@@ -997,6 +1030,7 @@ impl TabStrip {
 
         if modifiers.secondary() && !modifiers.alt {
             match key {
+                "," => return Some(Request::Settings),
                 "o" | "t" => return Some(Request::Pick),
                 "r" if self.active.is_some() => return Some(Request::Fetch),
                 "w" => return self.active.map(Request::Close),

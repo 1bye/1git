@@ -1604,3 +1604,94 @@ A clean disposable linked checkout at target/worktree-parity-linked (release)
 was added only to show matching two-entry menus. It remains available for review;
 both fixture checkouts are clean and all existing branch/tag tips are unchanged.
 CI and native Windows/Linux UI execution were not run.
+
+## Git identity and remote settings (2026-11-04)
+
+The reference is the main checkout's `feature/git-settings` and shared Settings
+layout/group components. Settings keeps repository content entities and drafts
+alive; its independent side editor does not stage files or change history.
+
+| Source | Rust |
+| --- | --- |
+| GitSettingsModel.read | Repository::git_settings and GlobalGitIdentity::read |
+| explicit identity / add / edit / remove requests | SettingsChange and reviewed change_git_settings / global write |
+| SettingsSplit / SettingsPanel | settings/view.rs with equal list/editor panes, independent scrolling and pinned actions |
+| identity source ChoiceTile | Default / Custom 88px tiles with the original glyphs and Git validation |
+| remove-remote Popover | cancel-first 340px compact Dialog with frozen configuration review |
+| app/repository entry points | workspace appearance menu → Git settings; Command/Ctrl+,; Git, Remotes and Commit identity pages |
+
+| Source behavior/tests | Rust coverage |
+| --- | --- |
+| saves a repository identity, preserves history/files and resets inherited config | saves_repository_identity_preserves_history_files_index_and_resets_inheritance |
+| adds/edits without fetching or replacing dedicated push URLs, then removes | remote_edits_preserve_push_urls_and_removal_preserves_local_branches |
+| linked worktrees share local identity; invalid names/emails/credential URLs fail | linked_worktrees_share_settings_and_stale_remote_confirmation_cannot_remove_a_changed_connection plus rejects_stale_settings_invalid_identity_credentials_and_advanced_worktree_identity |
+| preserves advanced worktree identity and multi-URL remotes | rejects_stale_settings_invalid_identity_credentials_and_advanced_worktree_identity |
+| computer-wide settings only write on Save | global_identity_is_isolated_validated_and_guarded_against_external_edits and git_settings_global_save_uses_isolated_config_and_cancel_keeps_saved_values |
+| background editor retains context; settings saves preserve workspace drafts | git_settings_unsaved_editor_keeps_its_repository_context_across_tab_changes and git_settings_identity_saves_explicitly_and_preserves_related_tab_drafts_selections_and_viewports |
+| partial-save failure is reread rather than replayed | failed_second_identity_key_reports_partial_write_and_requires_new_review and git_settings_stale_save_retains_input_and_cannot_overwrite_external_configuration |
+| unavailable repository does not silently become global settings | git_settings_unavailable_repository_never_falls_back_to_global_editor |
+| editor geometry, reduced motion and no idle frames | git_settings_editor_matches_equal_pane_layout_and_settles_without_idle_frames |
+| cancelled scope reads never replace current context | git_settings_switching_scope_ignores_cancelled_reads_and_keeps_the_final_identity |
+
+Save and Remove retain an opaque SHA-256 fingerprint of Git's complete effective
+configuration (including origins), plus repository identity and the reviewed
+remote URLs. A changed configuration is rejected before writing. Global author
+keys have a separate global-config fingerprint and the same process-local
+settings mutex. Repository writes also join the existing repository mutation
+queue. Git owns the individual config locks: external writers can still race
+after review, and author-pair writes are not a cross-command transaction. A
+partial or unconfirmed result retains the editor, requires a new read and never
+replays a write automatically. Remote edits preserve dedicated push URLs;
+removal preserves local branch tips and all working files. No operation fetches,
+pushes, stores credentials or selects a hosting account.
+
+Related duplicate/linked worktree tabs refresh through apply_automatic, keeping
+commit drafts, filters, selections and retained viewport state. A global save
+refreshes all available open repositories. Config is read from Git, not copied
+into workspace session JSON. Unsaved settings editors retain their original
+repository across tab activation; Save cannot follow a newly selected tab.
+
+Deliberate scope: the Git settings navigation contains the three implemented
+Git pages. Other application Settings pages, hosting-account identity tiles,
+authentication choices, SSH settings and the selected-files auto-inclusion
+preference remain outside this port. Global defaults have an explicit
+computer-wide scope hint. Stale guards are stronger than the source model.
+Forms use the existing gpui-ce-motion 160ms transition and snap with reduced
+motion. The empty-remotes illustration and Pencil/Trash/RestoreDefaults glyphs are copied from
+the existing app; the glyph license remains apps/gpuix/LICENSES/Phosphor-Icons.txt.
+Rust crates are unpublished, so no changeset or version bump is needed.
+
+Validation: the original Git settings component/integration suites pass all 27
+tests (200 assertions). The Rust workspace run passes 725 tests across 51 suites;
+after the final cancellation regression and visual refinements, all eight native
+settings tests pass again. All six reviewed-settings real-Git tests, strict
+workspace Clippy, formatting, logical spacing (including Windows/Linux Git),
+warning-denied workspace documentation and 12 doctests pass. The final QA build
+also passes. CI and native Windows/Linux UI execution were not run.
+
+Matching captures use dark 1280×820 windows, Graph QA's repository identity and
+the same dummy parity remote. The original window repeatedly returned stale
+frames, so reference captures render its current AccountsSettings components
+with real GitSettingsModel data in the native integration harness. Identity
+summary/editor, populated remotes, Add remote and the unaccepted Remove remote
+confirmation were compared. The comparison corrected dark text colors, card
+rounding, source tiles/glyphs, field labels/heights, remote row spacing/actions
+and the compact 340×122 removal layout. Rust retains native input focus rings
+and its existing danger palette. The three-page navigation deliberately covers
+only the implemented Git settings scope.
+
+The separately named 1git Git Settings QA bundle uses a private session and a
+copy of the comparison fixture under /private/tmp/onegit-git-settings-qa. This
+avoids replacing running executables or editing the user's workspace session.
+The final executable and signed QA bundle share UUID
+4E037BA0-BB8C-33A0-A3D8-DDBB7216627A. No GUI Save or Remove was accepted; mutation
+coverage uses isolated test repositories and global configuration. The temporary
+reference capture test was removed from the original checkout after validation.
+The dummy parity remote was removed from the original shared comparison
+fixture after capture, with exact-URL and unchanged-ref checks. The private QA
+copy retains it for reviewing the remote controls. The original source checkout
+has no permanent code changes from this task.
+The final running build's identity editor and populated remote row were
+captured again after the last glyph/spacing corrections and compared against
+the matching source captures. The QA app remains running; no confirmation was
+accepted.

@@ -572,3 +572,22 @@ No operation is retried automatically. If Git reports an uncertain result, inspe
 both folders and refresh before reopening the form. Related tabs reread their own
 status without losing independent drafts, selections or pane sizes. Move updates
 saved tab paths. Forms use fast gpui-ce-motion transitions and reduced motion.
+
+### Git identity and remotes
+
+Choose **Git settings…** from the lower-left workspace appearance menu, or press
+Command+, / Ctrl+,. With a repository active, Settings opens its Commit identity
+page. The Git page edits computer-wide defaults; Commit identity can save local
+name/email overrides or return to Default. Worktree-specific identity overrides
+remain read-only so repository defaults cannot silently replace them.
+
+Remotes supports Add, Edit and confirmed Remove. Editing a fetch URL preserves
+separate push URLs. Multiple fetch URLs must be edited with Git directly. No
+settings action contacts a remote or changes credentials. Remove deletes remote
+tracking references/configuration while keeping local branches and working files.
+
+Save is explicit. If Git settings change while an editor or confirmation is open,
+Rust refuses the stale write. Cancel, reload and review the current settings.
+A partial-save error requires rereading; the app does not retry it automatically.
+Repository drafts, selections and view state survive saves and related worktree
+refreshes. Switching tabs retains an unfinished settings editor's original context.

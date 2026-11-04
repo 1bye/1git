@@ -10,6 +10,7 @@ mod native;
 mod read;
 mod recovery;
 mod replay;
+mod settings;
 mod staging;
 mod stashes;
 mod sync;
@@ -83,6 +84,7 @@ pub(crate) use tabs::Workspace;
 
 pub(crate) struct RepositoryWorkspace {
     hosted: bool,
+    settings_visible: bool,
     repository_busy: bool,
     refresh_blocked: bool,
     sync_rail: Option<gpui::Entity<sync::Rail>>,
@@ -349,6 +351,7 @@ impl RepositoryWorkspace {
         }
 
         Self {
+            settings_visible: false,
             hosted,
             repository_busy: false,
             refresh_blocked: false,

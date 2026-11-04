@@ -574,7 +574,9 @@ impl Render for RepositoryWorkspace {
         let titlebar = self.titlebar(window, cx);
         let rail = self.rail(cx);
 
-        let body = if self.home_visible {
+        let body = if self.settings_visible {
+            gpui::Empty.into_any_element()
+        } else if self.home_visible {
             self.home.clone().into_any_element()
         } else {
             match &self.state {
@@ -634,7 +636,7 @@ impl Render for RepositoryWorkspace {
 
         let page = rake::view! {
             <main class="relative size-full min-w-0 min-h-0 flex flex-col bg-chrome text-ink" focus={&self.focus} tab-navigation={true} on:key-down={cx.listener(|this,event: &gpui::KeyDownEvent,window,cx| {
-                if this.section == super::Section::History && !this.home_visible {
+                if this.section == super::Section::History && !this.home_visible && !this.settings_visible {
                     this.history.update(cx,|history,cx|history.search_shortcut(event,window,cx));
                 }
                 if let Some(request) = this.tab_strip.as_ref().and_then(|strip|strip.key(event)) {

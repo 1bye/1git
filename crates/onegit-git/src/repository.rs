@@ -61,6 +61,13 @@ mod stash;
 
 pub use stash::{StashAction, StashRequest};
 
+#[path = "git_settings.rs"]
+mod git_settings;
+
+pub use git_settings::{
+    CommitIdentity, GitSettings, GlobalGitIdentity, GlobalIdentityReview, SettingsChange,
+};
+
 #[path = "metadata_writes.rs"]
 mod metadata_writes;
 

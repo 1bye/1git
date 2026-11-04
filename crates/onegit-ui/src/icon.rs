@@ -63,6 +63,12 @@ pub enum IconName {
     Plus,
     /// Close or remove.
     Close,
+    /// Restore inherited settings.
+    RestoreDefaults,
+    /// Edit Git settings.
+    Pencil,
+    /// Remove a configured item.
+    Trash,
     /// Error or important warning.
     Alert,
     /// Refresh/retry.
@@ -101,6 +107,8 @@ pub enum IconSize {
     Medium,
     /// Eighteen-pixel workspace navigation glyph.
     Navigation,
+    /// Twenty-two-pixel settings choice glyph.
+    Choice,
     /// Twenty-pixel prominent glyph.
     Large,
 }
@@ -116,6 +124,7 @@ impl IconSize {
             Self::Small => 12.,
             Self::Medium => 16.,
             Self::Large => 20.,
+            Self::Choice => 22.,
             Self::Navigation => 18.,
         }
     }
@@ -182,6 +191,12 @@ impl IconName {
             Self::Branches => ("onegit-ui/Branches", include_bytes!("icons/Branches.svg")),
             Self::Home => ("onegit-ui/Home", include_bytes!("icons/Home.svg")),
             Self::Plus => ("onegit-ui/Plus", include_bytes!("icons/Plus.svg")),
+            Self::RestoreDefaults => (
+                "onegit-ui/RestoreDefaults",
+                include_bytes!("icons/RestoreDefaults.svg"),
+            ),
+            Self::Pencil => ("onegit-ui/Pencil", include_bytes!("icons/Pencil.svg")),
+            Self::Trash => ("onegit-ui/Trash", include_bytes!("icons/Trash.svg")),
             Self::Close => ("onegit-ui/Close", include_bytes!("icons/Close.svg")),
             Self::Refresh => ("onegit-ui/Refresh", include_bytes!("icons/Refresh.svg")),
             Self::Branch => ("onegit-ui/Branch", include_bytes!("icons/Branch.svg")),

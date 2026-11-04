@@ -235,6 +235,7 @@ impl RepositoryWorkspace {
         let theme = Theme::current();
 
         let entries = [
+            MenuItem::new("git-settings", "Git settings…").into(),
             MenuItem {
                 selected: Some(theme.appearance == Appearance::Light),
                 ..MenuItem::new("light", "Light appearance")
@@ -276,7 +277,7 @@ impl RepositoryWorkspace {
                 <div class="flex-1 w-full" style={|s|s.on_mouse_down(gpui::MouseButton::Left,|_,window,_|window.start_window_move())}/>
                 <Tooltip {..Tooltip::new("appearance-tip","Workspace appearance")}>
                     <DropdownMenu icon_only={true} icon={Some(IconName::Settings)} size={ControlSize::Rail} variant={ButtonVariant::Ghost} entries={entries}
-                        on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,window,cx| {let theme=if *id==gpui::ElementId::from("light"){Theme::light()}else{Theme::dark()};let appearance=theme.appearance;theme.install(cx);this.picker_error=super::native::appearance(window,appearance).err();cx.notify();})))}
+                        on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,window,cx| {if *id==gpui::ElementId::from("git-settings"){cx.emit(super::tabs::Request::Settings);return;}let theme=if *id==gpui::ElementId::from("light"){Theme::light()}else{Theme::dark()};let appearance=theme.appearance;theme.install(cx);this.picker_error=super::native::appearance(window,appearance).err();cx.notify();})))}
                         {..DropdownMenu::new("workspace-appearance","Workspace appearance")}/>
                 </Tooltip>
                 <Tooltip {..Tooltip::new("account-tip","Accounts")}><IconButton size={ControlSize::Rail} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.home_visible=true;this.home.update(cx,|home,cx|home.accounts(window,cx));cx.notify();})))} {..IconButton::new("rail-account",IconName::Account,"Accounts")}/></Tooltip>
