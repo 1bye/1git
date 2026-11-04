@@ -256,6 +256,31 @@ impl HistoryWorkspace {
             .update(cx, |split, cx| split.resize(width, window, cx));
     }
 
+    pub(in crate::workspace) fn retarget(
+        &mut self,
+        source: Arc<Loaded>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if self.page_job.take().is_some() {
+            self.page_loaded = false;
+        }
+
+        self.detail_job = None;
+        let patch_pending = self.patch_job.take().is_some();
+
+        self.source = Some(source);
+
+        if !matches!(self.detail, DetailState::Ready(_))
+            && let Some(oid) = self.selected.clone()
+        {
+            self.load_commit(oid, None, self.file.clone(), cx);
+        } else if patch_pending && let Some(file) = self.file.clone() {
+            self.select_file(file, cx);
+        }
+
+        cx.notify();
+    }
+
     pub fn set_source(&mut self, source: Option<Arc<Loaded>>, cx: &mut gpui::Context<Self>) {
         if let Some(source) = source.as_ref()
             && self

@@ -550,3 +550,25 @@ related tabs and update tag labels without reloading unchanged commit pages.
 If the result cannot be confirmed, inspect local tags and refresh before opening
 a new review. No tag operation is automatically retried or restored after restart.
 These controls do not publish or delete remote tags.
+
+## Worktree management
+
+Open Branches → Worktrees to open an existing checkout; an existing tab is reused.
+New Worktree offers existing/new/remote branches, a suggested sibling folder and
+a native folder picker. Review the branch and location, then Create and open.
+The original checkout can have uncommitted work; creation leaves its index,
+files, branch and drafts intact.
+
+Right-click a linked worktree (or Shift+F10 while focused) for Move worktree… or
+Remove worktree…. Move requires a destination that does not exist and keeps
+staged/unstaged/untracked files, branch and retained tab state. Main/current,
+locked, stale or unavailable worktrees are protected. Manage the current linked
+checkout from another checkout. Git may additionally refuse submodule moves.
+
+Removal confirms the folder and keeps the branch. Changed, untracked or ignored
+files prevent removal. Unlike the current app, affected Rust tabs stay open in
+an unavailable state with drafts/selections retained, including after restart.
+No operation is retried automatically. If Git reports an uncertain result, inspect
+both folders and refresh before reopening the form. Related tabs reread their own
+status without losing independent drafts, selections or pane sizes. Move updates
+saved tab paths. Forms use fast gpui-ce-motion transitions and reduced motion.

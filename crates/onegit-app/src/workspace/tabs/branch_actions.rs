@@ -30,6 +30,7 @@ impl Workspace {
         let source = source.clone();
 
         self.branches.update(cx, |picker, cx| {
+            picker.process = self.process.clone();
             picker.integration_blocked = integration_blocked;
 
             picker.open(
@@ -94,6 +95,11 @@ impl Workspace {
                     let peers = peers.into_values().collect();
 
                     let operation = match &event.request {
+                        branches::Request::Worktree(request) => write::Operation::Worktree {
+                            request: request.clone(),
+                            peers,
+                            process: self.process.clone(),
+                        },
                         branches::Request::Branch(request) => write::Operation::Branch {
                             request: request.clone(),
                             peers,
@@ -130,6 +136,10 @@ impl Workspace {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        if let Some(change) = &event.worktree {
+            self.worktree_completed(change, &event.snapshots, window, cx);
+        }
+
         if let Some(change) = &event.change {
             for tab in self.related(&event.root, cx) {
                 tab.update(cx, |view, cx| {
@@ -190,6 +200,15 @@ impl Workspace {
                 );
             }
         });
+
+        if matches!(
+            event.worktree,
+            Some(branches::worktrees::Change::Created(_))
+        ) && let Some(id) = self.active
+        {
+            self.activate(id, window, cx);
+        }
+
         self.reconcile(cx);
         self.session_changed(cx);
         cx.notify();

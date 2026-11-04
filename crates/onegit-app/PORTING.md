@@ -1516,3 +1516,91 @@ then all 17 History tests passed again. Strict workspace Clippy, formatting,
 logical spacing (including Windows/Linux Git code) and diff whitespace checks
 pass. The rebuilt, signed bundle also accepted Ctrl+F live on macOS and Escape
 restored its selection. CI and native Windows/Linux execution were not run.
+
+## Worktree management (2026-11-04)
+
+The current app reference is apps/gpuix in the main checkout at 25cfa631,
+including the sidebar Worktrees / New Worktree / New Branch action order.
+The Rust baseline retains an older version of those source components.
+
+| Source | Rust |
+| --- | --- |
+| WorkspaceMenu Worktrees floating submenu | branches/worktrees/view.rs, measured floating_layer, keyboard/hover navigation and edge flipping |
+| WorkspaceWorktreeForm | retained branch suggestions, source branch-name feedback, derived destination and native folder picker |
+| RepositoryWorktrees.create / remove | existing Repository::change_worktree reviewed APIs, dispatched through the window-owned write lifecycle |
+| open-worktree | fresh registration/common-directory validation, activate an existing tab or open a new one |
+| related worktree refresh | branches completion snapshots plus tabs/worktree_actions.rs |
+| move-worktree lower-level API | reviewed WorktreeRequest::Move, preserving target files/index/branch and requiring a missing destination |
+
+| Source test / behavior | Rust test |
+| --- | --- |
+| accepts ordinary names and rejects Git ref syntax and revision expressions | worktree_branch_names_match_source_ref_feedback_and_default_folder |
+| dirty source permits New worktree; create and open retains source state | creates_and_opens_a_worktree_from_dirty_source_and_keeps_original_tabs_and_drafts |
+| keyboard opens/reuses a worktree tab; submenu flips at the edge | worktree_submenu_keyboard_open_reuses_tab_focus_and_flips_inside_window_without_idle_motion |
+| clean-only removal, frozen target and related-tab refresh | removal_keeps_tabs_drafts_and_selection_but_never_removes_dirty_or_stale_targets plus existing reviewed_worktrees backend cases |
+| moving linked worktrees | moving_open_duplicate_worktree_tabs_retains_entities_drafts_navigation_and_session_paths and reviewed_move_preserves_dirty_files_index_and_branch_and_rejects_stale_or_occupied_destinations |
+
+Create accepts new, available local and unambiguous remote-tracking branches.
+A dirty source is allowed because its checkout/index are untouched. Forms retain
+the reviewed source or exact registered target identity; fresh Git checks reject
+stale, main/current, locked, prunable, replaced-path and active-operation targets.
+Removal also refuses tracked, untracked and ignored files. Commands never force,
+remove branches, overwrite destinations, automatically retry or clean up an
+uncertain partial result. Move permits dirty files and retains the exact index;
+its destination must be missing, outside the original checkout and under an
+existing parent. Git still refuses unsupported moves such as submodule worktrees.
+
+Open is read-only and reuses an already-open root. Related writes suspend monitor
+reads and refresh each surviving checkout independently. Moving retargets existing
+workspace/history/graph/stash entities before refreshing, retaining drafts,
+selections, filters and mounted viewports; pending reads are cancelled/reissued.
+The new path is saved in the workspace session and local Home library.
+
+Deliberate differences requested by this task: the original UI has no Move form;
+Rust adds one using the same attached form surface. Original removal closes its
+tabs and discards their drafts; Rust retains unavailable tabs, drafts and navigation
+in memory and the saved session, with an explanation and Retry. These confirmations
+are never serialized or replayed. Main/current worktrees can be managed from
+another checkout. SSH management remains outside this local port. Forms reuse
+the existing 160ms gpui-ce-motion height/opacity transition and reduced-motion
+handling; settled menus do not request frames.
+
+Rust crates are unpublished, so no changeset or version bump is needed.
+
+### Worktree verification
+
+The original worktree-name, repository-branches integration and workspace-menu
+component suites passed their worktree cases: 23 tests and 169 assertions. The
+restricted native run lacked macOS graphics service access; the same tests passed
+with native access. The complete locked/offline workspace/all-target/all-feature
+run passed 712 tests in 50 suites with two test threads. Final focused worktree
+tests passed again after the final visual/accessibility refinements (10 tests),
+as did all 11 reviewed backend worktree tests and eight reusable UI interaction
+and component tests. Strict workspace Clippy, formatting, logical spacing
+(including Windows/Linux Git code), warning-denied docs and all 12 doctests pass.
+
+Full-window dark captures compare the same diff-parity-o_cgtiu3 checkout,
+codex/rewrite-parity branch, Baseline diff preview commit and docs/README.md.
+The matching New worktree form and two-entry Worktrees submenu align with the
+reference's geometry and controls. The comparison corrected a 5px grouping gap.
+Rust keeps a visible native input focus ring. Removal uses the same title/path/
+branch-preservation guidance and form, with the requested draft-retention wording
+in place of the original warning about discarding drafts. Move is a new Rust
+form, checked against the same form design rather than a nonexistent source form.
+
+Identically named old 1git processes caused native control timeouts and stale
+frames. The final comparison uses a separately named 1git Worktree QA executable,
+with its own copied/filtered session, leaving the running original/Rust binaries
+and the user's original session untouched. The QA bundles and sessions are ignored
+target artifacts. The final signed QA bundle was verified against the build UUID
+3E596A41-9458-3076-BBCA-7175BC674865. Its New worktree form, two-entry submenu,
+and removal confirmation were compared with the original; the final removal
+copy keeps the reference's two-line layout and button positions. The Move form
+was captured with both unchanged (disabled) and edited (enabled) destinations,
+then cancelled. No GUI creation, move or removal was accepted on the shared
+fixture. Both apps were left on Baseline / docs/README.md outside confirmations.
+
+A clean disposable linked checkout at target/worktree-parity-linked (release)
+was added only to show matching two-entry menus. It remains available for review;
+both fixture checkouts are clean and all existing branch/tag tips are unchanged.
+CI and native Windows/Linux UI execution were not run.

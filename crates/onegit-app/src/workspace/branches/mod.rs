@@ -3,6 +3,7 @@ mod edit;
 mod integration;
 pub(super) mod model;
 mod view;
+pub(in crate::workspace) mod worktrees;
 
 pub(super) use edit::Kind as EditKind;
 
@@ -29,6 +30,7 @@ use std::{
 
 pub(super) enum Phase {
     List,
+    Worktree(worktrees::Form),
     Integrate {
         kind: onegit_git::IntegrationKind,
         target: Option<onegit_git::Branch>,
@@ -51,6 +53,7 @@ pub(super) enum Phase {
 #[derive(Clone)]
 pub(super) enum Request {
     Branch(BranchRequest),
+    Worktree(onegit_git::WorktreeRequest),
     Integrate(onegit_git::IntegrationRequest),
 }
 
@@ -73,6 +76,8 @@ pub(super) struct Picker {
     home: gpui::Entity<super::home::Home>,
     source: Option<Arc<Loaded>>,
     tab: Option<u64>,
+    pub(in crate::workspace) worktrees: worktrees::State,
+    pub(in crate::workspace) process: onegit_git::GitProcess,
     pub(super) query: gpui::Entity<InputState>,
     pub(super) name: gpui::Entity<InputState>,
     pub(super) integration_query: gpui::Entity<InputState>,
@@ -119,7 +124,25 @@ impl Picker {
         let integration_query = cx.new(|cx| InputState::new("", window, cx));
         let integration_message = cx.new(|cx| InputState::new("", window, cx));
 
+        let worktrees = worktrees::State::new(window, cx);
+
         let subscriptions = vec![
+            cx.subscribe_in(
+                &worktrees.name,
+                window,
+                |_: &mut Self, _, _: &InputEvent, _, cx| cx.notify(),
+            ),
+            cx.subscribe_in(
+                &worktrees.path,
+                window,
+                |this: &mut Self, _, event, window, cx| {
+                    if *event == InputEvent::Submitted {
+                        this.confirm(window, cx);
+                    } else {
+                        cx.notify();
+                    }
+                },
+            ),
             cx.subscribe_in(
                 &integration_query,
                 window,
@@ -183,6 +206,8 @@ impl Picker {
             tab: None,
             query,
             name,
+            worktrees,
+            process: read::process(),
             integration_query,
             integration_message,
             integration_blocked: false,
@@ -239,6 +264,7 @@ impl Picker {
         self.error = None;
         self.data = None;
         self.saved.clear();
+        self.worktrees.reset(cx);
         self.visible.clear();
         self.highlighted = None;
         self.query.update(cx, |input, cx| input.set_text("", cx));
@@ -274,7 +300,11 @@ impl Picker {
                 .saved_branch_changes(Some(&worker_cancel))
                 .map_err(read::message)?;
 
-            Ok::<_, String>((branches, saved))
+            let trees = repository
+                .worktrees(Some(&worker_cancel))
+                .map_err(read::message)?;
+
+            Ok::<_, String>((branches, saved, trees))
         });
 
         let task = cx.spawn(async move |this, cx| {
@@ -285,7 +315,8 @@ impl Picker {
                     this.read = None;
 
                     match result {
-                        Ok((data, saved)) => {
+                        Ok((data, saved, trees)) => {
+                            this.worktrees.items = trees;
                             this.data = Some(data);
                             this.saved = saved;
                             this.filter(cx);
@@ -520,6 +551,11 @@ impl Picker {
                     self.submit(request, cx);
                 }
             }
+            Phase::Worktree(_) => {
+                if let Some(request) = self.worktree_request(cx) {
+                    self.submit(Request::Worktree(request), cx);
+                }
+            }
             Phase::List => {}
         }
     }
@@ -585,7 +621,11 @@ impl Picker {
         }
     }
 
-    fn close(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
+    pub(in crate::workspace) fn close(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
         if !self.busy {
             self.dialog
                 .update(cx, |dialog, cx| dialog.close(window, cx));
@@ -595,6 +635,7 @@ impl Picker {
     fn back(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
         if !self.busy {
             self.phase = Phase::List;
+            self.worktrees.submenu = false;
             self.highlighted = None;
             self.error = None;
             self.filter(cx);
@@ -614,6 +655,10 @@ impl Picker {
         }
 
         let key = event.keystroke.key.as_str();
+
+        if self.worktree_key(event, window, cx) {
+            return;
+        }
 
         if key == "escape" && !matches!(self.phase, Phase::List) {
             self.back(window, cx);
@@ -701,6 +746,7 @@ pub(super) enum RefChange {
 }
 
 pub(super) struct WriteResult {
+    pub worktree: Option<worktrees::Change>,
     pub integration: Option<onegit_git::IntegrationKind>,
     pub change: Option<RefChange>,
     pub snapshots: Vec<(std::path::PathBuf, Result<Arc<Loaded>, String>)>,
@@ -708,6 +754,7 @@ pub(super) struct WriteResult {
 }
 
 pub(super) struct Completed {
+    pub worktree: Option<worktrees::Change>,
     pub integration: Option<onegit_git::IntegrationKind>,
     pub change: Option<RefChange>,
     pub snapshots: Vec<(std::path::PathBuf, Result<Arc<Loaded>, String>)>,

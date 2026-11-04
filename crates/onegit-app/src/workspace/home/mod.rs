@@ -265,6 +265,27 @@ impl Home {
         }));
     }
 
+    pub(in crate::workspace) fn worktree_moved(
+        &mut self,
+        from: &std::path::Path,
+        to: &std::path::Path,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        for path in &mut self.library.starred {
+            if path == from {
+                *path = to.to_owned();
+            }
+        }
+
+        self.library.paths.retain(|path| path != from);
+        self.library.include(to.to_owned());
+        self.overview.remove(from);
+        self.jobs.remove(from);
+        self.queue.retain(|path| path != from);
+        self.filter(cx);
+        self.persist(cx);
+    }
+
     pub fn remember(&mut self, path: PathBuf, cx: &mut gpui::Context<Self>) {
         self.library.include(path);
         self.filter(cx);

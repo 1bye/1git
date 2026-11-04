@@ -1,4 +1,4 @@
-//! Reviewed, non-forcing creation/removal with source, destination and checkout preservation.
+//! Reviewed, non-forcing creation, movement and removal with source, destination and checkout preservation.
 
 use super::*;
 use crate::repository::{BranchIdentity, BranchKind, OperationState, Snapshot};
@@ -15,7 +15,7 @@ pub enum WorktreeBranch {
     Remote(String),
 }
 
-/// Owned intent retained independently of later UI refreshes. Neither variant permits force.
+/// Owned intent retained independently of later UI refreshes. No variant permits force.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum WorktreeRequest {
     /// Create a checkout without changing the source worktree or discarding its edits.
@@ -26,6 +26,16 @@ pub enum WorktreeRequest {
         branch: WorktreeBranch,
         /// Absolute empty or missing destination under an existing parent.
         path: PathBuf,
+    },
+    /// Move an unlocked linked checkout to a missing absolute destination, retaining all files.
+    /// Main/current worktrees must be managed from another checkout.
+    Move {
+        /// Exact registered source checkout.
+        path: PathBuf,
+        /// Exact target commit and branch reviewed by the form.
+        expected: BranchIdentity,
+        /// Missing destination under an existing parent.
+        new_path: PathBuf,
     },
     /// Remove a registered clean linked checkout, preserving its branch.
     Remove {
@@ -197,7 +207,9 @@ impl Repository {
 
                 (path, false)
             }
-            WorktreeRequest::Remove { path, expected } => {
+            WorktreeRequest::Remove { path, expected }
+            | WorktreeRequest::Move { path, expected, .. } => {
+                let moving = matches!(request, WorktreeRequest::Move { .. });
                 let registrations = self.worktrees_uncoordinated(cancellation).map_err(before)?;
 
                 let target = registrations
@@ -211,9 +223,11 @@ impl Repository {
                     })?;
 
                 if target.head_oid != expected.oid || target.branch != expected.branch {
-                    return Err(conflict(
-                        "The worktree changed since it was selected. Refresh before removing it.",
-                    ));
+                    return Err(conflict(if moving {
+                        "The worktree changed since it was selected. Refresh before moving it."
+                    } else {
+                        "The worktree changed since it was selected. Refresh before removing it."
+                    }));
                 }
 
                 let metadata = fs::symlink_metadata(path).map_err(|_| {
@@ -238,29 +252,37 @@ impl Repository {
                 if snapshot.repository.root != *path
                     || BranchIdentity::from_snapshot(&snapshot) != *expected
                 {
-                    return Err(conflict(
-                        "The worktree changed since it was selected. Refresh before removing it.",
-                    ));
+                    return Err(conflict(if moving {
+                        "The worktree changed since it was selected. Refresh before moving it."
+                    } else {
+                        "The worktree changed since it was selected. Refresh before removing it."
+                    }));
                 }
 
                 if snapshot.repository.common_directory != self.info.common_directory
                     || snapshot.repository.git_directory == snapshot.repository.common_directory
                     || snapshot.repository.root == self.info.root
                 {
-                    return Err(conflict(
-                        "The main or current worktree cannot be removed here.",
-                    ));
+                    return Err(conflict(if moving {
+                        "The main or current worktree cannot be moved here."
+                    } else {
+                        "The main or current worktree cannot be removed here."
+                    }));
                 }
 
                 if snapshot.operation != OperationState::Normal
                     || source.operation != OperationState::Normal
                 {
-                    return Err(conflict(
-                        "Finish the Git operation before removing a worktree.",
-                    ));
+                    return Err(conflict(if moving {
+                        "Finish the Git operation before moving a worktree."
+                    } else {
+                        "Finish the Git operation before removing a worktree."
+                    }));
                 }
 
-                if !snapshot.status.files.is_empty() {
+                if matches!(request, WorktreeRequest::Remove { .. })
+                    && !snapshot.status.files.is_empty()
+                {
                     return Err(conflict(
                         "This worktree contains changed, untracked, or ignored files. Nothing was removed.",
                     ));
@@ -268,9 +290,24 @@ impl Repository {
 
                 self.check_write_identity().map_err(before)?;
                 opened.check_write_identity().map_err(before)?;
-                self.execute_worktree(Edit::Remove(path, false), cancellation)?;
 
-                (path.clone(), true)
+                if let WorktreeRequest::Move { new_path, .. } = request {
+                    let destination = destination(new_path)?;
+
+                    if destination.starts_with(path) || fs::symlink_metadata(&destination).is_ok() {
+                        return Err(conflict(
+                            "Choose a new destination outside the existing worktree; nothing was overwritten.",
+                        ));
+                    }
+
+                    self.execute_worktree(Edit::Move(path, &destination), cancellation)?;
+
+                    (destination, false)
+                } else {
+                    self.execute_worktree(Edit::Remove(path, false), cancellation)?;
+
+                    (path.clone(), true)
+                }
             }
         };
 

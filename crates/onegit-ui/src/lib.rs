@@ -88,4 +88,4 @@ rake::theme!(Theme);
 #[rake::style("border-1 rounded-control focus-visible:border-focus-ring")]
 pub(crate) fn focusable();
 
-pub use overlay::{AnchorBounds, track as track_anchor};
+pub use overlay::{AnchorBounds, floating as floating_layer, track as track_anchor};

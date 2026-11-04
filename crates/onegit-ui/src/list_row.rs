@@ -49,6 +49,8 @@ pub struct ListRow {
     pub leading: Option<AnyElement>,
     /// Optional trailing metadata/control.
     pub trailing: Option<AnyElement>,
+    /// Optional disclosure state for a row that opens a submenu.
+    pub expanded: Option<bool>,
     /// Persistent viewed-row state.
     pub selection: RowSelection,
     /// Content-list or attached-menu geometry.
@@ -72,6 +74,7 @@ impl ListRow {
             description: None,
             leading: None,
             trailing: None,
+            expanded: None,
             selection: RowSelection::Unselected,
             variant: ListRowVariant::Standard,
             state: ControlState::Enabled,
@@ -121,7 +124,7 @@ impl RenderOnce for ListRow {
                         aria-description={description}
                         class="flex flex-row items-center gap-2 px-2 py-1 rounded-control min-w-0 w-full text-left"
                         style={|s| focusable(s).min_h(px(if choice {40.} else if self.variant==ListRowVariant::Compact {26.} else {28.})).bg(paint.background).when(self.variant==ListRowVariant::Compact,|s|s.gap(px(6.)).border_0())
-                            .border_color(Theme::transparent()).when(choice,|s|s.px(px(12.)).border_1().border_color(if selected{theme.focus_ring}else{theme.line})).aria_selected(selected)
+                            .border_color(Theme::transparent()).when(choice,|s|s.px(px(12.)).border_1().border_color(if selected{theme.focus_ring}else{theme.line})).aria_selected(selected).when_some(self.expanded,|s,expanded|s.aria_expanded(expanded))
                             .when(!enabled,|s|s.opacity(0.5))}
                         on:click={move |event,window,cx| {
                             cx.stop_propagation();
@@ -150,7 +153,7 @@ impl RenderOnce for ListRow {
                         aria-description={description}
                         class="flex flex-col items-start justify-center flex-1 min-w-0 text-left px-1.5 py-1"
                         style={|s| focusable(s).min_h(px(28.)).border_color(Theme::transparent())
-                            .aria_selected(selected).when(!enabled,|s|s.opacity(0.5))}
+                            .aria_selected(selected).when_some(self.expanded,|s,expanded|s.aria_expanded(expanded)).when(!enabled,|s|s.opacity(0.5))}
                         on:click={move |event,window,cx| {
                             cx.stop_propagation();
                             if let Some(handler)=&self.on_press {handler(event,window,cx);}

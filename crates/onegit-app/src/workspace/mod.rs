@@ -832,6 +832,7 @@ impl RepositoryWorkspace {
         let discard_completion = outcome.discard_completion;
 
         let branch_completion = outcome.branch_action.map(|branch| branches::Completed {
+            worktree: branch.worktree,
             integration: branch.integration,
             change: branch.change,
             snapshots: branch.snapshots,

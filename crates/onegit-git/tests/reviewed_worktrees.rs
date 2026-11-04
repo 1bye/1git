@@ -651,3 +651,85 @@ fn holds_the_shared_queue_through_created_checkout_metadata_and_source_refresh()
     );
     assert_eq!(coordinator.pending_writes(&common), 0);
 }
+
+#[test]
+fn reviewed_move_preserves_dirty_files_index_and_branch_and_rejects_stale_or_occupied_destinations()
+{
+    let (fixture, repository) = fixture();
+    let old = path(&fixture, "move source");
+
+    repository
+        .change_worktree(
+            &create(
+                &repository,
+                old.clone(),
+                WorktreeBranch::Existing("feature/ui".into()),
+            ),
+            None,
+        )
+        .unwrap();
+    let target = Repository::open(&old, fixture.process(), None).unwrap();
+
+    fs::write(old.join("one"), b"staged\n").unwrap();
+    target
+        .stage(&[onegit_git::GitPath::new(b"one").unwrap()], None)
+        .unwrap();
+    fs::write(old.join("one"), b"working\n").unwrap();
+    fs::write(old.join("untracked"), b"keep\n").unwrap();
+    let index = fs::read(target.info().git_directory.join("index")).unwrap();
+    let expected = identity(&target);
+    let destination = path(&fixture, "moved destination");
+
+    let request = WorktreeRequest::Move {
+        path: old.clone(),
+        expected: expected.clone(),
+        new_path: destination.clone(),
+    };
+
+    fs::create_dir(&destination).unwrap();
+    assert_eq!(
+        repository
+            .change_worktree(&request, None)
+            .unwrap_err()
+            .phase,
+        WritePhase::BeforeCommand
+    );
+    fs::remove_dir(&destination).unwrap();
+    let mut stale = expected.clone();
+
+    stale.oid = Some("0".repeat(40));
+    assert!(
+        repository
+            .change_worktree(
+                &WorktreeRequest::Move {
+                    path: old.clone(),
+                    expected: stale,
+                    new_path: destination.clone()
+                },
+                None
+            )
+            .is_err()
+    );
+    fixture.git_os(["worktree".into(), "lock".into(), old.as_os_str().to_owned()]);
+    assert!(repository.change_worktree(&request, None).is_err());
+    fixture.git_os([
+        "worktree".into(),
+        "unlock".into(),
+        old.as_os_str().to_owned(),
+    ]);
+    let result = repository.change_worktree(&request, None).unwrap();
+
+    assert_eq!(result.path, destination);
+    assert!(!old.exists());
+    let moved = Repository::open(&destination, fixture.process(), None).unwrap();
+
+    assert_eq!(identity(&moved), expected);
+    assert_eq!(
+        fs::read(moved.info().git_directory.join("index")).unwrap(),
+        index
+    );
+    assert_eq!(fs::read(destination.join("one")).unwrap(), b"working\n");
+    assert_eq!(fs::read(destination.join("untracked")).unwrap(), b"keep\n");
+    assert!(result.worktrees.iter().any(|tree| tree.path == destination));
+    assert!(!result.worktrees.iter().any(|tree| tree.path == old));
+}

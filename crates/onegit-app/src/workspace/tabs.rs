@@ -33,6 +33,9 @@ mod synchronization;
 #[cfg(all(test, feature = "test-support"))]
 mod tests;
 mod view;
+mod worktree_actions;
+#[cfg(all(test, feature = "test-support"))]
+mod worktree_tests;
 
 use super::{ReadJob, RepositoryState, RepositoryWorkspace, home, native, read, watch};
 use onegit_git::{Cancellation, RepositoryInfo};
@@ -135,6 +138,31 @@ impl Workspace {
             },
         );
 
+        let worktree_events = cx.subscribe_in(
+            &branches,
+            window,
+            |this: &mut Self, _, event: &super::branches::worktrees::Open, window, cx| {
+                this.branches
+                    .update(cx, |picker, cx| picker.close(window, cx));
+
+                if let Some(id) = this
+                    .tabs
+                    .iter()
+                    .find(|tab| match &tab.workspace.read(cx).state {
+                        RepositoryState::Ready(source) => {
+                            source.snapshot.repository.root == event.0
+                        }
+                        _ => false,
+                    })
+                    .map(|tab| tab.id)
+                {
+                    this.activate(id, window, cx);
+                } else {
+                    this.open(event.0.clone(), window, cx);
+                }
+            },
+        );
+
         let welcome = cx.new(|cx| {
             RepositoryWorkspace::for_tab(
                 window,
@@ -148,6 +176,7 @@ impl Workspace {
         welcome.update(cx, |view, _| view.picker_error = native_error);
         let subscriptions = vec![
             branch_events,
+            worktree_events,
             cx.subscribe_in(
                 &home,
                 window,

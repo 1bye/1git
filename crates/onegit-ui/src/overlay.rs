@@ -91,7 +91,8 @@ type BuildLayer = Box<
 >;
 
 /// Build after the trigger has been measured, outside any ancestor's scroll clip.
-pub(crate) fn floating(
+/// Return a viewport-sized root with positioned children; the root is painted at the viewport origin.
+pub fn floating(
     bounds: AnchorBounds,
     build: impl FnOnce(
         Option<gpui::Bounds<gpui::Pixels>>,

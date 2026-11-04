@@ -146,6 +146,29 @@ impl Stashes {
         cx.notify();
     }
 
+    pub(in crate::workspace) fn retarget(
+        &mut self,
+        source: Arc<Loaded>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.list_job = None;
+
+        if self.files_job.take().is_some() {
+            self.restoring = Some(self.session(cx));
+            self.files = Files::Empty;
+        }
+
+        let patch_pending = self.patch_job.take().is_some();
+
+        self.source = Some(source);
+
+        if patch_pending && let Some(file) = self.file.clone() {
+            self.select_file(file, cx);
+        }
+
+        cx.notify();
+    }
+
     pub fn source(&mut self, source: Option<Arc<Loaded>>, cx: &mut gpui::Context<Self>) {
         let same = self
             .source

@@ -21,6 +21,11 @@ pub(super) enum Operation {
         peers: Vec<Arc<onegit_git::Repository>>,
     },
     File(ChangedFile),
+    Worktree {
+        request: onegit_git::WorktreeRequest,
+        peers: Vec<Arc<onegit_git::Repository>>,
+        process: onegit_git::GitProcess,
+    },
     Branch {
         request: onegit_git::BranchRequest,
         peers: Vec<Arc<onegit_git::Repository>>,
@@ -53,6 +58,7 @@ pub(super) enum Operation {
 impl Operation {
     pub fn progress(&self) -> &'static str {
         match self {
+            Self::Worktree { .. } => "Updating worktree…",
             Self::Replay { action, .. } => action.kind().title(),
             Self::Recovery {
                 action: super::recovery::Action::Amend { .. },
@@ -88,6 +94,7 @@ impl Operation {
 
     fn success(&self) -> &'static str {
         match self {
+            Self::Worktree { .. } => "Updating worktree…",
             Self::Replay { action, .. } => action.kind().title(),
             Self::Recovery { .. } => "Last commit updated",
             Self::Lines { .. } => "Selected changes updated",
@@ -137,6 +144,15 @@ pub(super) fn staged_count(loaded: &Loaded) -> usize {
 }
 
 pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
+    if let Operation::Worktree {
+        request,
+        peers,
+        process,
+    } = &operation
+    {
+        return super::branches::worktrees::run(loaded, request, peers, process);
+    }
+
     if let Operation::Replay { action, peers } = &operation {
         return super::replay::run(loaded, action, peers);
     }
@@ -248,7 +264,8 @@ pub(super) fn run(loaded: Arc<Loaded>, operation: Operation) -> Outcome {
             Operation::Stash { .. } => {
                 unreachable!("stash operations use their reviewed write guard")
             }
-            Operation::Branch { .. }
+            Operation::Worktree { .. }
+            | Operation::Branch { .. }
             | Operation::Integration { .. }
             | Operation::GraphBranch(_) => {
                 unreachable!("branch operations use their reviewed write guard")
@@ -540,6 +557,7 @@ fn branch_outcome(
     }
 
     outcome.branch_action = Some(super::branches::WriteResult {
+        worktree: None,
         integration: None,
         change,
         snapshots,

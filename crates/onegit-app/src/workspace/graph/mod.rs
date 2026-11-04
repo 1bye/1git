@@ -229,6 +229,24 @@ impl Graph {
             .update(cx, |view, cx| view.branch_available(!blocked, cx));
     }
 
+    pub(in crate::workspace) fn retarget(
+        &mut self,
+        source: Arc<Loaded>,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        self.refs_job = None;
+
+        if self.page_job.take().is_some() {
+            self.page_loaded = false;
+        }
+
+        self.inspector
+            .update(cx, |view, cx| view.retarget(source.clone(), cx));
+        self.source = Some(source);
+        self.dirty = true;
+        cx.notify();
+    }
+
     pub fn set_source(&mut self, source: Option<Arc<Loaded>>, cx: &mut gpui::Context<Self>) {
         let same = self
             .source

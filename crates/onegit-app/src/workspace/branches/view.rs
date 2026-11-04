@@ -12,6 +12,10 @@ use std::ops::Range;
 
 impl Picker {
     fn notice(&self) -> Option<String> {
+        if matches!(self.phase, Phase::Worktree(_)) {
+            return self.error.clone();
+        }
+
         self.error.clone().or_else(|| {
             if self.busy {Some("Updating workspace…".into())}
             else if self.stale {Some("The repository changed. Close and reopen Branches to review it.".into())}
@@ -142,11 +146,14 @@ impl gpui::Render for Picker {
                         self.visible.len().max(1) as f64 * 28.
                     }
                     + if more { 28. } else { 0. }
-                    + 9.
+                    + 4.
                     + 28.
                     + 28.
+                    + 65.
                     + if restore.is_some() { 28. } else { 0. }
             }
+            Phase::Worktree(super::worktrees::Form::Create) => 224.,
+            Phase::Worktree(_) => 230.,
             Phase::Create { .. } | Phase::Edit { .. } => 150.,
             Phase::Integrate { .. } => 440.,
             Phase::Changes { .. } => 300.,
@@ -220,12 +227,22 @@ impl gpui::Render for Picker {
         };
 
         let can_integrate = self.can_integrate();
+        let worktree = matches!(self.phase, Phase::Worktree(_)).then(|| self.worktree_form(cx));
+
+        let worktree_trigger = if matches!(self.phase, Phase::List) {
+            Some(self.worktree_trigger(window, cx))
+        } else {
+            None
+        };
+
+        let can_worktree = self.can_manage_worktrees();
 
         let body=rake::view! {
             <div class="size-full min-h-0 flex flex-col p-1" focus={&self.list_focus}
                 style={|s|s.opacity(opacity.value()as f32).debug_selector(||"workspace-branch-body".into()).capture_key_down(cx.listener(|this,event,window,cx|this.integration_key(event,window,cx)))}
                 on:key-down={cx.listener(|this,event:&gpui::KeyDownEvent,window,cx|this.key(event,window,cx))}>
-                if let Some(integration) = integration { {integration} }
+                if let Some(worktree)=worktree {{worktree}}
+                else if let Some(integration) = integration { {integration} }
                 else if matches!(self.phase,Phase::List) {
                     <div class="h-[32px] shrink-0"><TextInput show_label={false} size={ControlSize::Rail} placeholder={"Find a branch…".into()}
                         availability={if self.busy{InputAvailability::Disabled}else{InputAvailability::Enabled}}
@@ -240,7 +257,13 @@ impl gpui::Render for Picker {
                         accessibility_label={Some(if self.expanded{"Show fewer branches"}else{"Show all branches"}.into())}
                         trailing={Some(rake::view!{<Icon size={IconSize::Supporting} {..Icon::new("more-branches",if self.expanded{IconName::ChevronDown}else{IconName::ChevronRight})}/>}.into_any_element())}
                         on_press={Some(Box::new(cx.listener(|this,_,_,cx|{this.expanded = !this.expanded;this.filter(cx);})))} {..ListRow::new("show-more-branches","More")}/>}
+                    <div class="h-1 shrink-0"/>
+                    if let Some(trigger)=worktree_trigger {{trigger}}
                     <div class="h-[1px] my-1 bg-hairline shrink-0"/>
+                    <ListRow variant={ListRowVariant::Menu} state={if can_worktree{ControlState::Enabled}else{ControlState::Disabled}}
+                        leading={Some(rake::view!{<Icon size={IconSize::Supporting} {..Icon::new("new-worktree-icon",IconName::Plus)}/>}.into_any_element())}
+                        on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.create_worktree(window,cx))))}
+                        {..ListRow::new("new-worktree","New Worktree")}/>
                     <ListRow variant={ListRowVariant::Menu} leading={Some(rake::view!{<Icon size={IconSize::Supporting} {..Icon::new("new-icon",IconName::Plus)}/>}.into_any_element())} state={if can_create{ControlState::Enabled}else{ControlState::Disabled}}
                         on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.create(window,cx))))} {..ListRow::new("new-branch","New Branch")}/>
                     <div class="shrink-0" style={|s|s.debug_selector(||"branch-integrate".into())}>
@@ -300,7 +323,7 @@ impl gpui::Render for Picker {
 
         rake::view!{<Dialog trigger_preview={preview} width={px(288.)} presentation={DialogPresentation::Attached{origin:self.origin,height:px(height.value()as f32)}}
             dismissal={DialogDismissal::EscapeAndOutside} availability={if self.busy{DialogAvailability::Busy}else{DialogAvailability::Ready}}
-            initial_focus={Some(if matches!(self.phase,Phase::List){self.query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Integrate{..}){self.integration_query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Create{..}|Phase::Edit{kind:EditKind::Rename,..}){self.name.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Edit{kind:EditKind::Delete,..}){self.cancel_focus.clone()}else{self.list_focus.clone()})}
+            initial_focus={Some(if matches!(self.phase,Phase::List){self.query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Worktree(super::worktrees::Form::Create)){self.worktrees.name.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Worktree(super::worktrees::Form::Move)){self.worktrees.path.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Worktree(super::worktrees::Form::Remove)){self.cancel_focus.clone()}else if matches!(self.phase,Phase::Integrate{..}){self.integration_query.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Create{..}|Phase::Edit{kind:EditKind::Rename,..}){self.name.read(cx).focus_handle(cx)}else if matches!(self.phase,Phase::Edit{kind:EditKind::Delete,..}){self.cancel_focus.clone()}else{self.list_focus.clone()})}
             {..Dialog::new("workspace-branches",&self.dialog,"Workspace branches")}>
             {body}
         </Dialog>}.into_any_element()
