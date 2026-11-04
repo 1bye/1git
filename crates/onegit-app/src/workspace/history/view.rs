@@ -48,12 +48,16 @@ impl HistoryWorkspace {
                     <p role={accesskit::Role::Alert} class="shrink-0 px-2 py-1 text-caption text-danger">{format!("Tags unavailable: {error}. Refresh the repository to retry.")}</p>
                 }
                 <div class="flex-1 min-w-0 min-h-0 pl-1.5 pr-3">
-                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),range.clone(),blocked,head.as_deref(),tag_context.clone(),owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
+                    if self.searching() && self.data.items().is_empty() {
+                        {super::search::empty(if self.page_job.is_some(){"Searching history…"}else if self.page_error.is_some(){"Could not search history"}else{"No matching commits"},"",super::search::Empty::Results)}
+                    } else {
+                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),range.clone(),blocked,head.as_deref(),tag_context.clone(),owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.searching(){if self.page_job.is_some(){"Searching history…".into()}else if self.page_error.is_some(){"Could not search history".into()}else{"No matching commits".into()}}else if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
                         on_select_modified={Some(Box::new(cx.listener(|this,event:&onegit_ui::CommitSelectionEvent,_,cx|{
       this.selection.choose(event.id.clone(),&event.modifiers,this.data.items().iter().map(|item|item.id.clone()),this.selected.as_ref());
       if this.selected.as_ref()!=Some(&event.id){this.select_commit(event.id.clone(),cx);}cx.notify();
   })))}
                         {..CommitList::new("history-commits","Repository commit history",self.data.clone())}/>
+                    }
                 </div>
                 if self.page_error.is_some()||self.page_job.is_some()||self.next_offset.is_some(){
                     <div class="px-3 py-1 shrink-0 flex flex-col gap-1">
@@ -259,9 +263,28 @@ impl Render for HistoryWorkspace {
             return self.inspector_view(window, cx);
         }
 
+        let search_bar = self.search_bar(window, cx);
         let revisions = self.revisions(cx);
 
         let (files, detail) = match &self.detail {
+            DetailState::Empty if self.searching() => (
+                self.empty_files(cx),
+                super::search::empty(
+                    if self.page_job.is_some() {
+                        "Searching history…"
+                    } else if self.page_error.is_some() {
+                        "Could not search history"
+                    } else {
+                        "No matching commits"
+                    },
+                    if self.page_job.is_some() || self.page_error.is_some() {
+                        ""
+                    } else {
+                        "Try another search or clear the filter to see all commits."
+                    },
+                    super::search::Empty::Details,
+                ),
+            ),
             DetailState::Empty => (
                 notice(
                     "history-empty-files",
@@ -316,13 +339,20 @@ impl Render for HistoryWorkspace {
 
         let sidebar = rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
-                <div class="h-[36px] shrink-0 pl-3.5 pr-3 flex flex-row items-center gap-1.5">
+                <div class="h-[36px] shrink-0 pl-3.5 pr-3.5 flex flex-row items-center gap-1">
                     <p class="text-body font-medium">{"History"}</p>
                     <Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("count",self.total.map_or_else(||format!("({}{})",self.data.items().len(),if self.next_offset.is_some(){"+"}else{""}),|total|format!("({total})")))}/>
                     <div class="flex-1"/>
-                    <onegit_ui::IconButton size={ControlSize::Small} on_press={Some(Box::new(cx.listener(|_,_,_,cx|cx.emit(super::Refresh))))} {..onegit_ui::IconButton::new("refresh-history",IconName::Refresh,"Refresh repository")}/>
-                    <onegit_ui::Tooltip {..onegit_ui::Tooltip::new("history-search-unavailable","History search is not ported to Rust yet")}><div class="size-6 flex items-center justify-center text-muted-ink"><onegit_ui::Icon label={Some("History search unavailable".into())} {..onegit_ui::Icon::new("history-search",IconName::Search)}/></div></onegit_ui::Tooltip>
+                    <Button size={ControlSize::Small} variant={ButtonVariant::Ghost} width={Some(px(26.))} height={Some(px(26.))} padding={Some(px(0.))} icon={Some(IconName::Refresh)} icon_size={Some(onegit_ui::IconSize::Supporting)} accessibility_label={Some("Refresh repository".into())} on_press={Some(Box::new(cx.listener(|_,_,_,cx|cx.emit(super::Refresh))))} {..Button::new("refresh-history","")}/>
+                    <Button focus={Some(self.search_button.clone())} size={ControlSize::Small} variant={ButtonVariant::Ghost} icon={Some(IconName::Search)} icon_size={Some(onegit_ui::IconSize::Supporting)} width={Some(px(26.))} height={Some(px(26.))} padding={Some(px(0.))} tone={if self.search_open||self.searching(){onegit_ui::ButtonTone::Accent}else{onegit_ui::ButtonTone::Normal}} accessibility_label={Some(if cfg!(target_os="macos"){"Search history (⌘F / ⌃F)"}else{"Search history (Ctrl+F)"}.into())} expanded={Some(self.search_open||self.searching())}
+                        on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.open_search(window,cx))))} {..Button::new("history-search","")}/>
                 </div>
+                {search_bar}
+                if self.searching() {
+                    <div class="h-[24px] pl-3.5 shrink-0 flex flex-row items-center justify-between" style={|s|s.pr(px(12.)-px(1.))}>
+                        <p class="text-caption text-muted-ink">{"Search results"}</p><p class="text-caption text-faint-ink">{self.data.items().len().to_string()}</p>
+                    </div>
+                }
                 <div class="flex-1 min-w-0 min-h-0">{panes}</div>
                 <div class="h-[32px] px-3.5 shrink-0 flex flex-row items-center justify-between"><Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("footer","First-parent diffs")}/><Text role={TextRole::Caption} tone={TextTone::Faint} {..Text::new("navigation","↑ ↓ Navigate")}/></div>
             </div>

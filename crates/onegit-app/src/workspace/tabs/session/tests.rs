@@ -27,6 +27,7 @@ fn tab(path: &std::path::Path, summary: &str) -> SavedTab {
         filter_visible: true,
         sidebar: 347.,
         history: History {
+            search: None,
             range: Default::default(),
             tree_layout: true,
             collapsed: vec![b"folder/deep".to_vec()],
@@ -259,5 +260,41 @@ fn range_intent_round_trips_with_legacy_defaults_and_rejects_invalid_commit_ids(
     assert_eq!(legacy.tabs[0].history.range, CommitRange::default());
     assert!(legacy.validate().is_ok());
     doc.tabs[0].history.range.ids.push("not-a-commit".into());
+    assert!(doc.validate().is_err());
+}
+
+#[test]
+fn history_search_intent_round_trips_and_legacy_sessions_remain_valid() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut doc = document(directory.path());
+
+    doc.tabs[0].history.search = Some(HistorySearch {
+        query: "body [literal]".into(),
+        commit: Some("2".repeat(40)),
+        file: Some(b"src/main.rs".to_vec()),
+        rows: 50,
+        range: CommitRange::default(),
+        split_diff: true,
+        tree_layout: false,
+        collapsed: Vec::new(),
+    });
+    doc.validate().unwrap();
+    let bytes = serde_json::to_vec(&doc).unwrap();
+
+    assert_eq!(serde_json::from_slice::<Document>(&bytes).unwrap(), doc);
+    let mut legacy = serde_json::to_value(&doc).unwrap();
+
+    for tab in legacy["tabs"].as_array_mut().unwrap() {
+        tab["history"].as_object_mut().unwrap().remove("search");
+    }
+
+    let legacy: Document = serde_json::from_value(legacy).unwrap();
+
+    legacy.validate().unwrap();
+    assert!(legacy.tabs[0].history.search.is_none());
+    doc.tabs[0].history.search.as_mut().unwrap().commit = Some("bad".into());
+    assert!(doc.validate().is_err());
+    doc.tabs[0].history.search.as_mut().unwrap().commit = None;
+    doc.tabs[0].history.search.as_mut().unwrap().file = Some(b"../escape".to_vec());
     assert!(doc.validate().is_err());
 }

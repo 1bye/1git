@@ -16,7 +16,7 @@ use crate::workspace::{
 use model::Document;
 
 pub(in crate::workspace) use model::{
-    Change, CommitRange, GraphView, History, Root, SavedTab, StashView,
+    Change, CommitRange, GraphView, History, HistorySearch, Root, SavedTab, StashView,
 };
 
 use onegit_git::GitPath;

@@ -194,7 +194,7 @@ mod native {
     use onegit_ui::Theme;
     use rake::gpui::{InputEvent as _, prelude::*};
 
-    fn setup(
+    pub(super) fn setup(
         f: &Fixture,
     ) -> (
         gpui::TestAppContext,
@@ -217,7 +217,7 @@ mod native {
         (cx, window)
     }
 
-    fn draw(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<RepositoryWorkspace>) {
+    pub(super) fn draw(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<RepositoryWorkspace>) {
         for _ in 0..2 {
             cx.run_until_parked();
             cx.update_window(v.into(), |_, window, cx| window.draw(cx).clear(cx))
@@ -264,7 +264,7 @@ mod native {
         draw(cx, v);
     }
 
-    fn history(
+    pub(super) fn history(
         v: gpui::WindowHandle<RepositoryWorkspace>,
         cx: &gpui::TestAppContext,
     ) -> gpui::Entity<HistoryWorkspace> {
@@ -786,5 +786,455 @@ mod native {
             assert!(history.data.items()[0].references.is_empty());
         })
         .unwrap();
+    }
+}
+
+#[test]
+fn search_matches_literal_full_messages_author_identity_and_hashes() {
+    let f = Fixture::new();
+
+    f.git(&[
+        "commit",
+        "--allow-empty",
+        "-m",
+        "Mixed [needle] subject",
+        "-m",
+        "Hidden body marker",
+    ]);
+    let source = f.load();
+
+    let commit = source
+        .repository
+        .commit(source.snapshot.status.head.oid.as_deref().unwrap(), None)
+        .unwrap();
+
+    for query in [
+        " [NEEDLE] ",
+        "hidden BODY",
+        &commit.author.name,
+        &commit.author.email,
+        &commit.oid[..12],
+    ] {
+        let page = read::page_with_query(
+            &source,
+            0,
+            CommitListData::default(),
+            50,
+            query,
+            &Cancellation::default(),
+        )
+        .unwrap();
+
+        assert_eq!(page.commits, vec![commit.clone()], "query {query:?}");
+        assert_eq!(page.total, Some(1));
+    }
+
+    let page = read::page_with_query(
+        &source,
+        0,
+        CommitListData::default(),
+        50,
+        "no such text",
+        &Cancellation::default(),
+    )
+    .unwrap();
+
+    assert!(page.commits.is_empty());
+    assert_eq!(page.total, Some(1));
+}
+
+#[test]
+fn search_pages_scan_beyond_loaded_rows_without_duplicates_or_following_head() {
+    let f = Fixture::new();
+
+    for i in 0..105 {
+        f.git(&[
+            "commit",
+            "--allow-empty",
+            "-m",
+            &format!("{} {i}", if i % 2 == 0 { "Needle" } else { "Other" }),
+        ]);
+    }
+
+    let source = f.load();
+
+    let first = read::page_with_query(
+        &source,
+        0,
+        CommitListData::default(),
+        50,
+        "needle",
+        &Cancellation::default(),
+    )
+    .unwrap();
+
+    assert_eq!(first.commits.len(), 50);
+    assert_eq!(first.total, Some(105));
+    assert_eq!(first.next_offset, Some(100));
+    f.git(&["commit", "--allow-empty", "-m", "Needle new HEAD"]);
+    let last = read::page_with_query(
+        &source,
+        first.next_offset.unwrap(),
+        first.data,
+        50,
+        "needle",
+        &Cancellation::default(),
+    )
+    .unwrap();
+
+    assert_eq!(last.commits.len(), 3);
+    assert_eq!(last.data.items().len(), 53);
+    assert_eq!(last.commits.last().unwrap().summary, "Needle 0");
+    assert_eq!(last.next_offset, None);
+
+    for index in 0..200 {
+        f.git(&[
+            "commit",
+            "--allow-empty",
+            "-m",
+            &format!("Unrelated extra {index}"),
+        ]);
+    }
+
+    let sparse = read::page_with_query(
+        &f.load(),
+        0,
+        CommitListData::default(),
+        50,
+        "Needle 0",
+        &Cancellation::default(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        sparse.commits.len(),
+        1,
+        "search must cross the 250-commit scan boundary"
+    );
+    assert_eq!(sparse.commits[0].summary, "Needle 0");
+    let cancel = Cancellation::default();
+
+    cancel.cancel();
+    assert!(
+        read::page_with_query(&source, 0, CommitListData::default(), 50, "needle", &cancel)
+            .is_err()
+    );
+}
+
+#[cfg(feature = "test-support")]
+mod search_native {
+    use super::native::{draw, history, setup};
+    use super::*;
+    use crate::workspace::RepositoryWorkspace;
+    use rake::gpui::{InputEvent as _, prelude::*};
+    use std::time::Duration;
+
+    fn key(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<RepositoryWorkspace>, key: &str) {
+        cx.update_window(v.into(), |_, window, cx| {
+            window.dispatch_event(
+                gpui::KeyDownEvent {
+                    keystroke: gpui::Keystroke::parse(key).unwrap(),
+                    is_held: false,
+                    prefer_character_input: false,
+                }
+                .to_platform_input(),
+                cx,
+            );
+        })
+        .unwrap();
+        draw(cx, v);
+    }
+
+    fn open(cx: &mut gpui::TestAppContext, v: gpui::WindowHandle<RepositoryWorkspace>) {
+        v.update(cx, |view, window, cx| {
+            view.change_section(&"history".into(), cx);
+            window.focus(&view.focus, cx);
+        })
+        .unwrap();
+        draw(cx, v);
+        key(
+            cx,
+            v,
+            if cfg!(target_os = "macos") {
+                "cmd-f"
+            } else {
+                "ctrl-f"
+            },
+        );
+        cx.background_executor
+            .advance_clock(Duration::from_millis(150));
+        draw(cx, v);
+    }
+
+    fn query(cx: &mut gpui::TestAppContext, h: &gpui::Entity<HistoryWorkspace>, text: &str) {
+        h.update(cx, |h, cx| {
+            h.search_input
+                .update(cx, |input, cx| input.set_text(text, cx))
+        });
+        cx.run_until_parked();
+        cx.background_executor
+            .advance_clock(Duration::from_millis(300));
+    }
+
+    fn fixture() -> Fixture {
+        let f = Fixture::new();
+
+        f.write("a.txt", "first\n");
+        f.git(&["add", "."]);
+        f.git(&["commit", "-m", "Original selection"]);
+        f.write("a.txt", "latest\n");
+        f.git(&["commit", "-am", "Latest needle", "-m", "Hidden details"]);
+
+        f
+    }
+
+    #[test]
+    fn history_search_debounces_typing_and_motion_settles_with_reduced_motion() {
+        for reduced in [false, true] {
+            let f = fixture();
+            let (mut cx, v) = setup(&f);
+
+            cx.update(|cx| cx.set_reduce_motion(reduced));
+            open(&mut cx, v);
+            let h = history(v, &cx);
+
+            assert_eq!(
+                gpui::VisualTestContext::from_window(v.into(), &cx)
+                    .debug_bounds("history-search-bar")
+                    .unwrap()
+                    .size
+                    .height,
+                px(30.)
+            );
+            h.update(&mut cx, |h, cx| {
+                h.search_input
+                    .update(cx, |input, cx| input.set_text("Latest", cx))
+            });
+            cx.run_until_parked();
+            assert!(h.read_with(&cx, |h, _| h.data.items().is_empty()));
+            cx.background_executor
+                .advance_clock(Duration::from_millis(249));
+            draw(&mut cx, v);
+            assert!(
+                h.read_with(&cx, |h, _| h.data.items().is_empty()),
+                "search waits for the source debounce"
+            );
+            cx.background_executor
+                .advance_clock(Duration::from_millis(1));
+            draw(&mut cx, v);
+            assert_eq!(h.read_with(&cx, |h, _| h.data.items().len()), 1);
+            key(&mut cx, v, "escape");
+            cx.background_executor
+                .advance_clock(Duration::from_millis(200));
+            draw(&mut cx, v);
+            cx.update_window(v.into(), |_, window, cx| window.simulate_next_frame(cx))
+                .unwrap();
+            draw(&mut cx, v);
+            assert_eq!(
+                cx.update_window(v.into(), |_, window, cx| window.simulate_next_frame(cx))
+                    .unwrap(),
+                0,
+                "settled search does not request idle frames"
+            );
+        }
+    }
+
+    #[test]
+    fn history_search_native_field_cancels_old_reads_and_escape_restores_selection_and_native_viewports()
+     {
+        let f = fixture();
+        let before = contents(&f.root);
+        let (mut cx, v) = setup(&f);
+
+        v.update(&mut cx, |view, _, cx| {
+            view.summary
+                .update(cx, |input, cx| input.set_text("Keep draft", cx));
+            view.change_section(&"history".into(), cx);
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        let h = history(v, &cx);
+
+        let old = String::from_utf8(f.git(&["rev-parse", "HEAD^"]))
+            .unwrap()
+            .trim()
+            .to_owned();
+
+        h.update(&mut cx, |h, cx| {
+            h.select_commit(old.clone().into(), cx);
+            h.view = DiffView::Split;
+        });
+        draw(&mut cx, v);
+        let (saved, list, diff) = h.read_with(&cx, |h, cx| {
+            (
+                h.session(cx),
+                h.list_state.entity_id(),
+                h.diff_state.as_ref().unwrap().entity_id(),
+            )
+        });
+
+        open(&mut cx, v);
+        assert!(h.read_with(&cx, |h, _| h.search_open));
+        key(&mut cx, v, "escape");
+        assert!(!h.read_with(&cx, |h, _| h.search_open));
+        key(&mut cx, v, "ctrl-f");
+        assert!(
+            h.read_with(&cx, |h, _| h.search_open),
+            "the source Ctrl+F alias also opens search on macOS"
+        );
+        let cancelled = h.update(&mut cx, |h, cx| {
+            h.set_query("old pending".into(), cx);
+            let cancel = h.page_job.as_ref().unwrap().cancel.clone();
+
+            h.set_query("Latest".into(), cx);
+
+            cancel
+        });
+
+        assert!(cancelled.is_cancelled());
+        query(&mut cx, &h, " LATEST ");
+        draw(&mut cx, v);
+        h.read_with(&cx, |h, _| {
+            assert_eq!(h.data.items().len(), 1);
+            assert_eq!(h.data.items()[0].summary.as_ref(), "Latest needle");
+            assert_eq!(h.total, Some(2));
+        });
+        key(&mut cx, v, "escape");
+        cx.background_executor
+            .advance_clock(Duration::from_millis(150));
+        draw(&mut cx, v);
+        h.read_with(&cx, |h, cx| {
+            assert_eq!(h.session(cx), saved);
+            assert_eq!(
+                h.list_state.entity_id(),
+                list,
+                "normal native list scroll retained"
+            );
+            assert_eq!(
+                h.diff_state.as_ref().unwrap().entity_id(),
+                diff,
+                "normal native split diff scroll retained"
+            );
+            assert!(!h.search_open);
+            assert_eq!(h.search_input.read(cx).text(), "");
+        });
+        assert_eq!(
+            v.read_with(&cx, |v, cx| v.summary.read(cx).text().to_owned())
+                .unwrap(),
+            "Keep draft"
+        );
+        assert_eq!(contents(&f.root), before);
+    }
+
+    #[test]
+    fn history_search_refresh_keeps_query_selected_patch_and_draft_and_close_refreshes_normal_rows()
+    {
+        let f = fixture();
+        let (mut cx, v) = setup(&f);
+
+        open(&mut cx, v);
+        let h = history(v, &cx);
+
+        query(&mut cx, &h, "needle");
+        draw(&mut cx, v);
+        let selected = h.read_with(&cx, |h, _| h.selected.clone().unwrap());
+        let diff = h.read_with(&cx, |h, _| h.diff_state.as_ref().unwrap().entity_id());
+
+        f.git(&["commit", "--allow-empty", "-m", "Another needle"]);
+        let source = f.load();
+
+        h.update(&mut cx, |h, cx| h.refresh_source(source, cx));
+        draw(&mut cx, v);
+        h.read_with(&cx, |h, _| {
+            assert_eq!(h.search_query, "needle");
+            assert_eq!(h.data.items().len(), 2);
+            assert_eq!(h.selected, Some(selected));
+            assert_eq!(h.diff_state.as_ref().unwrap().entity_id(), diff);
+            assert_eq!(h.total, Some(3));
+        });
+        query(&mut cx, &h, "not present");
+        draw(&mut cx, v);
+        assert!(h.read_with(&cx, |h, _| h.data.items().is_empty()));
+        key(&mut cx, v, "escape");
+        draw(&mut cx, v);
+        h.read_with(&cx, |h, _| {
+            assert_eq!(h.data.items().len(), 3);
+            assert_eq!(h.total, Some(3));
+        });
+    }
+
+    #[test]
+    fn history_search_session_restores_search_and_normal_navigation_and_replaced_root_cancels_pending_query()
+     {
+        let f = fixture();
+        let (mut cx, v) = setup(&f);
+
+        open(&mut cx, v);
+        let h = history(v, &cx);
+
+        query(&mut cx, &h, "Original");
+        draw(&mut cx, v);
+        let saved = h.read_with(&cx, |h, cx| h.session(cx));
+
+        assert_eq!(saved.search.as_ref().unwrap().query, "Original");
+        let restored = v
+            .update(&mut cx, |_, window, cx| {
+                let other = cx.new(|cx| HistoryWorkspace::new(window, cx));
+
+                other.update(cx, |h, cx| {
+                    h.set_source(Some(f.load()), cx);
+                    h.restore_preferences(&saved, window, cx);
+                    h.restore_selection(&saved, cx);
+                    h.activate(cx);
+                });
+
+                other
+            })
+            .unwrap();
+
+        draw(&mut cx, v);
+        restored.read_with(&cx, |other, cx| {
+            assert_eq!(other.session(cx), saved);
+            assert!(other.search_open);
+        });
+        v.update(&mut cx, |_, window, cx| {
+            restored.update(cx, |h, cx| {
+                h.search_shortcut(
+                    &gpui::KeyDownEvent {
+                        keystroke: gpui::Keystroke::parse("escape").unwrap(),
+                        is_held: false,
+                        prefer_character_input: false,
+                    },
+                    window,
+                    cx,
+                )
+            })
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        restored.read_with(&cx, |other, _| {
+            assert_eq!(other.selected.as_deref(), saved.commit.as_deref());
+            assert!(other.normal.is_none());
+        });
+        let other = Fixture::new();
+
+        other.git(&["commit", "--allow-empty", "-m", "Different repository"]);
+        let cancelled = h.update(&mut cx, |h, cx| {
+            h.set_query("late".into(), cx);
+            let cancelled = h.page_job.as_ref().unwrap().cancel.clone();
+
+            h.set_source(Some(other.load()), cx);
+            h.activate(cx);
+
+            cancelled
+        });
+
+        draw(&mut cx, v);
+        assert!(cancelled.is_cancelled());
+        h.read_with(&cx, |h, _| {
+            assert_eq!(h.search_query, "");
+            assert!(h.normal.is_none());
+            assert_eq!(h.data.items()[0].summary.as_ref(), "Different repository");
+        });
     }
 }

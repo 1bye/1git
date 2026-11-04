@@ -1,7 +1,7 @@
 //! Session projection and exact immutable history selection recovery.
 use super::{DetailState, Details, HistoryWorkspace, spawn_read};
 use crate::workspace::PreviewState;
-use crate::workspace::tabs::session::History;
+use crate::workspace::tabs::session::{History, HistorySearch};
 use onegit_git::{CommitInfo, GitPath};
 use onegit_ui::{DiffView, SplitState};
 use rake::gpui::{self, AppContext, px};
@@ -9,7 +9,8 @@ use std::sync::Arc;
 
 impl HistoryWorkspace {
     pub(in crate::workspace) fn session(&self, cx: &gpui::App) -> History {
-        History {
+        let mut saved = History {
+            search: None,
             range: self.selection.saved(),
             commit: self.selected.as_ref().map(ToString::to_string),
             file: self
@@ -37,7 +38,37 @@ impl HistoryWorkspace {
                     0.
                 },
             detail_fraction: self.detail_split.read(cx).fraction().unwrap_or(0.5),
+        };
+
+        if let Some(normal) = &self.normal {
+            saved.search = Some(HistorySearch {
+                query: self.search_query.clone(),
+                commit: saved.commit.clone(),
+                file: saved.file.clone(),
+                rows: saved.rows,
+                range: saved.range.clone(),
+                split_diff: saved.split_diff,
+                tree_layout: saved.tree_layout,
+                collapsed: saved.collapsed.clone(),
+            });
+            saved.commit = normal.selected.as_ref().map(ToString::to_string);
+            saved.file = normal
+                .file
+                .as_ref()
+                .or(normal.restoring_file.as_ref())
+                .map(|p| p.as_bytes().to_vec());
+            saved.range = normal.selection.saved();
+            saved.rows = normal
+                .restore_rows
+                .unwrap_or(normal.data.items().len())
+                .min(10_000);
+            saved.split_diff = normal.view == DiffView::Split;
+            saved.tree_layout = normal.tree_layout;
+            saved.collapsed = normal.collapsed.iter().cloned().collect();
+            saved.collapsed.sort();
         }
+
+        saved
     }
 
     pub(in crate::workspace) fn session_splits(
@@ -89,6 +120,33 @@ impl HistoryWorkspace {
             let file = saved.file.as_ref().and_then(|path| GitPath::new(path).ok());
 
             self.load_commit(oid.clone().into(), None, file, cx);
+        }
+
+        if self.presentation == super::Presentation::History
+            && let Some(search) = &saved.search
+        {
+            self.set_query(search.query.clone(), cx);
+            self.search_open = true;
+            self.search_input
+                .update(cx, |input, cx| input.set_text(search.query.clone(), cx));
+            self.page_job = None;
+            self.restore_rows = Some(search.rows);
+            self.selection = super::super::replay::Selection::restore(&search.range);
+            self.view = if search.split_diff {
+                DiffView::Split
+            } else {
+                DiffView::Unified
+            };
+            self.tree_layout = search.tree_layout;
+            self.collapsed = search.collapsed.iter().cloned().collect();
+
+            if let Some(oid) = &search.commit {
+                let file = search.file.as_ref().and_then(|p| GitPath::new(p).ok());
+
+                self.load_commit(oid.clone().into(), None, file, cx);
+            }
+
+            self.load_page(cx);
         }
     }
 

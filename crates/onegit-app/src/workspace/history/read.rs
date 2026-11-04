@@ -22,40 +22,51 @@ pub(super) fn page(
     previous: CommitListData,
     cancel: &Cancellation,
 ) -> Result<Page, String> {
-    page_with_limit(source, offset, previous, 50, cancel)
+    page_with_query(source, offset, previous, 50, "", cancel)
 }
 
-pub(super) fn page_with_limit(
+#[cfg(test)]
+pub(super) fn page_with_query(
     source: &Loaded,
     offset: u64,
     previous: CommitListData,
     limit: usize,
+    query: &str,
     cancel: &Cancellation,
 ) -> Result<Page, String> {
+    page_for_query(source, offset, previous, limit, query, None, cancel)
+}
+
+/// Search uses source offsets, not match offsets, so pagination can scan sparse history.
+pub(super) fn page_for_query(
+    source: &Loaded,
+    offset: u64,
+    previous: CommitListData,
+    limit: usize,
+    query: &str,
+    known_total: Option<u64>,
+    cancel: &Cancellation,
+) -> Result<Page, String> {
+    let needle = query.trim().to_lowercase();
+
     let page = match source.snapshot.status.head.oid.as_deref() {
-        Some(tip) => source
-            .repository
-            .history(
-                HistoryOptions {
-                    limit,
-                    offset,
-                    revision: Some(tip),
-                    ..Default::default()
-                },
-                Some(cancel),
-            )
-            .map_err(read::message)?,
+        Some(tip) if !needle.is_empty() => {
+            search(&source.repository, tip, offset, limit, &needle, cancel)?
+        }
+        Some(tip) => normal_page(&source.repository, tip, offset, limit, cancel)?,
         None => onegit_git::CommitPage::default(),
     };
 
     let total = if offset == 0 {
-        source
-            .snapshot
-            .status
-            .head
-            .oid
-            .as_deref()
-            .and_then(|tip| source.repository.history_count(tip, Some(cancel)).ok())
+        known_total.or_else(|| {
+            source
+                .snapshot
+                .status
+                .head
+                .oid
+                .as_deref()
+                .and_then(|tip| source.repository.history_count(tip, Some(cancel)).ok())
+        })
     } else {
         None
     };
@@ -111,6 +122,113 @@ pub(super) fn page_with_limit(
         next_offset: page.next_offset,
         total,
     })
+}
+
+fn normal_page(
+    repository: &Repository,
+    tip: &str,
+    offset: u64,
+    limit: usize,
+    cancel: &Cancellation,
+) -> Result<onegit_git::CommitPage, String> {
+    let mut commits = Vec::new();
+    let mut cursor = offset;
+
+    loop {
+        let mut page = repository
+            .history(
+                HistoryOptions {
+                    revision: Some(tip),
+                    offset: cursor,
+                    limit: (limit - commits.len()).min(500),
+                    ..Default::default()
+                },
+                Some(cancel),
+            )
+            .map_err(read::message)?;
+
+        commits.append(&mut page.commits);
+
+        if !page.has_more || commits.len() >= limit {
+            return Ok(onegit_git::CommitPage {
+                commits,
+                has_more: page.has_more,
+                next_offset: page.next_offset,
+            });
+        }
+
+        cursor = page.next_offset.ok_or("History page did not advance.")?;
+    }
+}
+
+fn search(
+    repository: &Repository,
+    tip: &str,
+    offset: u64,
+    limit: usize,
+    needle: &str,
+    cancel: &Cancellation,
+) -> Result<onegit_git::CommitPage, String> {
+    let mut commits = Vec::new();
+    let mut cursor = offset;
+    let mut next_offset = None;
+
+    loop {
+        if cancel.is_cancelled() {
+            return Err("History search was cancelled.".into());
+        }
+
+        let page = repository
+            .history(
+                HistoryOptions {
+                    revision: Some(tip),
+                    offset: cursor,
+                    limit: 250,
+                    ..Default::default()
+                },
+                Some(cancel),
+            )
+            .map_err(read::message)?;
+
+        for commit in page.commits {
+            cursor += 1;
+
+            if [
+                &commit.oid,
+                &commit.summary,
+                &commit.body,
+                &commit.author.name,
+                &commit.author.email,
+            ]
+            .into_iter()
+            .any(|value| value.to_lowercase().contains(needle))
+            {
+                commits.push(commit);
+            }
+
+            if commits.len() == limit {
+                next_offset = Some(cursor);
+            }
+
+            if commits.len() > limit {
+                commits.truncate(limit);
+
+                return Ok(onegit_git::CommitPage {
+                    commits,
+                    has_more: true,
+                    next_offset,
+                });
+            }
+        }
+
+        if !page.has_more {
+            return Ok(onegit_git::CommitPage {
+                commits,
+                has_more: false,
+                next_offset: None,
+            });
+        }
+    }
 }
 
 pub(in crate::workspace) fn patch(

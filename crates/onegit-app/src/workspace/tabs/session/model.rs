@@ -44,6 +44,8 @@ pub(in crate::workspace) struct CommitRange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(in crate::workspace) struct History {
     #[serde(default)]
+    pub search: Option<HistorySearch>,
+    #[serde(default)]
     pub range: CommitRange,
     #[serde(default)]
     pub tree_layout: bool,
@@ -55,6 +57,18 @@ pub(in crate::workspace) struct History {
     pub split_diff: bool,
     pub sidebar: f32,
     pub detail_fraction: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(in crate::workspace) struct HistorySearch {
+    pub query: String,
+    pub commit: Option<String>,
+    pub file: Option<Vec<u8>>,
+    pub rows: usize,
+    pub range: CommitRange,
+    pub split_diff: bool,
+    pub tree_layout: bool,
+    pub collapsed: Vec<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -217,6 +231,33 @@ impl Document {
 
             for history in std::iter::once(&tab.history).chain(tab.graph.iter().map(|g| &g.details))
             {
+                if let Some(search) = &history.search {
+                    if search.query.len() > 16_384
+                        || search.rows > 10_000
+                        || search.range.ids.len() > 10_000
+                        || search.collapsed.len() > 10_000
+                    {
+                        return Err("Session contains oversized history search intent".into());
+                    }
+
+                    for oid in search
+                        .commit
+                        .iter()
+                        .chain(search.range.ids.iter())
+                        .chain(search.range.anchor.iter())
+                    {
+                        if !matches!(oid.len(), 40 | 64)
+                            || !oid.bytes().all(|b| b.is_ascii_hexdigit())
+                        {
+                            return Err("Session contains an invalid history search commit".into());
+                        }
+                    }
+
+                    for path in search.file.iter().chain(search.collapsed.iter()) {
+                        GitPath::new(path).map_err(|e| e.to_string())?;
+                    }
+                }
+
                 if history.range.ids.len() > 10_000
                     || history
                         .range

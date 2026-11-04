@@ -182,6 +182,17 @@ offsets mid-session. **Refresh** starts again from the current HEAD and resets
 history selection and pagination. A commit created through the app invalidates
 cached history automatically. Ordinary staging keeps existing history selection.
 
+Use the History search button or Command/Ctrl+F (both work on macOS) to search full commit messages,
+author names/emails and commit IDs. Matching is literal and case-insensitive;
+spaces at either end are ignored. Typing waits 250ms, then scans immutable history
+in 250-commit batches and displays pages of 50 matches. The title retains the full
+branch count. Escape or Close restores the original cached list, commit/file,
+diff mode and native scroll; clearing only the text leaves the field open.
+Queries and both normal/search navigation are saved per tab across restart.
+Refresh keeps the query and immutable chosen patch, while a changed branch tip
+reloads result pages. Reads never fetch, modify Git or overwrite commit drafts.
+The field uses a fast gpui-ce-motion size transition and honors reduced motion.
+
 Select a commit to see its subject, author, date, message and changed files; the
 short SHA button copies the full object ID. Select a file to load its unified or split patch. Commits and changed files
 share a proportionally resizable stacked sidebar; selected commit metadata sits above the right-hand patch.

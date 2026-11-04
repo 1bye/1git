@@ -634,6 +634,9 @@ impl Render for RepositoryWorkspace {
 
         let page = rake::view! {
             <main class="relative size-full min-w-0 min-h-0 flex flex-col bg-chrome text-ink" focus={&self.focus} tab-navigation={true} on:key-down={cx.listener(|this,event: &gpui::KeyDownEvent,window,cx| {
+                if this.section == super::Section::History && !this.home_visible {
+                    this.history.update(cx,|history,cx|history.search_shortcut(event,window,cx));
+                }
                 if let Some(request) = this.tab_strip.as_ref().and_then(|strip|strip.key(event)) {
                     window.prevent_default(); cx.stop_propagation(); cx.emit(request);
                 }

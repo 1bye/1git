@@ -1,6 +1,7 @@
 //! App-owned commit history and selection, independent from uncommitted changes.
 mod files;
 pub(super) mod read;
+mod search;
 mod session;
 #[cfg(test)]
 mod tests;
@@ -79,6 +80,14 @@ pub(super) struct HistoryWorkspace {
     files_scroll: gpui::UniformListScrollHandle,
     sidebar: gpui::Entity<SplitState>,
     detail_split: gpui::Entity<SplitState>,
+    search_query: String,
+    search_open: bool,
+    search_input: gpui::Entity<onegit_ui::InputState>,
+    search_button: gpui::FocusHandle,
+    normal: Option<search::Normal>,
+    search_height: gpui_ce_motion::MotionValue,
+    search_epoch: std::time::Instant,
+    _search_subscription: gpui::Subscription,
     page_job: Option<ReadJob>,
     detail_job: Option<ReadJob>,
     patch_job: Option<ReadJob>,
@@ -90,13 +99,31 @@ fn spawn_read<T: Send + 'static>(
     apply: impl FnOnce(&mut HistoryWorkspace, Result<T, String>, &mut gpui::Context<HistoryWorkspace>)
     + 'static,
 ) -> ReadJob {
+    spawn_read_after(cx, std::time::Duration::ZERO, work, apply)
+}
+
+fn spawn_read_after<T: Send + 'static>(
+    cx: &mut gpui::Context<HistoryWorkspace>,
+    delay: std::time::Duration,
+    work: impl FnOnce(Cancellation) -> Result<T, String> + Send + 'static,
+    apply: impl FnOnce(&mut HistoryWorkspace, Result<T, String>, &mut gpui::Context<HistoryWorkspace>)
+    + 'static,
+) -> ReadJob {
     let cancel = Cancellation::default();
     let worker_cancel = cancel.clone();
     let completion_cancel = cancel.clone();
 
-    let worker = cx
-        .background_executor()
-        .spawn(async move { work(worker_cancel) });
+    let timer = cx.background_executor().timer(delay);
+
+    let worker = cx.background_executor().spawn(async move {
+        timer.await;
+
+        if worker_cancel.is_cancelled() {
+            return Err("History read was cancelled.".into());
+        }
+
+        work(worker_cancel)
+    });
 
     let task = cx.spawn(async move |this, cx| {
         let result = worker.await;
@@ -114,7 +141,28 @@ fn spawn_read<T: Send + 'static>(
 
 impl HistoryWorkspace {
     pub fn new(window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> Self {
+        let search_input = cx.new(|cx| onegit_ui::InputState::new("", window, cx));
+
+        let subscription = cx.subscribe(
+            &search_input,
+            |this: &mut Self, _, event: &onegit_ui::InputEvent, cx| {
+                if *event == onegit_ui::InputEvent::Changed {
+                    let query = this.search_input.read(cx).text().to_owned();
+
+                    this.set_query(query, cx);
+                }
+            },
+        );
+
         Self {
+            search_query: String::new(),
+            search_open: false,
+            search_input,
+            search_button: cx.focus_handle(),
+            normal: None,
+            search_height: gpui_ce_motion::MotionValue::new(0.),
+            search_epoch: cx.background_executor().now(),
+            _search_subscription: subscription,
             selection: super::replay::Selection::default(),
             presentation: Presentation::History,
             tags: Vec::new(),
@@ -209,22 +257,25 @@ impl HistoryWorkspace {
     }
 
     pub fn set_source(&mut self, source: Option<Arc<Loaded>>, cx: &mut gpui::Context<Self>) {
-        let same = self
-            .source
-            .as_ref()
-            .zip(source.as_ref())
-            .is_some_and(|(old, new)| {
-                old.snapshot.repository.root == new.snapshot.repository.root
-                    && old.snapshot.status.head == new.snapshot.status.head
-            });
+        if let Some(source) = source.as_ref()
+            && self
+                .source
+                .as_ref()
+                .is_some_and(|old| old.snapshot.repository.root == source.snapshot.repository.root)
+        {
+            self.refresh_source(source.clone(), cx);
+
+            return;
+        }
 
         self.source = source;
         self.update_tag_labels();
 
-        if same {
-            return;
-        }
-
+        self.normal = None;
+        self.search_query.clear();
+        self.search_open = false;
+        self.search_input
+            .update(cx, |input, cx| input.set_text("", cx));
         self.restore_rows = None;
         self.restoring_file = None;
         self.page_job = None;
@@ -245,6 +296,16 @@ impl HistoryWorkspace {
     }
 
     pub fn refresh_source(&mut self, source: Arc<Loaded>, cx: &mut gpui::Context<Self>) {
+        if self
+            .source
+            .as_ref()
+            .is_some_and(|old| old.snapshot.repository.root != source.snapshot.repository.root)
+        {
+            self.set_source(Some(source), cx);
+
+            return;
+        }
+
         let new_head = self
             .source
             .as_ref()
@@ -254,6 +315,12 @@ impl HistoryWorkspace {
         self.update_tag_labels();
 
         if new_head {
+            if let Some(normal) = &mut self.normal {
+                normal.page_loaded = false;
+                normal.restore_rows = Some(normal.data.items().len().clamp(50, 10_000));
+                normal.total = None;
+            }
+
             let activated = self.page_loaded || self.page_job.is_some() || self.selected.is_some();
 
             // Keep rendered rows until their replacement arrives, preserving the list anchor.
@@ -347,12 +414,42 @@ impl HistoryWorkspace {
         };
 
         self.page_error = None;
-        let limit = self.restore_rows.unwrap_or(50).max(50);
+        let limit = self.restore_rows.unwrap_or(50).clamp(50, 10_000);
+        let query = self.search_query.clone();
+        let replace_selection = self.searching() && self.restore_rows.is_none();
+        let known_total = self.total;
+        let intent = query.clone();
+        let root = source.snapshot.repository.root.clone();
+        let head = source.snapshot.status.head.clone();
 
-        self.page_job = Some(spawn_read(
+        self.page_job = Some(spawn_read_after(
             cx,
-            move |cancel| read::page_with_limit(&source, offset, previous, limit, &cancel),
+            if replace_selection && offset == 0 {
+                std::time::Duration::from_millis(250)
+            } else {
+                std::time::Duration::ZERO
+            },
+            move |cancel| {
+                read::page_for_query(
+                    &source,
+                    offset,
+                    previous,
+                    limit,
+                    &query,
+                    known_total,
+                    &cancel,
+                )
+            },
             move |this, result, cx| {
+                if this.search_query != intent
+                    || !this.source.as_ref().is_some_and(|source| {
+                        source.snapshot.repository.root == root
+                            && source.snapshot.status.head == head
+                    })
+                {
+                    return;
+                }
+
                 this.page_job = None;
 
                 match result {
@@ -373,15 +470,35 @@ impl HistoryWorkspace {
 
                         if page.total.is_some() {
                             this.total = page.total;
+
+                            if let Some(normal) = &mut this.normal {
+                                normal.total = page.total;
+                            }
                         }
 
                         this.next_offset = page.next_offset;
                         this.page_loaded = true;
 
-                        if this.selected.is_none()
-                            && let Some(first) = this.data.items().first()
+                        let retain = this
+                            .selected
+                            .as_ref()
+                            .is_some_and(|id| this.data.items().iter().any(|item| &item.id == id));
+
+                        if this.selected.is_none() || (replace_selection && offset == 0 && !retain)
                         {
-                            this.select_commit(first.id.clone(), cx);
+                            this.selection = super::replay::Selection::default();
+
+                            if let Some(first) = this.data.items().first() {
+                                this.select_commit(first.id.clone(), cx);
+                            } else if replace_selection {
+                                this.detail_job = None;
+                                this.patch_job = None;
+                                this.selected = None;
+                                this.detail = DetailState::Empty;
+                                this.file = None;
+                                this.preview = PreviewState::Empty;
+                                this.diff_state = None;
+                            }
                         }
                     }
                     Err(error) => this.page_error = Some(error),

@@ -116,10 +116,14 @@ pub struct Button {
     pub state: ControlState,
     /// Optional decorative leading glyph.
     pub icon: Option<IconName>,
+    /// Optional glyph geometry for host toolbars, independent of the hit target.
+    pub icon_size: Option<IconSize>,
     /// Optional accessible name overriding the visible label.
     pub accessibility_label: Option<SharedString>,
     /// Optional toggle state for a controlled choice button.
     pub pressed: Option<bool>,
+    /// Expanded state for a disclosure action, independent of toggle styling.
+    pub expanded: Option<bool>,
     /// Optional retained focus target, for dialog initial focus or programmatic focus.
     pub focus: Option<gpui::FocusHandle>,
     /// Optional activation callback; availability is enforced before dispatch.
@@ -142,8 +146,10 @@ impl Button {
             padding: None,
             state: ControlState::Enabled,
             icon: None,
+            icon_size: None,
             accessibility_label: None,
             pressed: None,
+            expanded: None,
             focus: None,
             on_press: None,
         }
@@ -279,13 +285,13 @@ impl RenderOnce for Button {
 
         // The inert measurement uses the same native geometry and typography as
         // the live control, without duplicate focus handles or event listeners.
-        let icon_size = if self.size == ControlSize::Rail {
+        let icon_size = self.icon_size.unwrap_or(if self.size == ControlSize::Rail {
             IconSize::Navigation
         } else if self.size == ControlSize::Small {
             IconSize::Small
         } else {
             IconSize::Medium
-        };
+        });
 
         let measurement = rake::view! {
             <div class="flex flex-row items-center justify-center gap-1.5 shrink-0 min-w-0 font-medium border-1"
@@ -322,6 +328,7 @@ impl RenderOnce for Button {
                                 .px(if icon_only {px(0.)} else {padding})
                                 .bg(paint.background).text_color(paint.ink).border_color(paint.border)
                                 .when_some(self.radius, |s,radius|s.rounded(radius))
+                                .when_some(self.expanded, |s,expanded|s.aria_expanded(expanded))
                                 .when_some(self.pressed, |s,pressed|s.aria_toggled(if pressed {gpui::accesskit::Toggled::True}else{gpui::accesskit::Toggled::False}))
                                 .opacity(paint.opacity)}
                             on:click={move |event, window, cx| {

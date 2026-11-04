@@ -1436,3 +1436,83 @@ The locked offline app build, cargo fmt --all --check, strict workspace
 all-target/all-feature Clippy, warning-denied workspace docs and logical spacing
 checks pass. Spacing also checks Windows/Linux Git code. Native app checks ran
 on macOS; CI and Windows/Linux runtime tests were not run for this task.
+
+
+## History search (2026-11-04)
+
+Source behavior comes from RepositoryHistory.read/matches, the History model
+search/page reducers, use-repository-history and repository-navigation.
+The port searches locally available immutable branch history rather than only
+filtering already loaded rows.
+
+| Source | Rust |
+| --- | --- |
+| RepositoryHistory.matches | history/read.rs literal matching over oid, summary, full body and author identity |
+| RepositoryHistory.read search loop | page_for_query / search with 250-commit batches and source offsets |
+| 250ms query debounce and AbortSignal | spawn_read_after, ReadJob cancellation and exact root/head/query completion guard |
+| history.normal and Escape | history/search.rs owned Normal cache, native list/file/diff state restoration |
+| filter button, find shortcut and field | History toolbar, search_shortcut and retained InputState |
+| StateMessage / StateArtwork | source search/history SVGs and illustrated result/file/detail empty states |
+| Saved History navigation | optional HistorySearch intent beside the existing normal History session |
+
+The full branch total is reused for each immutable tip, independently of query
+or result pagination. The 51st match proves that a next result page exists.
+The next offset follows the source's scan cursor, including nonmatching rows
+between the 50th and 51st matches. Search uses no regex or Git revision parsing
+for user input. A new query cancels its predecessor, including the timer.
+Root/head/query checks reject late queued results. Replaced roots clear the
+filter; refreshed tips retain the query and exact chosen immutable patch.
+
+Normal navigation owns its cached native list, file list, split diff and
+selection while results are displayed. Escape restores those same entities,
+including their pixel offsets, expanded context and text selection. A changed
+HEAD invalidates cached normal pages but retains its chosen immutable detail;
+clearing search then reloads the retained page span in bounded Git calls.
+Ordinary drafts and pane sizes are independent. Restart stores only validated
+normal/search intent and rereads Git; no worker, cached object or action is
+serialized. Older sessions without HistorySearch still load.
+
+| Original test / behavior | Rust test |
+| --- | --- |
+| searches through the native field, ignores late results and restores on Escape | history_search_native_field_cancels_old_reads_and_escape_restores_selection_and_native_viewports |
+| isolates search pages and restores normal cache | same native test and search_pages_scan_beyond_loaded_rows_without_duplicates_or_following_head |
+| matches full message, author or hashes literally | search_matches_literal_full_messages_author_identity_and_hashes |
+| full branch total independent of search | read/native search tests, including refresh with added matching commits |
+| frozen pagination across moving HEAD and sparse matches | search_pages_scan_beyond_loaded_rows_without_duplicates_or_following_head |
+| retains immutable commit/file while refreshing history | history_search_refresh_keeps_query_selected_patch_and_draft_and_close_refreshes_normal_rows |
+| navigation round trip and root replacement | history_search_session_restores_search_and_normal_navigation_and_replaced_root_cancels_pending_query |
+| legacy session and invalid saved intent | history_search_intent_round_trips_and_legacy_sessions_remain_valid |
+| source debounce and fast reduced-motion transition | history_search_debounces_typing_and_motion_settles_with_reduced_motion |
+
+The existing manual Load more commits action remains the Rust pagination control.
+File-scoped history and remote commit links remain separate UI work. Native input
+focus remains visible. Search fields animate for 120ms with gpui-ce-motion and
+stop requesting frames at rest. The reusable Button now separates disclosure
+expanded state from toggle styling and accepts an optional toolbar glyph size;
+existing defaults are unchanged. No dependencies or published versions change,
+and the unpublished Rust crates do not need a changeset.
+
+The 24px result header is outside the revision/file split, as in the source,
+so opening search retains the same stored ratio and divider placement.
+
+Native comparison used both apps on diff-parity-o_cgtiu3 / codex/rewrite-parity
+with Baseline diff preview and docs/README.md selected. Populated and no-match
+searches were captured at the same window size. The comparison corrected the
+toolbar glyph/disclosure styling, result header placement, divider geometry,
+and compact/full empty illustrations and typography. The Rust input retains
+its visible focus outline. Existing differences in repository tab contents and
+manual pagination are outside this search comparison. Escape restored the
+normal five-commit list, Baseline selection and README diff in both apps.
+The shared fixture's worktree, branches and tag were unchanged.
+
+Validation: the four original History suites passed (39 tests, 288 assertions).
+The complete locked/offline Rust workspace/all-target/all-feature run passed
+706 tests across 50 suites with two test threads; all 12 doctests and
+warning-denied documentation passed. The initial concurrent workspace run hit
+an existing helper-output wall-clock deadline; its five isolated tools tests
+and the subsequent complete run passed without changing that test. The final
+Ctrl+F alias correction was first reproduced by a failing native assertion,
+then all 17 History tests passed again. Strict workspace Clippy, formatting,
+logical spacing (including Windows/Linux Git code) and diff whitespace checks
+pass. The rebuilt, signed bundle also accepted Ctrl+F live on macOS and Escape
+restored its selection. CI and native Windows/Linux execution were not run.
