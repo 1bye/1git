@@ -555,3 +555,79 @@ fn reset_rechecks_publication_head_branch_and_dirty_files_after_readonly_review(
         assert!(text(&f, &["for-each-ref", "refs/1git/reset/"]).is_empty());
     }
 }
+
+#[test]
+fn squash_and_reorder_recheck_publication_and_stale_or_dirty_history_after_review() {
+    for reorder in [false, true] {
+        for change in ["publication", "head", "branch", "dirty"] {
+            let (f, r, ids, expected) = setup();
+
+            let range = HistoryRange {
+                commits: vec![ids[2].clone(), ids[1].clone()],
+                expected,
+            };
+
+            let squash = SquashCommits {
+                range: range.clone(),
+                message: "Combined".into(),
+            };
+
+            let reordered = ReorderCommits {
+                range,
+                order: vec![ids[2].clone(), ids[1].clone()],
+            };
+
+            if reorder {
+                r.reorder_plan(&reordered, None).unwrap();
+            } else {
+                r.squash_plan(&squash, None).unwrap();
+            }
+
+            match change {
+                "publication" => {
+                    f.git(&["update-ref", "refs/remotes/origin/main", &ids[3]]);
+                }
+                "head" => {
+                    f.git(&["commit", "--allow-empty", "-m", "External"]);
+                }
+                "branch" => {
+                    f.git(&["switch", "-c", "external"]);
+                }
+                "dirty" => f.write("Three", "external edit"),
+                _ => unreachable!(),
+            }
+
+            let head = text(&f, &["rev-parse", "HEAD"]);
+            let index = std::fs::read(f.root.join(".git/index")).unwrap();
+            let file = std::fs::read(f.root.join("Three")).unwrap();
+
+            let error = if reorder {
+                r.reorder_commits(&reordered, None)
+            } else {
+                r.squash_commits(&squash, None)
+            }
+            .unwrap_err();
+
+            assert_eq!(
+                error.phase,
+                onegit_git::WritePhase::BeforeCommand,
+                "{change}; reorder={reorder}"
+            );
+            assert_eq!(text(&f, &["rev-parse", "HEAD"]), head);
+            assert_eq!(std::fs::read(f.root.join(".git/index")).unwrap(), index);
+            assert_eq!(std::fs::read(f.root.join("Three")).unwrap(), file);
+            assert!(
+                text(
+                    &f,
+                    &["for-each-ref", "refs/1git/squash/", "refs/1git/reorder/"]
+                )
+                .is_empty()
+            );
+            assert_eq!(
+                r.worktrees(None).unwrap().len(),
+                1,
+                "review must not create temporary worktrees"
+            );
+        }
+    }
+}

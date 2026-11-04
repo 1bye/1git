@@ -728,3 +728,16 @@ Committed-file lists can use `ListRowVariant::Compact` with `label_content`
 for filename/path labels and a negative `tab_index` when an enclosing list owns
 roving focus. `ButtonTone::Accent` colors neutral actions; an optional `height`
 retains host toolbar geometry and participates in the existing size transition.
+
+
+CommitList and CommitGraph also accept controlled `selected_ids` and
+`on_select_modified` for multi-selection. The callback receives the exact ID and
+native modifiers even when selecting the current primary ID, allowing the owner
+to implement toggle/range/collapse behavior without replacing its preview.
+Supplying it takes precedence over `on_select`; existing single-selection callers
+are unchanged. The primary `selected` ID still controls the retained keyboard
+cursor and contextual menu.
+
+TextInput and TextArea support `InputVariant::Surface` for outlined confirmation
+fields painted on the surrounding surface. It keeps the same native editing,
+focus and sizing behavior as the default outlined variant.

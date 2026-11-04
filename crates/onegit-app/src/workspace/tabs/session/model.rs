@@ -35,8 +35,16 @@ pub(in crate::workspace) struct SavedTab {
     pub graph: Option<GraphView>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub(in crate::workspace) struct CommitRange {
+    pub ids: Vec<String>,
+    pub anchor: Option<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(in crate::workspace) struct History {
+    #[serde(default)]
+    pub range: CommitRange,
     #[serde(default)]
     pub tree_layout: bool,
     #[serde(default)]
@@ -209,6 +217,20 @@ impl Document {
 
             for history in std::iter::once(&tab.history).chain(tab.graph.iter().map(|g| &g.details))
             {
+                if history.range.ids.len() > 10_000
+                    || history
+                        .range
+                        .ids
+                        .iter()
+                        .chain(history.range.anchor.iter())
+                        .any(|id| {
+                            !matches!(id.len(), 40 | 64)
+                                || !id.bytes().all(|byte| byte.is_ascii_hexdigit())
+                        })
+                {
+                    return Err("Session contains an invalid commit range".into());
+                }
+
                 if history.collapsed.len() > 10_000 {
                     return Err("Session contains too many collapsed directories".into());
                 }

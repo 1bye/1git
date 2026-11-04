@@ -99,7 +99,7 @@ impl Workspace {
                 for tab in self.matching(root, cx) {
                     tab.update(cx, |tab, cx| {
                         tab.refresh_blocked = true;
-                        tab.refresh_error = Some("The reset result needs review. Inspect History and refresh before writing again.".into());
+                        tab.refresh_error = Some("The history edit needs review. Inspect History and refresh before writing again.".into());
                         cx.notify();
                     });
                 }

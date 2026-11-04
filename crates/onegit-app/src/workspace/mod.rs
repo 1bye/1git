@@ -890,7 +890,9 @@ impl RepositoryWorkspace {
         }
 
         if let Some(completion) = replay_completion {
-            let show_changes = if completion.kind == replay::Kind::Reset {
+            let show_changes = if completion.kind.is_rewrite() {
+                false
+            } else if completion.kind == replay::Kind::Reset {
                 completion.result.is_ok()
             } else {
                 completion.started
@@ -898,7 +900,7 @@ impl RepositoryWorkspace {
 
             if completion.needs_review {
                 self.refresh_blocked = true;
-                self.refresh_error = Some("The reset result needs review. Inspect History and refresh before writing again.".into());
+                self.refresh_error = Some("The history edit needs review. Inspect History and refresh before writing again.".into());
             }
 
             self.replay.update(cx, |form, cx| {

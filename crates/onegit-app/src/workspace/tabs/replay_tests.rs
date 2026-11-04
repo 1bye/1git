@@ -6,15 +6,26 @@ use std::{sync::Arc, time::Duration};
 
 #[test]
 fn replay_refreshes_duplicate_and_linked_tabs_preserving_drafts_graph_selection_and_viewport() {
-    check_refresh(false);
+    check_refresh(replay::Kind::CherryPick);
 }
 
 #[test]
 fn reset_refreshes_duplicate_and_linked_tabs_preserving_drafts_graph_selection_and_viewport() {
-    check_refresh(true);
+    check_refresh(replay::Kind::Reset);
 }
 
-fn check_refresh(reset: bool) {
+#[test]
+fn squash_refreshes_duplicate_and_linked_tabs_without_replacing_history_or_drafts() {
+    check_refresh(replay::Kind::Squash);
+}
+
+#[test]
+fn reorder_refreshes_duplicate_and_linked_tabs_without_replacing_history_or_drafts() {
+    check_refresh(replay::Kind::Reorder);
+}
+
+fn check_refresh(kind: replay::Kind) {
+    let reset = kind == replay::Kind::Reset;
     let f = Fixture::new();
 
     f.write("a", "base\n");
@@ -90,22 +101,69 @@ fn check_refresh(reset: bool) {
             },
         };
 
-        cx.emit(replay::Submit(if reset {
+        let action = if kind.is_rewrite() {
+            let commits: Vec<_> = ["HEAD^^", "HEAD^^^"]
+                .into_iter()
+                .map(|id| Arc::new(source.repository.commit(id, None).unwrap()))
+                .collect();
+
+            let mut review = review;
+
+            review.commit = commits[0].clone();
+            let review = replay::RangeReview {
+                source: review,
+                commits,
+            };
+
+            if kind == replay::Kind::Squash {
+                replay::Action::Squash {
+                    review,
+                    message: "Combined earlier commits".into(),
+                    cancel: onegit_git::Cancellation::default(),
+                }
+            } else {
+                let order = review.commits.iter().map(|c| c.oid.clone()).collect();
+
+                replay::Action::Reorder {
+                    review,
+                    order,
+                    cancel: onegit_git::Cancellation::default(),
+                }
+            }
+        } else if reset {
             replay::Action::Reset(review)
         } else {
             replay::Action::CherryPick {
                 review,
                 destination: ("target".into(), base.clone()),
             }
-        }))
+        };
+
+        cx.emit(replay::Submit(action));
     });
     draw(&mut cx, v);
     cx.executor().advance_clock(Duration::from_millis(500));
     draw(&mut cx, v);
 
     for (i, (tab, draft, branch)) in [
-        (&a, "origin", if reset { "main" } else { "target" }),
-        (&b, "duplicate", if reset { "main" } else { "target" }),
+        (
+            &a,
+            "origin",
+            if reset || kind.is_rewrite() {
+                "main"
+            } else {
+                "target"
+            },
+        ),
+        (
+            &b,
+            "duplicate",
+            if reset || kind.is_rewrite() {
+                "main"
+            } else {
+                "target"
+            },
+        ),
         (&c, "linked", "linked"),
     ]
     .into_iter()
@@ -130,7 +188,7 @@ fn check_refresh(reset: bool) {
             assert!(tab.write_job.is_none());
             assert_eq!(
                 tab.section,
-                if i == 0 {
+                if i == 0 && !kind.is_rewrite() {
                     Section::Changes
                 } else if i == 1 {
                     Section::History

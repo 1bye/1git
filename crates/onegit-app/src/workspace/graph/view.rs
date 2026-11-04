@@ -80,6 +80,19 @@ impl Graph {
 
     fn table(&self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
         let commits = self.commits.clone();
+
+        let range = self
+            .selection
+            .ordered(
+                self.data
+                    .commits()
+                    .iter()
+                    .map(|commit| commit.item.id.clone()),
+            )
+            .into_iter()
+            .filter_map(|id| commits.iter().find(|c| c.oid == id.as_ref()).cloned())
+            .collect::<Vec<_>>();
+
         let owner = cx.entity().downgrade();
 
         let head = self
@@ -105,8 +118,11 @@ impl Graph {
                 </div>
                 if let Some(error)=&self.page_error {<p role={accesskit::Role::Alert} class="px-2 py-1 text-caption text-danger">{error.clone()}</p>}
                 <div class="flex-1 min-w-0 min-h-0">
-                    <CommitGraph context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits.iter().find(|commit|commit.oid==oid.as_ref()).expect("graph rows have commit metadata").clone(),blocked,head.as_deref(),owner.clone())))} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
-                        on_select={Some(Box::new(cx.listener(|this,id:&gpui::SharedString,_,cx|this.select(id,cx))))}
+                    <CommitGraph context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits.iter().find(|commit|commit.oid==oid.as_ref()).expect("graph rows have commit metadata").clone(),range.clone(),blocked,head.as_deref(),owner.clone())))} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else{"No commits yet".into()}}
+                        on_select_modified={Some(Box::new(cx.listener(|this,event:&onegit_ui::CommitSelectionEvent,_,cx|{
+      this.selection.choose(event.id.clone(),&event.modifiers,this.data.commits().iter().map(|commit|commit.item.id.clone()),this.selected.as_ref());
+      if this.selected.as_ref()!=Some(&event.id){this.select(&event.id,cx);}cx.notify();
+  })))}
                         {..CommitGraph::new("graph-table",self.data.clone(),&self.state)}/>
                 </div>
             </div>

@@ -27,6 +27,7 @@ fn tab(path: &std::path::Path, summary: &str) -> SavedTab {
         filter_visible: true,
         sidebar: 347.,
         history: History {
+            range: Default::default(),
             tree_layout: true,
             collapsed: vec![b"folder/deep".to_vec()],
             commit: Some("1".repeat(40)),
@@ -231,4 +232,32 @@ fn graph_intent_round_trips_and_pre_graph_sessions_still_load() {
 
     bad.tabs[0].graph.as_mut().unwrap().anchor = Some("HEAD".into());
     assert!(bad.validate().is_err());
+}
+
+#[test]
+fn range_intent_round_trips_with_legacy_defaults_and_rejects_invalid_commit_ids() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut doc = document(dir.path());
+
+    doc.tabs[0].history.range = CommitRange {
+        ids: vec!["1".repeat(40), "2".repeat(40)],
+        anchor: Some("2".repeat(40)),
+    };
+    let mut value = serde_json::to_value(&doc).unwrap();
+
+    assert_eq!(
+        serde_json::from_value::<Document>(value.clone()).unwrap(),
+        doc
+    );
+    assert!(doc.validate().is_ok());
+    value["tabs"][0]["history"]
+        .as_object_mut()
+        .unwrap()
+        .remove("range");
+    let legacy: Document = serde_json::from_value(value).unwrap();
+
+    assert_eq!(legacy.tabs[0].history.range, CommitRange::default());
+    assert!(legacy.validate().is_ok());
+    doc.tabs[0].history.range.ids.push("not-a-commit".into());
+    assert!(doc.validate().is_err());
 }

@@ -38,6 +38,8 @@ pub enum InputVariant {
     /// Bordered control with its own inset background.
     #[default]
     Outlined,
+    /// Bordered field using the surrounding surface, as in native confirmation forms.
+    Surface,
     /// Transparent editor for compact toolbars and integrated commit composers.
     Plain,
     /// Borderless inset field used in repository toolbars; keyboard focus retains its outline.

@@ -40,6 +40,7 @@ impl Kind {
 }
 
 pub(super) struct Graph {
+    selection: super::replay::Selection,
     pub(in crate::workspace) form: gpui::Entity<form::Form>,
     source: Option<Arc<Loaded>>,
     refs: Arc<read::References>,
@@ -163,6 +164,7 @@ impl Graph {
         ];
 
         Self {
+            selection: super::replay::Selection::default(),
             form,
             source: None,
             refs: Arc::default(),
@@ -252,6 +254,7 @@ impl Graph {
             self.commits.clear();
             self.data = CommitGraphData::default();
             self.selected = None;
+            self.selection = super::replay::Selection::default();
             self.page_loaded = false;
             self.next_offset = None;
 
@@ -263,6 +266,7 @@ impl Graph {
         if self.source.is_some()
             && let Some(saved) = self.pending_details.take()
         {
+            self.selection = super::replay::Selection::restore(&saved.range);
             self.selected = saved.commit.clone().map(Into::into);
             self.inspector
                 .update(cx, |view, cx| view.restore_selection(&saved, cx));
@@ -482,6 +486,7 @@ impl Graph {
         self.page_loaded = false;
         self.next_offset = None;
         self.selected = None;
+        self.selection = super::replay::Selection::default();
         self.restoring_rows = 0;
         self.restoring_anchor = None;
         self.commits.clear();

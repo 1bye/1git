@@ -16,7 +16,7 @@ pub(in crate::workspace) fn run(
 ) -> Outcome {
     let mut started = false;
     let mut needs_review = false;
-    let reset = action.kind() == Kind::Reset;
+    let history_edit = action.kind() == Kind::Reset || action.kind().is_rewrite();
     let mut recovery = None;
 
     let result = if !action.review().matches(&source) {
@@ -52,6 +52,62 @@ pub(in crate::workspace) fn run(
                 ))
             }
         }
+    } else if action.kind().is_rewrite() {
+        let result = match action {
+            Action::Squash {
+                review,
+                message,
+                cancel,
+            } => source
+                .repository
+                .squash_commits(&review.squash(message.clone()), Some(cancel)),
+            Action::Reorder {
+                review,
+                order,
+                cancel,
+            } => source
+                .repository
+                .reorder_commits(&review.reorder(order.clone()), Some(cancel)),
+            _ => unreachable!("reviewed range edit"),
+        };
+
+        match result {
+            Ok(result) => {
+                started = true;
+                needs_review = result.warning.is_some() || result.snapshot.is_none();
+                recovery = Some(format!("Recovery ref: {}", result.recovery_ref));
+
+                if needs_review {
+                    Err(result.warning.unwrap_or_else(||"The history edit result could not be confirmed. Inspect History and refresh before writing again.".into()))
+                } else {
+                    Ok(match action {
+                        Action::Squash { review, .. } => format!(
+                            "Squashed {} commits. Files and staging were kept.",
+                            review.commits.len()
+                        ),
+                        Action::Reorder { review, .. } => format!(
+                            "Reordered {} commits. Files and staging were kept.",
+                            review.commits.len()
+                        ),
+                        _ => unreachable!("reviewed range edit"),
+                    })
+                }
+            }
+            Err(error) => {
+                started = error.phase != WritePhase::BeforeCommand;
+                needs_review = started;
+
+                Err(format!(
+                    "{}\n{}",
+                    read::message(error.error),
+                    if started {
+                        "Inspect History and refresh before writing again. Do not repeat this request."
+                    } else {
+                        "The history edit did not start. Cancel and review the commits again."
+                    }
+                ))
+            }
+        }
     } else {
         let result = match action {
             Action::CherryPick {
@@ -66,7 +122,9 @@ pub(in crate::workspace) fn run(
                 None,
             ),
             Action::Revert(review) => source.repository.revert_commit(&review.request(), None),
-            Action::Reset(_) => unreachable!("reset handled above"),
+            Action::Reset(_) | Action::Squash { .. } | Action::Reorder { .. } => {
+                unreachable!("history edits handled above")
+            }
         };
 
         started = result
@@ -76,7 +134,7 @@ pub(in crate::workspace) fn run(
         result.map(|_| match action.kind() {
             Kind::CherryPick => "Commit copied to the destination branch.".to_owned(),
             Kind::Revert => "A new commit reverses the selected changes; existing history is intact.".to_owned(),
-            Kind::Reset => unreachable!("reset handled above"),
+            Kind::Reset|Kind::Squash|Kind::Reorder => unreachable!("history edits handled above"),
         }).map_err(|error| {
             let boundary = match error.phase {
                 WritePhase::BeforeCommand => "The operation did not start. Cancel and review the commit again.",
@@ -120,7 +178,7 @@ pub(in crate::workspace) fn run(
 
     let refresh_failed = snapshots.iter().any(|(_, loaded)| loaded.is_err());
 
-    needs_review |= reset && started && refresh_failed;
+    needs_review |= history_edit && started && refresh_failed;
     let result = if result.is_ok() && refresh_failed {
         Err("Git completed, but a related repository could not be refreshed. Inspect Changes before writing again.".into())
     } else {

@@ -14,7 +14,11 @@ use crate::workspace::{
 };
 
 use model::Document;
-pub(in crate::workspace) use model::{Change, GraphView, History, Root, SavedTab, StashView};
+
+pub(in crate::workspace) use model::{
+    Change, CommitRange, GraphView, History, Root, SavedTab, StashView,
+};
+
 use onegit_git::GitPath;
 use onegit_ui::{DiffView, SplitState};
 use rake::gpui::{AppContext, px};

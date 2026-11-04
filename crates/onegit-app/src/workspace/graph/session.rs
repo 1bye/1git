@@ -7,15 +7,21 @@ impl Graph {
     pub(in crate::workspace) fn session(&self, cx: &gpui::App) -> GraphView {
         let viewport = self.state.read(cx).viewport();
 
+        let mut details = self
+            .pending_details
+            .clone()
+            .unwrap_or_else(|| self.inspector.read(cx).session(cx));
+
+        if self.pending_details.is_none() {
+            details.range = self.selection.saved();
+        }
+
         GraphView {
             visible: false,
             reference: self.reference.clone(),
             query: self.query.read(cx).text().into(),
             kind: self.kind,
-            details: self
-                .pending_details
-                .clone()
-                .unwrap_or_else(|| self.inspector.read(cx).session(cx)),
+            details,
             selected: self.selected.is_some()
                 || self
                     .pending_details
@@ -37,6 +43,7 @@ impl Graph {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
+        self.selection = super::super::replay::Selection::restore(&saved.details.range);
         self.reference = saved.reference.clone();
         self.kind = saved.kind;
         self.query

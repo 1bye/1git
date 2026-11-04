@@ -18,6 +18,14 @@ use std::{rc::Rc, sync::Arc};
 impl HistoryWorkspace {
     fn revisions(&self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
         let commits = self.commits.clone();
+
+        let range = self
+            .selection
+            .ordered(self.data.items().iter().map(|item| item.id.clone()))
+            .into_iter()
+            .filter_map(|id| commits.get(&id).cloned())
+            .collect::<Vec<_>>();
+
         let owner = cx.entity().downgrade();
 
         let head = self
@@ -34,8 +42,11 @@ impl HistoryWorkspace {
         rake::view! {
             <div class="size-full min-w-0 min-h-0 flex flex-col">
                 <div class="flex-1 min-w-0 min-h-0 pl-1.5 pr-3">
-                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),blocked,head.as_deref(),owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
-                        on_select={Some(Box::new(cx.listener(|this,oid:&gpui::SharedString,_,cx|this.select_commit(oid.clone(),cx))))}
+                    <CommitList context_menu={Some(Box::new(move|oid|super::super::replay::menu(commits[oid].clone(),range.clone(),blocked,head.as_deref(),owner.clone())))} state={Some(self.list_state.clone())} type_badges={true} selected_ids={self.selection.effective(self.selected.as_ref())} selected={self.selected.clone()} empty_message={if self.page_job.is_some(){"Loading commits…".into()}else if self.page_error.is_some(){"History is unavailable.".into()}else{"No commits yet.".into()}}
+                        on_select_modified={Some(Box::new(cx.listener(|this,event:&onegit_ui::CommitSelectionEvent,_,cx|{
+      this.selection.choose(event.id.clone(),&event.modifiers,this.data.items().iter().map(|item|item.id.clone()),this.selected.as_ref());
+      if this.selected.as_ref()!=Some(&event.id){this.select_commit(event.id.clone(),cx);}cx.notify();
+  })))}
                         {..CommitList::new("history-commits","Repository commit history",self.data.clone())}/>
                 </div>
                 if self.page_error.is_some()||self.page_job.is_some()||self.next_offset.is_some(){

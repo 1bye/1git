@@ -12,7 +12,7 @@ use data::Half;
 pub use data::{CommitGraphData, GraphCommit};
 use rake::gpui::{self, ColorExt as _, accesskit, prelude::*, px};
 pub use state::{CommitGraphScroll, CommitGraphState, GraphViewport};
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc, sync::Arc};
 
 pub(super) const ROW_HEIGHT: f32 = 36.;
 
@@ -89,6 +89,10 @@ pub struct CommitGraph {
     pub data: CommitGraphData,
     /// Application-owned selected commit identity.
     pub selected: Option<gpui::SharedString>,
+    /// Controlled multi-selection, independent from the primary details commit.
+    pub selected_ids: Arc<HashSet<gpui::SharedString>>,
+    /// Modifier-aware selection; takes precedence over the single-selection callback.
+    pub on_select_modified: Option<crate::CommitModifiedSelectionHandler>,
     /// Retained native focus and both scroll axes.
     pub state: gpui::Entity<CommitGraphState>,
     /// Called when a different commit is selected.
@@ -111,6 +115,8 @@ impl CommitGraph {
             id: id.into(),
             data,
             selected: None,
+            selected_ids: Arc::default(),
+            on_select_modified: None,
             state: state.clone(),
             on_select: None,
             context_menu: None,
@@ -160,6 +166,9 @@ impl RenderOnce for CommitGraph {
             .map(|(build, id)| build(id));
 
         let menu_focus = focus.clone();
+        let modified = self.on_select_modified.map(Rc::new);
+        let key_modified = modified.clone();
+        let multiselect = modified.is_some();
         let handler = self.on_select.map(Rc::new);
         let key_handler = handler.clone();
         let key_selected = self.selected.clone();
@@ -193,8 +202,8 @@ impl RenderOnce for CommitGraph {
         } else {
             gpui::list(handle,move|index,_,_cx|{
                 let commit=&self.data.commits()[index];let item=commit.item.clone();let glyph=lanes(&self.data,index);
-                let selected=self.selected.as_ref()==Some(&item.id);let active=cursor.as_ref()==Some(&item.id);
-                let state=self.state.clone();let handler=handler.clone();let focus=row_focus.clone();
+                let primary=self.selected.as_ref()==Some(&item.id);let selected=if multiselect{self.selected_ids.contains(&item.id)}else{primary};let active=cursor.as_ref()==Some(&item.id);
+                let state=self.state.clone();let handler=handler.clone();let modified=modified.clone();let focus=row_focus.clone();
                 let theme=Theme::current();
 
                 let description=format!("{} · {} · {} · {} parents · {}",item.summary,item.author.as_deref().unwrap_or(""),item.id,commit.parents.len(),
@@ -212,10 +221,10 @@ impl RenderOnce for CommitGraph {
                             style={|s|s.bg(surface.background).border_color(if active&&keyboard_focus{theme.focus_ring}else{Theme::transparent()}).aria_selected(selected)
                                 .when(active&&owns,|s|s.aria_active_descendant()).cursor_pointer().debug_selector(move||format!("graph-row-{index}"))
                                 .a11y_synthetic_children(move|builder|{builder.parent_node().set_position_in_set(index+1);builder.parent_node().set_size_of_set(count);})}
-                            on:click={move|_,window,cx|{
+                            on:click={move|event:&gpui::ClickEvent,window,cx|{
                                 cx.stop_propagation();window.focus(&focus,cx);
                                 state.update(cx,|state,cx|{state.cursor=Some(id.clone());cx.notify();});
-                                if !selected && let Some(handler)=&handler{handler(&id,window,cx);}
+                                if let Some(handler)=&modified{handler(&crate::CommitSelectionEvent{id:id.clone(),modifiers:event.modifiers()},window,cx);}else if !primary && let Some(handler)=&handler{handler(&id,window,cx);}
                             }}>
                             {glyph}
                             if !refs.is_empty() {
@@ -261,6 +270,11 @@ impl RenderOnce for CommitGraph {
             .track_scroll(&horizontal)
             .role(accesskit::Role::ListBox)
             .aria_label("Commit graph")
+            .a11y_synthetic_children(move |builder| {
+                if multiselect {
+                    builder.parent_node().set_multiselectable();
+                }
+            })
             .track_focus(&focus)
             .debug_selector(|| "graph-commits".into())
             .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -269,11 +283,21 @@ impl RenderOnce for CommitGraph {
             .on_key_down(move |event, window, cx| {
                 let selected = keyboard.update(cx, |state, cx| state.key(event, window, cx));
 
-                if let Some(id) = selected
-                    && key_selected.as_ref() != Some(&id)
-                    && let Some(handler) = &key_handler
-                {
-                    handler(&id, window, cx);
+                if let Some(id) = selected {
+                    if let Some(handler) = &key_modified {
+                        handler(
+                            &crate::CommitSelectionEvent {
+                                id,
+                                modifiers: event.keystroke.modifiers,
+                            },
+                            window,
+                            cx,
+                        );
+                    } else if key_selected.as_ref() != Some(&id)
+                        && let Some(handler) = &key_handler
+                    {
+                        handler(&id, window, cx);
+                    }
                 }
             })
             .child(content);

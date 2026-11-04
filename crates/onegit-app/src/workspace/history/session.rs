@@ -10,6 +10,7 @@ use std::sync::Arc;
 impl HistoryWorkspace {
     pub(in crate::workspace) fn session(&self, cx: &gpui::App) -> History {
         History {
+            range: self.selection.saved(),
             commit: self.selected.as_ref().map(ToString::to_string),
             file: self
                 .file
@@ -82,6 +83,7 @@ impl HistoryWorkspace {
         cx: &mut gpui::Context<Self>,
     ) {
         self.restore_rows = Some(saved.rows);
+        self.selection = super::super::replay::Selection::restore(&saved.range);
 
         if let Some(oid) = &saved.commit {
             let file = saved.file.as_ref().and_then(|path| GitPath::new(path).ok());

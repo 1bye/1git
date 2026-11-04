@@ -445,3 +445,33 @@ worktree tabs refresh without replacing their own drafts, selected commits/files
 diff modes, filters, pane sizes or scroll anchors. The retained historical
 selection stays readable through the recovery ref. Confirmation opacity and
 height use gpui-ce-motion, honor reduced motion and stop requesting frames at rest.
+
+
+## Squash and Reorder commits
+
+In History or Graph, select consecutive commits with Shift-click or Shift+arrows.
+Command-click (Ctrl-click on other platforms) toggles individual commits. Right-click
+a selected row, or press Shift+F10, then choose **Squash selected commits…** or
+**Reorder selected commits…**. Single, nonconsecutive and merge selections cannot
+be rewritten. Each view keeps its own range; ranges and their anchors restore
+with the workspace session.
+
+Squash shows the exact oldest-first messages and lets you edit the combined
+summary/body. Reorder shows oldest-first replay order; use **Move earlier** /
+**Move later**, Alt+Up/Down, or drag a row. A selected root stays first. Reorder
+requires a changed order. Review explains any later commits that will also receive
+new IDs. Cancelling never writes Git; accepting is the single explicit write.
+
+Only unpublished, clean, attached branch history is eligible. Publication uses
+known remote-tracking refs, so fetch first if another tool may have pushed.
+The worker rechecks the exact reviewed history and builds replacements in a
+disposable worktree. Replay conflicts or a changed final tree prevent installation.
+Files, the exact index, other branches and tags stay intact. Original history is
+retained in the displayed refs/1git/squash/<id> or refs/1git/reorder/<id> recovery ref.
+Inspect it with git log; retained refs are not removed automatically.
+
+Success stays in Graph/History. Related tabs refresh while preserving their own
+drafts, selections, diff modes and scroll. Failed message/order edits remain
+visible, but require reopening for fresh consent. Uncertain results never retry
+and require an explicit refresh before further writes. Motion honors reduced
+motion and stops requesting frames after settling.

@@ -48,6 +48,7 @@ enum Presentation {
 impl gpui::EventEmitter<Refresh> for HistoryWorkspace {}
 
 pub(super) struct HistoryWorkspace {
+    selection: super::replay::Selection,
     presentation: Presentation,
     tags: Vec<gpui::SharedString>,
     description_expanded: bool,
@@ -114,6 +115,7 @@ fn spawn_read<T: Send + 'static>(
 impl HistoryWorkspace {
     pub fn new(window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> Self {
         Self {
+            selection: super::replay::Selection::default(),
             presentation: Presentation::History,
             tags: Vec::new(),
             description_expanded: false,
@@ -234,6 +236,7 @@ impl HistoryWorkspace {
         self.next_offset = None;
         self.page_error = None;
         self.selected = None;
+        self.selection = super::replay::Selection::default();
         self.detail = DetailState::Empty;
         self.file = None;
         self.preview = PreviewState::Empty;

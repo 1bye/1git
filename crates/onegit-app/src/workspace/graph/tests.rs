@@ -412,3 +412,69 @@ fn an_open_graph_branch_form_cannot_write_a_replaced_repository() {
 
     assert!(!form.read_with(&cx, |form, _| form.busy));
 }
+
+#[test]
+fn full_workspace_opens_range_confirmation_from_graph_and_cancels_without_a_write() {
+    let f = Fixture::new();
+
+    for name in ["base", "one", "two", "later"] {
+        f.write(name, name);
+        f.commit();
+    }
+
+    let source = f.load();
+
+    let commits: Vec<_> = ["HEAD^", "HEAD^^"]
+        .into_iter()
+        .map(|oid| std::sync::Arc::new(source.repository.commit(oid, None).unwrap()))
+        .collect();
+
+    let old = source.snapshot.status.head.oid.clone();
+    let (mut cx, v) = setup(&f);
+
+    for kind in [
+        super::super::replay::Kind::Squash,
+        super::super::replay::Kind::Reorder,
+    ] {
+        v.update(&mut cx, |view, window, cx| {
+            let event = super::super::replay::Open {
+                kind,
+                commits: commits.clone(),
+            };
+
+            view.open_replay(&event, window, cx);
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        v.read_with(&cx, |view, cx| assert!(view.replay.read(cx).is_open(cx)))
+            .unwrap();
+        cx.update_window(v.into(), |_, window, cx| {
+            use gpui::InputEvent as _;
+            let keystroke = gpui::Keystroke::parse("escape").unwrap();
+
+            window.dispatch_event(
+                gpui::KeyDownEvent {
+                    keystroke: keystroke.clone(),
+                    is_held: false,
+                    prefer_character_input: false,
+                }
+                .to_platform_input(),
+                cx,
+            );
+            window.dispatch_event(gpui::KeyUpEvent { keystroke }.to_platform_input(), cx);
+        })
+        .unwrap();
+        draw(&mut cx, v);
+        v.read_with(&cx, |view, cx| {
+            assert!(!view.replay.read(cx).is_open(cx));
+            assert!(view.write_job.is_none());
+        })
+        .unwrap();
+    }
+
+    assert_eq!(f.load().snapshot.status.head.oid, old);
+    assert!(
+        f.git(&["for-each-ref", "refs/1git/squash/", "refs/1git/reorder/"])
+            .is_empty()
+    );
+}

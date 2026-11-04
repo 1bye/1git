@@ -1,12 +1,23 @@
 //! Reviewed historical commit actions shared by Graph and History.
 mod form;
+mod rewrite;
+mod selection;
+#[cfg(test)]
+mod selection_tests;
 #[cfg(test)]
 mod tests;
 mod worker;
 
+pub(in crate::workspace) use selection::Selection;
+
 use super::read::Loaded;
 pub(super) use form::Form;
-use onegit_git::{BranchIdentity, CommitInfo, ReplayCommit, ResetCommit};
+
+use onegit_git::{
+    BranchIdentity, Cancellation, CommitInfo, HistoryRange, ReorderCommits, ReplayCommit,
+    ResetCommit, SquashCommits,
+};
+
 use onegit_ui::{DropdownMenu, MenuEntry, MenuItem};
 use rake::gpui;
 use std::{path::PathBuf, sync::Arc};
@@ -17,14 +28,22 @@ pub(super) enum Kind {
     CherryPick,
     Revert,
     Reset,
+    Squash,
+    Reorder,
 }
 
 impl Kind {
+    pub fn is_rewrite(self) -> bool {
+        matches!(self, Self::Squash | Self::Reorder)
+    }
+
     pub fn title(self) -> &'static str {
         match self {
             Self::CherryPick => "Cherry-pick commit",
             Self::Revert => "Revert commit",
             Self::Reset => "Reset to commit",
+            Self::Squash => "Squash commits",
+            Self::Reorder => "Reorder commits",
         }
     }
 }
@@ -32,7 +51,7 @@ impl Kind {
 #[derive(Clone, Debug)]
 pub(super) struct Open {
     pub kind: Kind,
-    pub commit: Arc<CommitInfo>,
+    pub commits: Vec<Arc<CommitInfo>>,
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +91,47 @@ impl Review {
 }
 
 #[derive(Clone, Debug)]
+pub(super) struct RangeReview {
+    pub source: Review,
+    pub commits: Vec<Arc<CommitInfo>>,
+}
+
+impl RangeReview {
+    fn request(&self) -> HistoryRange {
+        HistoryRange {
+            commits: self
+                .commits
+                .iter()
+                .map(|commit| commit.oid.clone())
+                .collect(),
+            expected: self.source.expected.clone(),
+        }
+    }
+
+    fn squash(&self, message: String) -> SquashCommits {
+        SquashCommits {
+            range: self.request(),
+            message,
+        }
+    }
+
+    fn reorder(&self, order: Vec<String>) -> ReorderCommits {
+        ReorderCommits {
+            range: self.request(),
+            order,
+        }
+    }
+}
+
+fn consecutive(commits: &[Arc<CommitInfo>]) -> bool {
+    commits.len() >= 2
+        && commits.iter().all(|c| c.parent_oids.len() <= 1)
+        && commits
+            .windows(2)
+            .all(|pair| pair[0].parent_oids.first() == Some(&pair[1].oid))
+}
+
+#[derive(Clone, Debug)]
 pub(super) enum Action {
     CherryPick {
         review: Review,
@@ -79,12 +139,23 @@ pub(super) enum Action {
     },
     Revert(Review),
     Reset(Review),
+    Squash {
+        review: RangeReview,
+        message: String,
+        cancel: Cancellation,
+    },
+    Reorder {
+        review: RangeReview,
+        order: Vec<String>,
+        cancel: Cancellation,
+    },
 }
 
 impl Action {
     pub fn review(&self) -> &Review {
         match self {
             Self::CherryPick { review, .. } | Self::Revert(review) | Self::Reset(review) => review,
+            Self::Squash { review, .. } | Self::Reorder { review, .. } => &review.source,
         }
     }
 
@@ -93,6 +164,8 @@ impl Action {
             Self::CherryPick { .. } => Kind::CherryPick,
             Self::Revert(_) => Kind::Revert,
             Self::Reset(_) => Kind::Reset,
+            Self::Squash { .. } => Kind::Squash,
+            Self::Reorder { .. } => Kind::Reorder,
         }
     }
 }
@@ -133,18 +206,37 @@ pub(super) fn unavailable(source: &Loaded) -> Option<&'static str> {
 
 pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
     commit: Arc<CommitInfo>,
+    selected: Vec<Arc<CommitInfo>>,
     blocked: bool,
     head: Option<&str>,
     owner: gpui::WeakEntity<T>,
 ) -> DropdownMenu {
     let mut menu = DropdownMenu::new(format!("commit-actions-{}", commit.oid), "Commit actions");
     let merge = commit.parent_oids.len() > 1;
+
+    let range = if selected.iter().any(|c| c.oid == commit.oid) {
+        selected
+    } else {
+        vec![commit.clone()]
+    };
+
+    let rewrite_blocked = blocked || !consecutive(&range);
     let reset_blocked = blocked || head == Some(commit.oid.as_str());
 
     menu.entries = vec![
         MenuItem::new("copy-sha", "Copy SHA").into(),
         MenuItem::new("copy-message", "Copy Message").into(),
         MenuEntry::Separator,
+        MenuItem {
+            disabled: rewrite_blocked,
+            ..MenuItem::new("squash", "Squash selected commits…")
+        }
+        .into(),
+        MenuItem {
+            disabled: rewrite_blocked,
+            ..MenuItem::new("reorder", "Reorder selected commits…")
+        }
+        .into(),
         MenuItem {
             disabled: reset_blocked,
             ..MenuItem::new("reset", "Reset to commit…")
@@ -182,7 +274,11 @@ pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
                 commit.body.clone()
             }));
         } else if !blocked {
-            let kind = if *id == gpui::ElementId::from("reset") && !reset_blocked {
+            let kind = if *id == gpui::ElementId::from("squash") && !rewrite_blocked {
+                Kind::Squash
+            } else if *id == gpui::ElementId::from("reorder") && !rewrite_blocked {
+                Kind::Reorder
+            } else if *id == gpui::ElementId::from("reset") && !reset_blocked {
                 Kind::Reset
             } else if *id == gpui::ElementId::from("cherry-pick") && !merge {
                 Kind::CherryPick
@@ -195,7 +291,11 @@ pub(super) fn menu<T: gpui::EventEmitter<Open> + 'static>(
             let _ = owner.update(cx, |_, cx| {
                 cx.emit(Open {
                     kind,
-                    commit: commit.clone(),
+                    commits: if kind.is_rewrite() {
+                        range.clone()
+                    } else {
+                        vec![commit.clone()]
+                    },
                 })
             });
         }

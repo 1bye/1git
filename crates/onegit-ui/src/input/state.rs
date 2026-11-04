@@ -694,6 +694,8 @@ impl Render for InputState {
             .bg(
                 if plain || self.config.size == crate::ControlSize::Library {
                     Theme::transparent()
+                } else if self.config.variant == InputVariant::Surface {
+                    theme.surface
                 } else {
                     theme.surface_sunken
                 },

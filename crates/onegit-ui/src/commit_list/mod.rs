@@ -14,7 +14,7 @@ pub use data::{
 };
 
 use rake::gpui::{self, ColorExt, accesskit, prelude::*, px};
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc, sync::Arc};
 
 /// Builds actions for an available commit ID, for visible rows and loaded selection.
 pub type CommitMenuBuilder = Box<dyn Fn(&gpui::SharedString) -> crate::DropdownMenu>;
@@ -22,6 +22,19 @@ pub type CommitMenuBuilder = Box<dyn Fn(&gpui::SharedString) -> crate::DropdownM
 /// Requests controlled selection and its corresponding preview.
 pub type CommitSelectionHandler =
     Box<dyn Fn(&gpui::SharedString, &mut gpui::Window, &mut gpui::App)>;
+
+/// Selection intent retaining pointer or keyboard modifiers for controlled range selection.
+#[derive(Clone, Debug)]
+pub struct CommitSelectionEvent {
+    /// Exact requested commit ID.
+    pub id: gpui::SharedString,
+    /// Modifiers held for this request.
+    pub modifiers: gpui::Modifiers,
+}
+
+/// Receives every selection request, including requests for the current primary ID.
+pub type CommitModifiedSelectionHandler =
+    Box<dyn Fn(&CommitSelectionEvent, &mut gpui::Window, &mut gpui::App)>;
 
 /// Fixed two-line row geometry, independent of selection behavior.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -55,6 +68,10 @@ pub struct CommitList {
     pub data: CommitListData,
     /// Caller-controlled selected ID; absent or missing IDs select no entry.
     pub selected: Option<gpui::SharedString>,
+    /// Additional caller-controlled selected IDs, painted without moving the primary preview.
+    pub selected_ids: Arc<HashSet<gpui::SharedString>>,
+    /// Modifier-aware selection; takes precedence over the single-selection callback.
+    pub on_select_modified: Option<CommitModifiedSelectionHandler>,
     /// Optional owner-retained focus and viewport for lists that leave the render tree.
     pub state: Option<gpui::Entity<CommitListState>>,
     /// Compact or comfortable two-line rows.
@@ -81,6 +98,8 @@ impl CommitList {
             label: label.into(),
             data,
             selected: None,
+            selected_ids: Arc::default(),
+            on_select_modified: None,
             state: None,
             density: CommitListDensity::default(),
             empty_message: "No commits to display.".into(),
@@ -162,6 +181,9 @@ impl RenderOnce for CommitList {
 
         let menu_focus = focus.clone();
         let keyboard_focus_handle = focus.clone();
+        let modified = self.on_select_modified.map(Rc::new);
+        let key_modified = modified.clone();
+        let multiselect = modified.is_some();
         let handler = self.on_select.map(Rc::new);
         let key_handler = handler.clone();
         let key_selected = selected.clone();
@@ -177,13 +199,15 @@ impl RenderOnce for CommitList {
                 range.map(|index| {
                     let item=self.data.items()[index].clone();
                     let active=cursor.as_ref()==Some(&item.id);
-                    let is_selected=selected.as_ref()==Some(&item.id);
+                    let primary=selected.as_ref()==Some(&item.id);
+                    let is_selected=if multiselect{self.selected_ids.contains(&item.id)}else{primary};
                     let theme=Theme::current();
                     let background=if is_selected {theme.selection} else {theme.surface};
                     let rest=Surface::new(background);
                     let hover=Surface::new(background.blend(&theme.hover.opacity(if is_selected {0.4} else {1.})));
                     let state=state.clone();
                     let handler=handler.clone();
+                    let modified=modified.clone();
                     let focus=focus.clone();
                     let description=describe(&item);
                     let author_date=[item.author.as_deref(),item.date.as_deref()].into_iter().flatten().collect::<Vec<_>>().join(" · ");
@@ -198,10 +222,10 @@ impl RenderOnce for CommitList {
                                     .aria_selected(is_selected).when(active && owns_focus,|s| s.aria_active_descendant()).cursor(gpui::CursorStyle::PointingHand)
                                     .debug_selector(||format!("commit-row-{}",item.id))
                                     .a11y_synthetic_children(move |builder| {builder.parent_node().set_position_in_set(index+1);builder.parent_node().set_size_of_set(count);})}
-                                on:click={move |_,window,cx| {
+                                on:click={move |event:&gpui::ClickEvent,window,cx| {
                                     cx.stop_propagation();window.focus(&focus,cx);
                                     state.update(cx,|state,cx|state.choose(&item.id,cx));
-                                    if !is_selected && let Some(handler)=&handler {handler(&item.id,window,cx);}
+                                    if let Some(handler)=&modified {handler(&CommitSelectionEvent{id:item.id.clone(),modifiers:event.modifiers()},window,cx);}else if !primary && let Some(handler)=&handler {handler(&item.id,window,cx);}
                                 }}>
                                 if let Some(status)=&item.status {<div class="absolute right-2 text-faint-ink" style={|s|s.top(px((density.height()-18.)/2.))}><crate::Icon size={crate::IconSize::Navigation} {..crate::Icon::new("status-icon",status.icon)}/></div>}
                                 <div class="flex flex-row items-center gap-2 min-w-0">
@@ -238,11 +262,11 @@ impl RenderOnce for CommitList {
         let content = rake::view! {
             <div id={self.id} role={accesskit::Role::ListBox} aria-label={self.label}
                 class="size-full min-w-0 min-h-0 bg-surface text-ink overflow-hidden"
-                style={|s| focusable(s).border_color(Theme::transparent()).track_focus(&pointer_focus).debug_selector(||"commit-list".into())
+                style={|s| focusable(s).border_color(Theme::transparent()).track_focus(&pointer_focus).debug_selector(||"commit-list".into()).a11y_synthetic_children(move|builder|{if multiselect{builder.parent_node().set_multiselectable();}})
                     .on_mouse_down(gpui::MouseButton::Left,move |_,window,cx|window.focus(&pointer_focus,cx))
                     .on_key_down(move |event,window,cx| {
                         let id=keyboard.update(cx,|state,cx|state.key(event,window,cx));
-                        if let Some(id)=id && Some(&id)!=key_selected.as_ref() && let Some(handler)=&key_handler {handler(&id,window,cx);}
+                        if let Some(id)=id {if let Some(handler)=&key_modified{handler(&CommitSelectionEvent{id,modifiers:event.keystroke.modifiers},window,cx);}else if Some(&id)!=key_selected.as_ref() && let Some(handler)=&key_handler {handler(&id,window,cx);}}
                     })}>
                 {content}
             </div>

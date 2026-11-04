@@ -241,3 +241,130 @@ fn reset_rejects_new_publication_after_confirmation_review() {
     assert_eq!(f.load().snapshot.status.head.oid.as_ref(), Some(&old));
     assert!(f.git(&["for-each-ref", "refs/1git/reset/"]).is_empty());
 }
+
+fn range_fixture() -> Fixture {
+    let f = Fixture::new();
+
+    for name in ["base", "one", "two", "later"] {
+        f.write(name, name);
+        f.commit();
+    }
+
+    f
+}
+
+fn range_action(f: &Fixture, kind: Kind) -> Action {
+    let source = f.load();
+
+    let commits: Vec<_> = ["HEAD^", "HEAD^^"]
+        .into_iter()
+        .map(|id| Arc::new(source.repository.commit(id, None).unwrap()))
+        .collect();
+
+    let review = RangeReview {
+        source: Review::new(&source, commits[0].clone()),
+        commits,
+    };
+
+    if kind == Kind::Squash {
+        Action::Squash {
+            review,
+            message: "Combined\n\nDetails".into(),
+            cancel: onegit_git::Cancellation::default(),
+        }
+    } else {
+        let order = review.commits.iter().map(|c| c.oid.clone()).collect();
+
+        Action::Reorder {
+            review,
+            order,
+            cancel: onegit_git::Cancellation::default(),
+        }
+    }
+}
+
+#[test]
+fn range_edits_report_exact_recovery_refs_and_keep_files_index_and_other_refs() {
+    for kind in [Kind::Squash, Kind::Reorder] {
+        let f = range_fixture();
+        let action = range_action(&f, kind);
+        let old = f.load().snapshot.status.head.oid.clone().unwrap();
+
+        f.git(&["tag", "retained", &old]);
+        f.git(&["branch", "other", &old]);
+        let index = std::fs::read(f.root.join(".git/index")).unwrap();
+        let result = run(f.load(), &action, &[]);
+        let message = result.result.unwrap();
+        let recovery = message.split("Recovery ref: ").nth(1).unwrap();
+
+        assert!(recovery.starts_with(if kind == Kind::Squash {
+            "refs/1git/squash/"
+        } else {
+            "refs/1git/reorder/"
+        }));
+        assert_eq!(
+            String::from_utf8(f.git(&["rev-parse", recovery]))
+                .unwrap()
+                .trim(),
+            old
+        );
+        assert_eq!(
+            String::from_utf8(f.git(&["rev-parse", "retained"]))
+                .unwrap()
+                .trim(),
+            old
+        );
+        assert_eq!(
+            String::from_utf8(f.git(&["rev-parse", "other"]))
+                .unwrap()
+                .trim(),
+            old
+        );
+        assert_eq!(std::fs::read(f.root.join(".git/index")).unwrap(), index);
+
+        for name in ["base", "one", "two", "later"] {
+            assert_eq!(std::fs::read_to_string(f.root.join(name)).unwrap(), name);
+        }
+
+        let completion = result.replay_completion.unwrap();
+
+        assert!(completion.started);
+        assert!(!completion.needs_review);
+        assert!(completion.result.is_ok());
+        assert_eq!(completion.kind, kind);
+    }
+}
+
+#[test]
+fn acknowledged_range_recovery_survives_peer_refresh_failure_and_stale_consent_never_installs() {
+    for kind in [Kind::Squash, Kind::Reorder] {
+        let f = range_fixture();
+        let action = range_action(&f, kind);
+        let peer = Fixture::new();
+
+        peer.write("peer", "peer");
+        peer.commit();
+        let repository = peer.load().repository.clone();
+
+        std::fs::rename(peer.root.join(".git"), peer.root.join("saved-git")).unwrap();
+        let result = run(f.load(), &action, &[repository]);
+        let message = result.result.unwrap_err();
+
+        assert!(message.contains("Recovery ref: refs/1git/"));
+        assert!(result.replay_completion.unwrap().needs_review);
+        let f = range_fixture();
+        let action = range_action(&f, kind);
+
+        f.git(&["commit", "--allow-empty", "-m", "External tip"]);
+        let old = f.load().snapshot.status.head.oid.clone();
+        let result = run(f.load(), &action, &[]);
+
+        assert!(result.result.is_err());
+        assert!(!result.replay_completion.unwrap().started);
+        assert_eq!(f.load().snapshot.status.head.oid, old);
+        assert!(
+            f.git(&["for-each-ref", "refs/1git/squash/", "refs/1git/reorder/"])
+                .is_empty()
+        );
+    }
+}

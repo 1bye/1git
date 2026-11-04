@@ -223,7 +223,11 @@ impl CommitGraphState {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> Option<gpui::SharedString> {
-        if event.keystroke.modifiers.modified() || self.data.is_empty() {
+        let mut modifiers = event.keystroke.modifiers;
+
+        modifiers.shift = false;
+
+        if modifiers.modified() || self.data.is_empty() {
             return None;
         }
 

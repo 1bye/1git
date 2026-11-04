@@ -109,7 +109,11 @@ impl ListFocus {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> Option<gpui::SharedString> {
-        if event.keystroke.modifiers.modified() || self.data.items().is_empty() {
+        let mut modifiers = event.keystroke.modifiers;
+
+        modifiers.shift = false;
+
+        if modifiers.modified() || self.data.items().is_empty() {
             return None;
         }
 

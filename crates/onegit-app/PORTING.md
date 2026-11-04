@@ -930,8 +930,8 @@ and defer keyboard menu creation for restored selections whose page is not yet
 loaded. The latter regression reproduces the native startup panic found during
 matching-screen verification.
 
-The Rust menu exposes the implemented copy/replay actions. Reset is described
-below; squash/reorder and tag actions remain separate ports. No new dependency or
+The Rust menu exposes the implemented copy/replay actions. Reset and range rewrites are described
+below; tag actions remain a separate port. No new dependency or
 changeset is required: these Rust crates are unpublished.
 
 ### Replay verification (2026-11-03)
@@ -1030,3 +1030,120 @@ comparison repository. Accepted resets and rejection paths were tested only in
 disposable fixtures. The final signed app starts and restores its session.
 CI and other native operating systems were not run in this pass. This comparison
 covers Reset confirmations on matching views, not every remaining app screen.
+
+
+## Squash and Reorder commits
+
+| Native source behavior | Rust path |
+| --- | --- |
+| History reducer replace/toggle/anchored range | replay::Selection; CommitList/CommitGraph modifier-aware selection |
+| repository-history-squash.tsx | replay::rewrite::Form summary/body editing and frozen RangeReview |
+| repository-history-reorder.tsx | replay::rewrite::Form oldest-first list, root pin and movement controls |
+| getSquashPlan / getReorderPlan | Repository::squash_plan / reorder_plan |
+| squashCommits / reorderCommits | Action::Squash / Reorder, shared replay worker and guarded library transactions |
+| Window-owned write and linked-tab refresh | Existing Submit/Completed orchestration and refresh_written_tabs |
+| Retained range intent on restart | Existing version-1 History session with a defaulted CommitRange |
+
+A primary commit still owns its immutable preview. Shift-click/Shift-navigation
+select an inclusive range from its original anchor; Command-click (Ctrl-click on
+other platforms) toggles membership. Plain selection collapses the range, including
+when clicking the same primary commit. Context actions freeze the selected range
+only if the clicked row belongs to it; an outside row cannot accidentally rewrite
+the previous range. Single, disjoint and merge ranges disable both actions.
+Graph selection is independent of History. The reusable controls expose controlled
+selected IDs and a modifier-aware callback while preserving existing single-row
+callbacks. Both lists announce multi-selection.
+
+Read-only review freezes the root, named branch/HEAD and newest-first commit IDs,
+and reports later replay. The squash message combines full messages oldest-first,
+with editable summary/body. Reorder begins oldest-first, requires an actual
+permutation, and pins a selected root first. Move earlier/later, Alt+Up/Down and
+pointer dragging retain the chosen commit. Escape cancels an in-progress drag;
+an outside drop restores the original order. Row movement, confirmation height
+and opacity use gpui-ce-motion with 120ms tweens, reduced-motion support and no
+settled frame loop. Lists remain virtualized. Surface input styling matches the
+source confirmation fields while retaining native editing, selection and focus.
+
+Reviews cancel on dismissal/reopen and time out after ten seconds. Writes have
+the source's two-minute cancellation deadline; the library completes atomic ref
+installation independently of cancellation after preparation. Source guards are
+rechecked by the existing queue/index-lock/disposable-worktree transaction.
+Selected and later commits must be unpublished according to known remote refs.
+The final tree must remain identical before installation. Only the reviewed branch
+moves; exact files/index, other branches and tags stay intact. Original history
+is retained atomically in refs/1git/squash/<id> or refs/1git/reorder/<id>. Result
+feedback keeps the acknowledged recovery ref even if related refresh fails.
+Warnings and uncertain command/refresh results block related writes pending an
+explicit refresh. Failed message/order edits remain inspectable but cannot submit
+again without a fresh review.
+
+Success keeps the originating Graph/History section. Duplicate and linked tabs
+refresh without replacing ordinary drafts, selected historical commits/files,
+diff state or pixel scroll anchors. Range membership and its original Shift anchor
+are navigation intent, persisted in the existing private session file with legacy
+defaults and bounded exact-OID validation. Review plans, pending dialog edits,
+cancellation objects and write requests are never restored or replayed.
+
+Deliberate differences: the current native app disables Squash/Reorder in Graph
+because that graph does not provide range selection. Rust adds independent Graph
+ranges and exposes the same reviewed dialogs as History, as explicitly requested.
+Dragging and Alt+arrow movement supplement the source's movement buttons.
+Native editors retain their visible focus indicator. This pass does not change
+unrelated empty-commit illustrations.
+
+Test mapping: all 14 source squash.component.test.tsx/reorder.component.test.tsx
+cases pass in the original GPUIX app. Rust selection_tests maps replace, toggle,
+Shift range/anchor and restored-range behavior. rewrite_tests maps read/cancel,
+message editing, changed-order consent, root pinning, stale/published refusal,
+failed intent retention, duplicate submission and late cancelled reads; native
+events additionally cover dragging, keyboard movement, reduced motion and idle
+settling. The complete workspace Graph test exercises the parent form and
+confirmation subscriptions. Native verification found duplicate accessibility
+IDs in unkeyed summary rows; commit-keyed rows fix that path, which the headless
+test platform's inactive accessibility adapter does not exercise.
+
+history_rewrite.rs characterizes publication, HEAD, branch and dirty changes
+after review for both existing library APIs, without installing recovery refs.
+replay::tests exercises real acknowledged writes and exact recovery refs,
+unchanged files/index/other refs, stale consent and recovery feedback after a peer
+refresh failure. tabs/replay_tests runs the same duplicate/linked-tab draft,
+selection and viewport invariants for Replay, Reset, Squash and Reorder.
+commit_selection.rs checks real pointer/Shift-key delivery in both reusable views.
+Session tests cover legacy documents, exact range round trips and malformed IDs.
+
+No dependency or changeset is required: these Rust crates are unpublished.
+
+
+### Squash/Reorder verification (2026-11-04)
+
+The workspace/all-target/all-feature suite passed 662 tests during implementation.
+After the final session and accessibility changes, the complete app suite passed
+201 tests and the UI all-target/all-feature suite passed 137 tests. The final
+row-width correction passed all six rewrite form/motion tests, including the
+412px row measurement. All nine UI doctests and 17 history-rewrite integration
+tests pass. The original GPUIX Squash/Reorder component suites pass all 14 cases.
+Strict workspace Clippy, rustdoc with warnings denied, rustfmt, Git whitespace
+and logical spacing for all workspace targets plus Windows/Linux Git code pass.
+
+Compared the actual original and signed Rust development apps in light mode at
+1280 by 820 logical pixels on diff-parity-o_cgtiu3, codex/rewrite-parity at
+197033c5c8243ad23c22c8a65848d0d8121983c8. Both apps selected First independent
+preview and Second independent preview, with one later commit. The shared History
+Squash (440 by 352) and Reorder (440 by 318) dialogs were checked for title/copy,
+field surfaces, typography, gaps, padding, full-width selection rows and controls.
+Native Rust movement changed the order and enabled confirmation; cancellation
+retained the underlying selection. The History range also survived a live restart.
+Rust Graph opened both corresponding dialogs with its independent range; the
+original Graph layout was compared separately because its rewrite actions are
+disabled. Existing empty-commit illustrations remain outside this comparison.
+
+Native inspection caught and fixed the duplicate summary-row accessibility IDs
+and the selected reorder row's label-width background. Both corrected dialogs
+were captured again in the installed build. The final app is running with no
+confirmation open. Every shared-fixture confirmation was cancelled: HEAD remains
+197033c5c8243ad23c22c8a65848d0d8121983c8, main remains
+68ba2a5f047b897c495846111cfab6501c11f517, index SHA-1 remains
+2d6768433cfc195fdb65f7643bf7343b4c72738b, working-tree status is clean, and no
+Squash/Reorder recovery refs were created. Accepted writes were exercised only
+in disposable automated fixtures. CI and native Windows/Linux runs were not
+performed in this pass.
