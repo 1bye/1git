@@ -10,6 +10,36 @@ use onegit_ui::{
 use rake::gpui::{self, prelude::*, px};
 use std::time::Duration;
 
+// Original Settings glyphs; source license is recorded in PORTING.md.
+fn navigation_glyph(page: Page) -> gpui::AnyElement {
+    let (name, data): (&str, &'static [u8]) = match page {
+        Page::Accounts => ("userCircle", include_bytes!("assets/userCircle.svg")),
+        Page::Remotes => ("network", include_bytes!("assets/network.svg")),
+        Page::Identity => ("idCard", include_bytes!("assets/idCard.svg")),
+        Page::Global => return rake::view! {<Icon size={IconSize::Supporting} {..Icon::new("settings-nav-icon",IconName::Branch)} />}.into_any_element(),
+    };
+
+    gpui::canvas(
+        |_, _, _| {},
+        move |bounds, _, window, cx| {
+            window
+                .paint_svg(
+                    bounds,
+                    format!("onegit-settings/{name}").into(),
+                    Some(data),
+                    Default::default(),
+                    Theme::current().muted_ink,
+                    cx,
+                )
+                .expect("source Settings SVG is valid");
+        },
+    )
+    .w(px(14.))
+    .h(px(14.))
+    .flex_shrink_0()
+    .into_any_element()
+}
+
 fn group(title: &str, meta: String, rows: Vec<gpui::AnyElement>) -> gpui::AnyElement {
     let theme = Theme::current();
 
@@ -164,7 +194,8 @@ impl Panel {
             InputAvailability::Enabled
         };
 
-        let state = if self.pending {
+        let state = if self.pending || self.page == Page::Accounts && self.accounts.read(cx).busy()
+        {
             ControlState::Disabled
         } else {
             ControlState::Enabled
@@ -242,29 +273,33 @@ impl gpui::Render for Panel {
         let editor = self.editor_view(width, cx);
 
         let title = match self.page {
+            Page::Accounts => "Accounts",
             Page::Global => "Git",
             Page::Identity => "Commit identity",
             Page::Remotes => "Remotes",
         };
 
-        let state = if self.pending {
+        let state = if self.pending || self.page == Page::Accounts && self.accounts.read(cx).busy()
+        {
             ControlState::Disabled
         } else {
             ControlState::Enabled
         };
 
-        let panel=rake::view!{<div class="absolute left-[48px] top-[42px] right-[6px] bottom-[6px] overflow-hidden flex flex-row" focus={&self.focus} tab-navigation={true} style={|s|s.bg(theme.surface).text_color(theme.ink).rounded_tl(px(14.)).occlude().debug_selector(||"git-settings".into()).on_key_down(cx.listener(|this,event:&gpui::KeyDownEvent,window,cx|{if event.keystroke.key=="escape"{if this.editor.is_some(){this.cancel(window,cx);}else{this.close(window,cx);}cx.stop_propagation();}}))}>
+        let panel=rake::view!{<div class="absolute left-[48px] top-[42px] right-[6px] bottom-[6px] overflow-hidden flex flex-row" focus={&self.focus} tab-navigation={true} style={|s|s.bg(theme.surface).text_color(theme.ink).rounded_tl(px(14.)).occlude().debug_selector(||"git-settings".into()).on_key_down(cx.listener(|this,event:&gpui::KeyDownEvent,window,cx|{if event.keystroke.key=="escape"{if this.page==Page::Accounts&&this.accounts.read(cx).editing(){this.accounts.update(cx,|a,cx|a.cancel(window,cx));}else if this.editor.is_some(){this.cancel(window,cx);}else{this.close(window,cx);}cx.stop_propagation();}}))}>
             <div class="absolute right-2 top-2"><IconButton state={state} size={ControlSize::Small} on_press={Some(Box::new(cx.listener(|this,_,window,cx|this.close(window,cx))))} {..IconButton::new("settings-close",IconName::Close,"Close Git settings")}/></div>
             <nav aria-label="Git settings navigation" class="w-[200px] shrink-0 border-r-1 border-line p-2 flex flex-col gap-1.5">
 
                 <p class="text-caption text-muted-ink px-2.5 mt-3">{"Application"}</p>
-                <ListRow variant={ListRowVariant::Compact} state={state} selection={if self.page==Page::Global{RowSelection::Selected}else{RowSelection::Unselected}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose(Page::Global,cx))))} {..ListRow::new("settings-global","Git")}/>
+                <ListRow leading={Some(navigation_glyph(Page::Accounts))} variant={ListRowVariant::Compact} state={state} selection={if self.page==Page::Accounts{RowSelection::Selected}else{RowSelection::Unselected}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose(Page::Accounts,cx))))} {..ListRow::new("settings-accounts","Accounts")}/>
+                <ListRow leading={Some(rake::view!{<div class="text-muted-ink"><Icon size={IconSize::Supporting} {..Icon::new("settings-nav-icon",IconName::Branch)} /></div>}.into_any_element())} variant={ListRowVariant::Compact} state={state} selection={if self.page==Page::Global{RowSelection::Selected}else{RowSelection::Unselected}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose(Page::Global,cx))))} {..ListRow::new("settings-global","Git")}/>
                 if self.source.is_some(){
                     <p class="text-caption text-muted-ink px-2.5 mt-5">{"Repository"}</p>
-                    <ListRow variant={ListRowVariant::Compact} state={state} selection={if self.page==Page::Remotes{RowSelection::Selected}else{RowSelection::Unselected}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose(Page::Remotes,cx))))} {..ListRow::new("settings-remotes","Remotes")}/>
-                    <ListRow variant={ListRowVariant::Compact} state={state} selection={if self.page==Page::Identity{RowSelection::Selected}else{RowSelection::Unselected}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose(Page::Identity,cx))))} {..ListRow::new("settings-identity","Commit identity")}/>
+                    <ListRow leading={Some(navigation_glyph(Page::Remotes))} variant={ListRowVariant::Compact} state={state} selection={if self.page==Page::Remotes{RowSelection::Selected}else{RowSelection::Unselected}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose(Page::Remotes,cx))))} {..ListRow::new("settings-remotes","Remotes")}/>
+                    <ListRow leading={Some(navigation_glyph(Page::Identity))} variant={ListRowVariant::Compact} state={state} selection={if self.page==Page::Identity{RowSelection::Selected}else{RowSelection::Unselected}} on_press={Some(Box::new(cx.listener(|this,_,_,cx|this.choose(Page::Identity,cx))))} {..ListRow::new("settings-identity","Commit identity")}/>
                 }
             </nav>
+            if self.page==Page::Accounts {{self.accounts.clone()}}else{
             <div class="flex-1 min-w-0 h-full flex flex-row">
                 <div class="flex-1 min-w-0 h-full flex flex-col">
                     <div class="p-4 pb-5 flex flex-col gap-1 max-w-[512px] w-full shrink-0">
@@ -283,6 +318,7 @@ impl gpui::Render for Panel {
                 </div>
                 {editor}
             </div>
+            }
         </div>}.into_any_element();
 
         let removing = self.removing.clone();

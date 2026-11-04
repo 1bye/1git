@@ -7,6 +7,7 @@ publish.workspace = true
 description = "Reusable 1git components and themes on Rake and GPUI"
 
 [dependencies]
+zeroize.workspace = true
 regex.workspace = true
 syntect.workspace = true
 two-face.workspace = true

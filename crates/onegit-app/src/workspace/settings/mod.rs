@@ -16,6 +16,7 @@ use std::{path::PathBuf, sync::Arc, time::Instant};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Page {
+    Accounts,
     Global,
     Identity,
     Remotes,
@@ -68,6 +69,7 @@ impl gpui::EventEmitter<Event> for Panel {}
 
 pub(super) struct Panel {
     pub visible: bool,
+    pub accounts: gpui::Entity<crate::accounts::Panel>,
     source: Option<Arc<Loaded>>,
     process: GitProcess,
     global: Option<GlobalGitIdentity>,
@@ -108,6 +110,7 @@ impl Panel {
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) -> Self {
+        let accounts = cx.new(|cx| crate::accounts::Panel::new(host, window, cx));
         let name = cx.new(|cx| InputState::new("", window, cx));
         let email = cx.new(|cx| InputState::new("", window, cx));
         let remote_name = cx.new(|cx| InputState::new("", window, cx));
@@ -132,6 +135,7 @@ impl Panel {
 
         Self {
             visible: false,
+            accounts,
             source: None,
             process: GitProcess::default(),
             global: None,
@@ -207,12 +211,33 @@ impl Panel {
         cx.notify();
     }
 
+    pub(in crate::workspace) fn open_accounts(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        if self.pending || self.editor.is_some() {
+            return;
+        }
+
+        self.visible = true;
+        self.return_focus = window.focused(cx);
+        window.focus(&self.focus, cx);
+        self.page = Page::Accounts;
+        self.read = None;
+        self.review = None;
+        self.accounts.update(cx, |a, cx| a.open(cx));
+        cx.notify();
+    }
+
     pub(in crate::workspace) fn close(
         &mut self,
         window: &mut gpui::Window,
         cx: &mut gpui::Context<Self>,
     ) {
-        if self.pending {
+        if self.pending
+            || self.page == Page::Accounts && !self.accounts.update(cx, |a, cx| a.leave(cx))
+        {
             return;
         }
 
@@ -239,7 +264,11 @@ impl Panel {
             return;
         }
 
-        if page != Page::Global && self.source.is_none() {
+        if self.page == Page::Accounts && !self.accounts.update(cx, |a, cx| a.leave(cx)) {
+            return;
+        }
+
+        if !matches!(page, Page::Global | Page::Accounts) && self.source.is_none() {
             return;
         }
 
@@ -249,6 +278,15 @@ impl Panel {
 
     pub(in crate::workspace) fn load(&mut self, cx: &mut gpui::Context<Self>) {
         if self.pending {
+            return;
+        }
+
+        if self.page == Page::Accounts {
+            self.read = None;
+            self.review = None;
+            self.accounts.update(cx, |a, cx| a.open(cx));
+            cx.notify();
+
             return;
         }
 
@@ -527,6 +565,7 @@ impl Panel {
 
     pub(in crate::workspace) fn hide(&mut self, cx: &mut gpui::Context<Self>) {
         self.visible = false;
+        self.accounts.update(cx, |a, cx| a.hide(cx));
         cx.notify();
     }
 

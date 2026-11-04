@@ -39,7 +39,7 @@ spacing checks described in `docs/RUST.md`.
 ## Intentional differences
 
 Rust retains index staging rather than the source app's selected-file inclusion
-workflow. It retains explicit page loading in History. Unported AI, account, SSH, reset and tag-writing actions are unavailable. History, stash and conflict diffs
+workflow. It retains explicit page loading in History. Unported AI, SSH, reset and tag-writing actions are unavailable. History, stash and conflict diffs
 support text selection and copying, but remain read-only.
 These are behavior gaps, not a claim that the full original application is ported.
 Only persisted source library/cache entries are imported; unsaved source runtime
@@ -1695,3 +1695,105 @@ The final running build's identity editor and populated remote row were
 captured again after the last glyph/spacing corrections and compared against
 the matching source captures. The QA app remains running; no confirmation was
 accepted.
+
+
+## Hosting account lifecycle and authentication recovery (2026-11-04)
+
+| Original account boundary | Rust |
+| --- | --- |
+| AccountStore / SavedAccount | accounts/store.rs and model::Account; public JSON only, private atomic replacement |
+| NativeCredentials / CredentialVault | vault::Vault, NativeVault; namespaced OS storage with sanitized failures |
+| Accounts.connect / connectCli / disconnect | service::Accounts with reviewed metadata and rollback |
+| Accounts.check / credential / registration | verified connection checks, refreshed OAuth credentials and public reconnect hints |
+| AccountAuthorization / LoopbackAuthorization | oauth.rs; device grant, GitLab PKCE, exact IPv4 callback and cancellation |
+| GitHubCli | cli.rs; bounded read-only discovery/token lookup for the selected host/user |
+| AccountList / AccountConnectionFields / Actions | retained accounts::Panel and view.rs inside Settings |
+| native password input | reusable PasswordInput with redacted native/accessibility text, no clipboard export or undo history |
+
+| Source behavior tests | Rust tests |
+| --- | --- |
+| validates tokens/hosts, private metadata and host/user key isolation | metadata_is_private_versioned_and_never_contains_credentials, providers_hosts_and_identities_have_distinct_keys, hosts_tokens_and_saved_identities_are_validated_before_requests |
+| reconnects only the same identity; checks keep accounts on auth/network errors | validates_then_connects_reconnects_and_removes_only_application_secrets, reconnect_refuses_wrong_identity_and_preserves_saved_credentials_on_auth_or_network_failure |
+| denied vault reads, save failures and failed rollback | denied_vault_and_metadata_failures_preserve_or_explicitly_report_rollback, invalid_metadata_and_cancelled_requests_cannot_write_a_credential |
+| OAuth credential format and persist refresh before later errors | oauth_credentials_round_trip_without_debugging_secrets, oauth_refresh_is_persisted_before_a_later_identity_failure_and_expiry_is_recoverable |
+| public CLI discovery, pinned identity, rotation and local-only disconnect | discovers_public_cli_identities_without_exposing_credentials, cli_credentials_stay_with_gh_across_rotation_and_removal |
+| device authorization, cancellation and forged loopback callbacks | device_flow_exposes_only_the_user_code_and_cancels_without_saving, gitlab_pkce_binds_loopback_and_exchanges_only_a_matching_state, callback_rejects_forgery_duplicates_wrong_origin_and_method |
+| masked token, explicit connect and confirmed removal | password_masks_native_queries_blocks_copy_cut_and_undo_and_erases_on_take, account_form_requires_explicit_connect_clears_secrets_and_cancels_removal |
+| background secret clearing and preserved workspace drafts | changing_method_hiding_or_cancelling_never_retains_a_token, accounts_navigation_keeps_tabs_drafts_selections_filters_and_viewports |
+| equal split panels and reduced motion | account_editor_matches_split_geometry_and_motion_stops_when_settled |
+
+The account controller is window-owned; switching repositories does not replace
+repository entities or replay a Git operation. Network/CLI, file and macOS vault
+work run off the render thread. Windows/Linux delegate storage and scheduling to
+GPUI's native Credential Manager/Secret Service adapters. Device sign-in uses a dedicated cancellable worker rather
+than occupying GPUI's read pool while waiting. Setup and confirmation transitions
+use gpui-ce-motion at 160ms; reduced motion snaps and settled views stop scheduling
+animation frames. The original provider/method glyphs and empty-account artwork
+are retained under the existing Phosphor glyph license.
+
+Metadata contains no credential-bearing types. Secret wrappers redact Debug and
+zero transient owned buffers on drop; the password control renders only masks,
+withholds IME reconversion text and accessibility values, disables copy/cut/undo,
+and clears on submit/cancel/method changes or hiding. Original application
+credentials are never imported. The vault has no plaintext fallback. The macOS
+adapter deliberately distinguishes denied/cancelled Keychain reads from absent
+items; GPUI's generic read maps cancellation to absence, so it is not used on macOS.
+
+A process-wide asynchronous mutation gate and opaque metadata revisions reject
+stale connection/removal reviews, including same-identity reconnects. The OS vault
+and metadata file are separate stores: save failure restores the prior secret,
+with explicit repair guidance if rollback also fails. They are not a crash-atomic
+or cross-process transaction. Refresh rotation is persisted before later provider
+failures. Removal never revokes a provider token or changes Git/gh credentials.
+The source quirk that a switch to CLI leaves an older app-vault entry untouched
+is preserved; removal of that CLI connection remains metadata-only.
+
+Scope: GitHub/GitLab account lifecycle, browser/token/CLI methods, secure storage,
+connection checks and reconnect recovery. Hosted repository browsing, account-
+authenticated Git operations, publishing destinations and author suggestions are
+separate ports, as are unrelated Settings pages. Git transport credentials remain
+separate. The Rust namespace is intentionally isolated from the original app.
+OAuth lifetimes are bounded to a year and metadata/token sizes are bounded; exotic
+provider responses beyond those bounds are rejected with sanitized errors.
+Rust crates are unpublished, so this feature needs no changeset or version bump.
+
+Protocol references: [GitHub device authorization](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow) and [GitLab public-client PKCE and refresh](https://docs.gitlab.com/api/oauth2/).
+
+The matching 1280×820 captures use the same synthetic tester/GitHub identity in
+the original renderer and the live Rust preview. Browser/token setup, reconnect
+and the 340×146 removal confirmation were compared. This corrected setup-header
+spacing, muted action icons, source Settings glyphs and two-column CLI choices.
+Rust retains its existing native focus rings and danger palette; only implemented
+Settings destinations are present. No GUI sign-in, Check, Save or Remove was
+accepted, and the original app's accounts and credentials were left untouched.
+
+Live accessibility exposed duplicate native IDs in repeated setup-value/field
+helpers. Explicit stable root IDs fixed the Add account crash; the corrected
+browser and GitLab advanced forms were then opened with native accessibility
+active. Deterministic layout tests cover distinct helper bounds but do not
+initialize the macOS accessibility adapter. The separately named Accounts Preview
+uses private metadata/session fixtures under /private/tmp/onegit-accounts-qa;
+a process sample identified macOS file-open blocking on the earlier Documents
+fixture, so that test fixture was moved without changing production storage.
+
+Validation: all 748 Rust workspace all-target/all-feature tests passed with no
+ignored tests, and all 21 account/navigation regressions passed again after the
+final form corrections. The seven original account behavior suites passed 76
+tests; the isolated reference-capture test also passed and was removed afterward.
+Strict Clippy, rustfmt, workspace/Windows/Linux Git spacing, warning-denied
+rustdoc and all 12 doctests pass. A temporary macOS Keychain entry was created,
+read, rotated and deleted successfully; no personal credential was read or
+modified. OAuth/provider success, expiry, cancellation and failure coverage uses
+injected synthetic providers/vaults, including a real isolated loopback listener.
+Live provider sign-in, native Windows/Linux account storage and CI were not run.
+
+The final token, GitLab Advanced and reconnect native screens were compared
+again after correcting the primary Connect action and the four-pixel header
+spacing. The preview remains isolated from the user's application session and
+account store. Production Git transport still uses its existing system
+credentials; this feature does not select a hosting account for Git operations.
+
+The final signed Accounts Preview and debug executable share UUID
+7E48E4EE-81F1-3D36-93CE-6C02BE5CD6CD. The last reconnect guard also passed the
+21 affected tests; the preview is left running with no sign-in or removal
+confirmation accepted.

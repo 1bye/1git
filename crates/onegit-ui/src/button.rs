@@ -25,6 +25,8 @@ pub enum ButtonTone {
     /// Ordinary action.
     #[default]
     Normal,
+    /// Low-emphasis action using the muted foreground.
+    Muted,
     /// Accent-colored neutral or ghost action.
     Accent,
     /// Destructive action.
@@ -214,7 +216,10 @@ impl RenderOnce for Button {
 
         let (background, hover, pressed, foreground): (Hsla, Hsla, Hsla, Hsla) =
             match (self.variant, self.tone) {
-                (ButtonVariant::Primary, ButtonTone::Normal | ButtonTone::Accent) => (
+                (
+                    ButtonVariant::Primary,
+                    ButtonTone::Normal | ButtonTone::Accent | ButtonTone::Muted,
+                ) => (
                     theme.primary,
                     theme.primary_hover,
                     theme.primary_pressed,
@@ -246,6 +251,8 @@ impl RenderOnce for Button {
                     theme.pressed,
                     if tone == ButtonTone::Danger {
                         theme.danger
+                    } else if tone == ButtonTone::Muted {
+                        theme.muted_ink
                     } else if tone == ButtonTone::Accent {
                         theme.accent
                     } else {
@@ -258,6 +265,8 @@ impl RenderOnce for Button {
                     theme.pressed,
                     if tone == ButtonTone::Danger {
                         theme.danger
+                    } else if tone == ButtonTone::Muted {
+                        theme.muted_ink
                     } else if tone == ButtonTone::Accent {
                         theme.accent
                     } else {

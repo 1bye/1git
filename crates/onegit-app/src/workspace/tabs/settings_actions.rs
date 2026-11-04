@@ -4,6 +4,28 @@ use crate::workspace::settings::Event;
 use std::collections::HashMap;
 
 impl Workspace {
+    pub(super) fn open_accounts(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) {
+        let source = self
+            .active
+            .and_then(|id| self.tabs.iter().find(|tab| tab.id == id))
+            .and_then(|tab| match &tab.workspace.read(cx).state {
+                RepositoryState::Ready(source) => Some(source.clone()),
+                _ => None,
+            });
+
+        self.branches
+            .update(cx, |picker, cx| picker.close(window, cx));
+        self.settings.update(cx, |settings, cx| {
+            settings.open(source, self.process.clone(), window, cx);
+            settings.open_accounts(window, cx);
+        });
+        cx.notify();
+    }
+
     pub(super) fn open_settings(
         &mut self,
         window: &mut gpui::Window,

@@ -16,6 +16,7 @@ use std::{
 };
 
 pub(super) enum HomeEvent {
+    Accounts,
     Open(PathBuf),
     Pick,
     Restored(Option<f32>),
@@ -28,7 +29,6 @@ enum Form {
     Create,
     Clone,
     Machines,
-    Accounts,
 }
 
 pub(super) struct Home {
@@ -157,8 +157,8 @@ impl Home {
         view::avatar(name, image, size)
     }
 
-    pub fn accounts(&mut self, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
-        self.show(Form::Accounts, window, cx);
+    pub fn accounts(&mut self, _window: &mut gpui::Window, cx: &mut gpui::Context<Self>) {
+        cx.emit(HomeEvent::Accounts);
     }
 
     pub fn load(&mut self, cx: &mut gpui::Context<Self>) {

@@ -16,6 +16,7 @@ pub(super) struct Layout {
     pub height: gpui::Pixels,
     width: gpui::Pixels,
     text: String,
+    secret_offsets: Option<Vec<usize>>,
     placeholder: bool,
     style: gpui::TextStyle,
 }
@@ -29,6 +30,8 @@ impl Layout {
         underline: bool,
         window: &mut gpui::Window,
     ) {
+        let range = self.display_index(range.start)..self.display_index(range.end);
+
         if range.is_empty() || self.placeholder {
             return;
         }
@@ -84,10 +87,27 @@ impl Layout {
         }
     }
 
+    fn display_index(&self, index: usize) -> usize {
+        self.secret_offsets.as_ref().map_or(index, |offsets| {
+            offsets
+                .partition_point(|i| *i < index)
+                .min(offsets.len() - 1)
+                * "*".len()
+        })
+    }
+
+    fn source_index(&self, index: usize) -> usize {
+        self.secret_offsets.as_ref().map_or(index, |offsets| {
+            offsets[(index / "*".len()).min(offsets.len() - 1)]
+        })
+    }
+
     pub fn position(&self, index: usize) -> gpui::Point<gpui::Pixels> {
         if self.placeholder {
             return gpui::point(px(0.), px(0.));
         }
+
+        let index = self.display_index(index);
 
         let paragraph = self
             .paragraphs
@@ -133,7 +153,7 @@ impl Layout {
             .closest_index_for_position(point, self.line_height)
             .unwrap_or_else(|i| i);
 
-        (p.start + index).min(self.text.len())
+        self.source_index((p.start + index).min(self.text.len()))
     }
 }
 
@@ -201,8 +221,20 @@ impl gpui::Element for EditorText {
 
             let placeholder = state.buffer.text.is_empty();
 
+            let secret_offsets = (state.config.kind == Kind::Password && !placeholder).then(|| {
+                state
+                    .buffer
+                    .text
+                    .char_indices()
+                    .map(|(i, _)| i)
+                    .chain(std::iter::once(state.buffer.text.len()))
+                    .collect::<Vec<_>>()
+            });
+
             let display = if placeholder {
                 state.config.placeholder.to_string()
+            } else if let Some(offsets) = &secret_offsets {
+                "*".repeat(offsets.len() - 1)
             } else {
                 state.buffer.text.clone()
             };
@@ -212,6 +244,7 @@ impl gpui::Element for EditorText {
                 .as_ref()
                 .filter(|layout| {
                     layout.text == display
+                        && layout.secret_offsets == secret_offsets
                         && layout.placeholder == placeholder
                         && layout.bounds == bounds
                         && layout.style == style
@@ -274,6 +307,7 @@ impl gpui::Element for EditorText {
                     height: y.max(line_height),
                     width,
                     text: display,
+                    secret_offsets,
                     placeholder,
                     style,
                 })

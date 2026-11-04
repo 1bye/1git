@@ -329,6 +329,7 @@ impl RepositoryWorkspace {
                 &home,
                 window,
                 |this: &mut Self, _, event, window, cx| match event {
+                    home::HomeEvent::Accounts => cx.emit(tabs::Request::Accounts),
                     home::HomeEvent::Open(path) => this.open(path.clone(), None, cx),
                     home::HomeEvent::Pick => this.choose_repository(cx),
                     home::HomeEvent::Restored(width) => {

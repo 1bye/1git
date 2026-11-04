@@ -571,7 +571,7 @@ impl Menu {
                 MenuEntry::Separator=>gpui::div().id(("separator",index)).role(accesskit::Role::Splitter).h(px(1.)).my(px(4.)).mx(px(4.)).flex_shrink_0().bg(theme.line).into_any_element(),
                 MenuEntry::Item(item)=>{
                     let selected=item.selected;let disabled=item.disabled;let id=item.id.clone();let hover_id=id.clone();let active=self.active.as_ref()==Some(&id);
-                    let choose=cx.entity();let hover=cx.entity();let ink=match item.tone {ButtonTone::Danger=>theme.danger,ButtonTone::Accent=>theme.accent,ButtonTone::Normal=>theme.ink};
+                    let choose=cx.entity();let hover=cx.entity();let ink=match item.tone {ButtonTone::Danger=>theme.danger,ButtonTone::Accent=>theme.accent,ButtonTone::Muted=>theme.muted_ink,ButtonTone::Normal=>theme.ink};
 
                     let row=rake::view! {
                         <div id={id.clone()} role={if selected.is_some(){accesskit::Role::MenuItemRadio}else{accesskit::Role::MenuItem}} aria-label={item.label.clone()}

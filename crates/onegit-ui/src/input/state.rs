@@ -8,6 +8,7 @@ use super::{
 use crate::{Icon, IconButton, IconName, IconSize, TextRole, Theme};
 use rake::gpui::{self, accesskit, prelude::*, px};
 use std::{ops::Range, rc::Rc, time::Duration};
+use zeroize::Zeroizing;
 
 /// Events emitted by a retained input entity. Subscribe once from the owning view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -145,7 +146,28 @@ impl InputState {
         }
 
         self.buffer = Buffer::new(value);
+
+        if self.config.kind == Kind::Password {
+            self.buffer.sensitive();
+        }
+
         self.edited(cx);
+    }
+
+    /// Move a secret out of the field and clear its selection, history and layout.
+    /// The caller owns the returned value and must keep it out of logs and persistence.
+    /// Native editing is suspended until the field is rendered again.
+    pub fn take_secret(&mut self, cx: &mut gpui::Context<Self>) -> String {
+        let value = self.buffer.take_secret();
+
+        self.layout = None;
+        self.config.availability = InputAvailability::Disabled;
+        self.blink = gpui::Task::ready(());
+        self.caret_visible = false;
+        self.dragging = false;
+        self.edited(cx);
+
+        value
     }
 
     /// Select a UTF-8 byte range; offsets are clamped to valid character boundaries.
@@ -189,6 +211,11 @@ impl InputState {
         }
 
         self.config = config;
+
+        if self.config.kind == Kind::Password {
+            self.buffer.sensitive();
+        }
+
         self.configured = true;
         self.theme = theme;
         self.layout = None;
@@ -212,6 +239,11 @@ impl InputState {
 
         if normalized != self.buffer.text {
             self.buffer = Buffer::new(normalized);
+
+            if self.config.kind == Kind::Password {
+                self.buffer.sensitive();
+            }
+
             cx.emit(InputEvent::Changed);
         }
 
@@ -272,12 +304,12 @@ impl InputState {
             return;
         }
 
-        let before = self.buffer.text.clone();
+        let before = Zeroizing::new(self.buffer.text.clone());
         let text = self.normalize(text);
 
         self.buffer.replace(range, &text, composing);
 
-        if before != self.buffer.text {
+        if before.as_str() != self.buffer.text {
             self.edited(cx);
         } else {
             self.moved(cx);
@@ -308,7 +340,7 @@ impl InputState {
             return;
         }
 
-        let before = self.buffer.text.clone();
+        let before = Zeroizing::new(self.buffer.text.clone());
         let extend = mods.shift;
 
         let word = if cfg!(target_os = "macos") {
@@ -327,7 +359,7 @@ impl InputState {
                 true
             }
             "c" | "x" if primary => {
-                if !selection.is_empty() {
+                if self.config.kind != Kind::Password && !selection.is_empty() {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(
                         self.buffer.text[selection.clone()].to_owned(),
                     ));
@@ -485,7 +517,7 @@ impl InputState {
             window.prevent_default();
             cx.stop_propagation();
 
-            if before != self.buffer.text {
+            if before.as_str() != self.buffer.text {
                 self.edited(cx);
             } else {
                 self.moved(cx);
@@ -649,7 +681,9 @@ impl Render for InputState {
             .key_context("OnegitInput")
             .track_focus(&self.focus)
             .tab_index(0)
-            .role(if search {
+            .role(if self.config.kind == Kind::Password {
+                accesskit::Role::PasswordInput
+            } else if search {
                 accesskit::Role::SearchInput
             } else if multiline {
                 accesskit::Role::MultilineTextInput
@@ -658,7 +692,11 @@ impl Render for InputState {
             })
             .aria_label(self.config.label.clone())
             .aria_description(description)
-            .aria_value(self.buffer.text.clone())
+            .aria_value(if self.config.kind == Kind::Password {
+                "*".repeat(self.buffer.text.chars().count())
+            } else {
+                self.buffer.text.clone()
+            })
             .aria_placeholder(self.config.placeholder.clone())
             .a11y_synthetic_children(move |builder| {
                 let node = builder.parent_node();

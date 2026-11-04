@@ -280,7 +280,7 @@ impl RepositoryWorkspace {
                         on_select={Some(Box::new(cx.listener(|this,id:&gpui::ElementId,window,cx| {if *id==gpui::ElementId::from("git-settings"){cx.emit(super::tabs::Request::Settings);return;}let theme=if *id==gpui::ElementId::from("light"){Theme::light()}else{Theme::dark()};let appearance=theme.appearance;theme.install(cx);this.picker_error=super::native::appearance(window,appearance).err();cx.notify();})))}
                         {..DropdownMenu::new("workspace-appearance","Workspace appearance")}/>
                 </Tooltip>
-                <Tooltip {..Tooltip::new("account-tip","Accounts")}><IconButton size={ControlSize::Rail} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.home_visible=true;this.home.update(cx,|home,cx|home.accounts(window,cx));cx.notify();})))} {..IconButton::new("rail-account",IconName::Account,"Accounts")}/></Tooltip>
+                <Tooltip {..Tooltip::new("account-tip","Accounts")}><IconButton size={ControlSize::Rail} on_press={Some(Box::new(cx.listener(|this,_,window,cx|{this.home.update(cx,|home,cx|home.accounts(window,cx));cx.notify();})))} {..IconButton::new("rail-account",IconName::Account,"Accounts")}/></Tooltip>
             </nav>
         }.into_any_element()
     }

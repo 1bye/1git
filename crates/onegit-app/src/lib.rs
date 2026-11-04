@@ -1,5 +1,6 @@
 //! Native 1git repository review, staging and commits on Rake with background Git operations.
 
+mod accounts;
 mod routes;
 mod workspace;
 

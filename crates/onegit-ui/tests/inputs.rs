@@ -1,7 +1,7 @@
 //! Native input dispatch and composition checks on GPUI's deterministic platform.
 use onegit_ui::{
-    Button, InputAvailability, InputEvent, InputState, InputValidation, InputVariant, SearchField,
-    TextArea, TextInput, Theme,
+    Button, InputAvailability, InputEvent, InputState, InputValidation, InputVariant,
+    PasswordInput, SearchField, TextArea, TextInput, Theme,
 };
 
 use rake::gpui::{self, EntityInputHandler, Focusable, InputEvent as NativeEvent, prelude::*};
@@ -9,6 +9,7 @@ use rake::gpui::{self, EntityInputHandler, Focusable, InputEvent as NativeEvent,
 rake::theme!(Theme);
 
 struct Fields {
+    secret: bool,
     focus: gpui::FocusHandle,
     text: gpui::Entity<InputState>,
     search: gpui::Entity<InputState>,
@@ -24,9 +25,9 @@ impl Render for Fields {
     fn render(&mut self, _: &mut gpui::Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
         rake::view! {
             <div class="size-full flex flex-col gap-2" focus={&self.focus} tab-navigation={true}>
-                <TextInput variant={self.variant} availability={self.availability} placeholder={"Branch name".into()}
+                if self.secret {<PasswordInput {..PasswordInput::new("text",&self.text,"Access token")}/>}else{<TextInput variant={self.variant} availability={self.availability} placeholder={"Branch name".into()}
                     validation={InputValidation::Invalid("Example validation".into())}
-                    {..TextInput::new("text",&self.text,"Branch")}/>
+                    {..TextInput::new("text",&self.text,"Branch")}/>}
                 <SearchField {..SearchField::new("search",&self.search,"Files")}/>
                 <TextArea rows={3} {..TextArea::new("area",&self.area,"Message")}/>
                 <Button {..Button::new("after","After fields")}/>
@@ -63,6 +64,7 @@ fn setup() -> (gpui::TestAppContext, gpui::WindowHandle<Fields>) {
             .collect();
 
         Fields {
+            secret: false,
             focus,
             text,
             search,
@@ -447,4 +449,57 @@ fn plain_fields_keep_native_editing_history_and_selection_across_style_changes()
     );
     key(&mut cx, view, "enter");
     assert_eq!(view.read_with(&cx, |view, _| view.submitted).unwrap(), 1);
+}
+
+#[test]
+fn password_masks_native_queries_blocks_copy_cut_and_undo_and_erases_on_take() {
+    let (mut cx, view) = setup();
+
+    view.update(&mut cx, |v, _, cx| {
+        v.secret = true;
+        cx.notify();
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    key(&mut cx, view, "tab");
+    native_insert(&mut cx, view, "fixture-秘密");
+    cx.update(|cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string("unchanged".into())));
+    key(&mut cx, view, &primary("a"));
+    key(&mut cx, view, &primary("c"));
+    key(&mut cx, view, &primary("x"));
+    assert_eq!(
+        cx.update(|cx| cx.read_from_clipboard().and_then(|v| v.text()))
+            .unwrap(),
+        "unchanged"
+    );
+    assert_eq!(
+        view.read_with(&cx, |v, cx| v.text.read(cx).text().to_string())
+            .unwrap(),
+        "fixture-秘密"
+    );
+    key(&mut cx, view, &primary("z"));
+    view.update(&mut cx, |v, w, cx| {
+        v.text.update(cx, |input, cx| {
+            assert_eq!(input.text(), "fixture-秘密");
+            let mut adjusted = None;
+
+            assert_eq!(input.text_for_range(0..100, &mut adjusted, w, cx), None);
+            let value = zeroize::Zeroizing::new(input.take_secret(cx));
+
+            assert_eq!(&*value, "fixture-秘密");
+            assert!(input.text().is_empty());
+            input.replace_text_in_range(None, "hidden input", w, cx);
+            assert!(
+                input.text().is_empty(),
+                "a hidden secret control cannot accept more input"
+            );
+        });
+    })
+    .unwrap();
+    draw(&mut cx, view);
+    key(&mut cx, view, &primary("z"));
+    assert!(
+        view.read_with(&cx, |v, cx| v.text.read(cx).text().is_empty())
+            .unwrap()
+    );
 }

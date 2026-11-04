@@ -1,6 +1,7 @@
 //! Unicode-safe editing and bounded undo history, independent of the native window.
 use std::ops::Range;
 use unicode_segmentation::UnicodeSegmentation;
+use zeroize::{Zeroize, Zeroizing};
 
 const HISTORY_LIMIT: usize = 100;
 
@@ -13,6 +14,7 @@ struct Snapshot {
 
 #[derive(Debug)]
 pub(super) struct Buffer {
+    sensitive: bool,
     pub text: String,
     pub anchor: usize,
     pub head: usize,
@@ -27,6 +29,7 @@ impl Buffer {
         let head = text.len();
 
         Self {
+            sensitive: false,
             text,
             anchor: head,
             head,
@@ -35,6 +38,32 @@ impl Buffer {
             redo: Vec::new(),
             composition: None,
         }
+    }
+
+    pub fn sensitive(&mut self) {
+        self.sensitive = true;
+
+        for snapshot in self
+            .undo
+            .iter_mut()
+            .chain(self.redo.iter_mut())
+            .chain(self.composition.iter_mut())
+        {
+            snapshot.text.zeroize();
+        }
+
+        self.undo.clear();
+        self.redo.clear();
+        self.composition = None;
+    }
+
+    pub fn take_secret(&mut self) -> String {
+        self.sensitive();
+        self.anchor = 0;
+        self.head = 0;
+        self.marked = None;
+
+        std::mem::take(&mut self.text)
     }
 
     fn snapshot(&self) -> Snapshot {
@@ -63,6 +92,23 @@ impl Buffer {
     }
 
     pub fn replace(&mut self, range: Range<usize>, text: &str, composing: bool) {
+        if self.sensitive {
+            let range = floor_boundary(&self.text, range.start)
+                ..ceil_boundary(&self.text, range.end.max(range.start));
+
+            let previous = Zeroizing::new(std::mem::take(&mut self.text));
+
+            self.text = String::with_capacity(previous.len() - range.len() + text.len());
+            self.text.push_str(&previous[..range.start]);
+            self.text.push_str(text);
+            self.text.push_str(&previous[range.end..]);
+            self.head = range.start + text.len();
+            self.anchor = self.head;
+            self.marked = composing.then_some(range.start..self.head);
+
+            return;
+        }
+
         let before = self.snapshot();
 
         if composing && self.composition.is_none() {
@@ -217,6 +263,14 @@ pub(super) fn utf16_range(text: &str, range: Range<usize>) -> Range<usize> {
     };
 
     start..end
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        if self.sensitive {
+            self.text.zeroize();
+        }
+    }
 }
 
 #[cfg(test)]

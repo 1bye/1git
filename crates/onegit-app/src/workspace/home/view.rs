@@ -372,7 +372,6 @@ impl Render for Home {
             Form::Create => "Create repository",
             Form::Clone => "Clone repository",
             Form::Machines => "Remote machines",
-            Form::Accounts => "Accounts",
         };
 
         let footer=rake::view!{
@@ -391,7 +390,7 @@ impl Render for Home {
                             <TextInput availability={if busy{InputAvailability::Disabled}else{InputAvailability::Enabled}} placeholder={"/absolute/path/to/new-repository".into()} {..TextInput::new("setup-destination",&self.destination,"Destination")}/>
                             if let Some(error)=&self.form_error {<Text tone={TextTone::Danger} role={TextRole::Small} {..Text::new("setup-error",error.clone())}/>}
                         </div>
-                    }else{<Text tone={TextTone::Muted} {..Text::new("unavailable",if form==Form::Machines{"SSH machine connections are not ported to Rust yet. Saved machine names are shown for reference; use This Mac to browse local repositories."}else{"Hosting account connections are not ported to Rust yet. Git continues to use your configured credential helpers."})}/>}
+                    }else{<Text tone={TextTone::Muted} {..Text::new("unavailable","SSH machine connections are not ported to Rust yet. Saved machine names are shown for reference; use This Mac to browse local repositories.")}/>}
                 </Dialog>
             </DialogHost>
         }

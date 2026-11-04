@@ -49,6 +49,7 @@ pub enum InputVariant {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Text,
+    Password,
     Search,
     Multiline,
 }
@@ -170,6 +171,12 @@ field!(
     TextInput,
     Text,
     "A themed single-line native text editor with application-owned editing state."
+);
+
+field!(
+    PasswordInput,
+    Password,
+    "A masked native secret field without copy, cut, undo history or exposed accessibility values."
 );
 
 field!(

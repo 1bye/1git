@@ -64,8 +64,8 @@ pub use dropdown_menu::{
 pub use icon::{Icon, IconName, IconSize};
 
 pub use input::{
-    InputAvailability, InputEvent, InputState, InputValidation, InputVariant, SearchField,
-    TextArea, TextInput,
+    InputAvailability, InputEvent, InputState, InputValidation, InputVariant, PasswordInput,
+    SearchField, TextArea, TextInput,
 };
 
 pub use list_row::{ListRow, ListRowVariant, RowSelection};

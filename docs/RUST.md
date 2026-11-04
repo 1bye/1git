@@ -24,8 +24,8 @@ avatars without modifying either. Rust subsequently saves its own library at
 `~/Library/Application Support/1git-rust/home.json` on macOS. Only visible rows
 request background status, with at most four reads in flight. Star/forget actions
 change library metadata, never repository files. Create/clone require a new absolute
-destination and refuse existing folders. Remote machines and hosting accounts are
-explicitly marked as not yet ported; no credentials are imported.
+destination and refuse existing folders. Remote machines remain outside this local port. Hosting accounts have their own
+Rust metadata and OS-vault namespace; no credentials are imported from the original app.
 
 Each repository tab retains its summary/description draft, selected Changes file
 and side, History commit/file, filters, diff mode, viewport and pane sizes while
@@ -591,3 +591,44 @@ Rust refuses the stale write. Cancel, reload and review the current settings.
 A partial-save error requires rereading; the app does not retry it automatically.
 Repository drafts, selections and view state survive saves and related worktree
 refreshes. Switching tabs retains an unfinished settings editor's original context.
+
+
+## Hosting accounts and authentication recovery
+
+Open the Accounts rail button or Settings → Accounts. Add account supports GitHub
+and GitLab, including HTTPS Enterprise/self-managed hosts in Advanced. Browser
+sign-in uses a registered public client ID: GitHub Device Flow or GitLab PKCE
+with an exact registered IPv4 loopback callback. Setup values can be copied;
+repository permissions require an explicit opt-in. The app never needs a client
+secret. Access tokens use a masked field with copy/cut/undo disabled; submit,
+cancel, method changes and hiding settings clear that field.
+
+GitHub CLI connections discover public identities and pin the chosen host/user.
+Credentials remain managed by gh and are resolved afresh for checks. Connecting
+never switches gh's active account, logs it out or imports its token into the
+app's vault. CLI discovery runs only when that method is selected.
+
+Check connection verifies the saved provider identity and reports expired,
+missing or changed credentials with a Reconnect action. A failed check or network
+outage keeps the saved account. Reconnect must verify the same provider/host/user
+ID before replacing credentials. Expiring OAuth credentials refresh when checked;
+rotated credentials are saved before a subsequent provider error. No Git operation
+is retried or replayed by reconnecting.
+
+Remove account confirms the exact account and removes only this app's connection
+and owned credential. CLI connections leave gh signed in; provider accounts,
+repositories and Git credential helpers remain unchanged. Metadata save failure
+restores the prior vault value; failed rollback is reported as a repairable error.
+Stale metadata is rejected instead of overwriting a newer connection.
+
+Public account metadata lives beside the Rust workspace session in accounts.json
+(ONEGIT_ACCOUNTS_PATH can select an absolute isolated path). Tokens and OAuth
+refresh data live only in the OS credential store: a dedicated generic-password
+service in macOS Keychain, or GPUI's native Windows/Linux vault. Denied/unavailable
+vault access never falls back to a file or environment variable. The original
+app's metadata and credentials are not read or migrated automatically.
+
+This slice implements account lifecycle and recovery. Hosted repository browsing,
+account-backed clone/publish, author suggestions and account-selected Git transport
+remain separate ports. Existing Git transport continues using configured system
+credentials. Accounts settings preserves all retained repository tabs and drafts.

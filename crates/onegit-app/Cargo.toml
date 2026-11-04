@@ -19,6 +19,12 @@ serde_json.workspace = true
 serde.workspace = true
 tempfile.workspace = true
 sha2.workspace = true
+url.workspace = true
+base64.workspace = true
+zeroize.workspace = true
+rand = "=0.9.5"
+async-lock = "=3.4.2"
+ureq = {version = "=3.5.0", default-features = false, features = ["rustls"]}
 notify = "=8.2.0"
 async-channel = "=2.5.0"
 chrono = {workspace = true, features = ["clock"]}
@@ -37,3 +43,4 @@ identifier = "dev.1git.rust"
 objc2 = "=0.6.5"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSAppearance", "NSGraphics", "NSResponder", "NSView", "NSVisualEffectView", "NSWindow"] }
 raw-window-handle = "=0.6.2"
+security-framework = "=3.7.0"

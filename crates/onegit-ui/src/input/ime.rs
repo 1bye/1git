@@ -1,6 +1,6 @@
 //! UTF-16 platform ranges are translated at the native input boundary.
 use super::{
-    InputAvailability, InputState,
+    InputAvailability, InputState, Kind,
     buffer::{to_utf16, utf16_range},
 };
 
@@ -15,6 +15,10 @@ impl EntityInputHandler for InputState {
         _: &mut gpui::Window,
         _: &mut gpui::Context<Self>,
     ) -> Option<String> {
+        if self.config.kind == Kind::Password {
+            return None;
+        }
+
         let range = utf16_range(&self.buffer.text, range);
 
         *adjusted =

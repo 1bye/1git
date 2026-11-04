@@ -1,4 +1,6 @@
 //! Window-owned tabs retain independent workspaces; filesystem reads are shared by canonical root.
+#[cfg(all(test, feature = "test-support"))]
+mod accounts_tests;
 mod branch_actions;
 #[cfg(all(test, feature = "test-support"))]
 mod branch_tests;
@@ -52,6 +54,7 @@ pub(super) enum Request {
     Pick,
     Fetch,
     Settings,
+    Accounts,
     Activate(u64),
     Close(u64),
     Move(u64, u64),
@@ -193,6 +196,7 @@ impl Workspace {
                 &home,
                 window,
                 |this: &mut Self, _, event, window, cx| match event {
+                    home::HomeEvent::Accounts => this.open_accounts(window, cx),
                     home::HomeEvent::Open(path) => this.open(path.clone(), window, cx),
                     home::HomeEvent::Pick => this.choose_repository(cx),
                     home::HomeEvent::Restored(width) => {
@@ -293,6 +297,7 @@ impl Workspace {
             Request::Pick => self.choose_repository(cx),
             Request::Fetch => self.fetch_shortcut(window, cx),
             Request::Settings => self.open_settings(window, cx),
+            Request::Accounts => self.open_accounts(window, cx),
             Request::Branches(origin) => self.open_branches(origin, window, cx),
             Request::Activate(id) => {
                 self.activate(id, window, cx);
